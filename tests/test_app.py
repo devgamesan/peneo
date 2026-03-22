@@ -86,7 +86,7 @@ async def test_app_keyboard_input_updates_selection_and_cursor() -> None:
     async with app.run_test() as pilot:
         await pilot.press("space")
 
-        status_bar = app.query_one("#status-bar", StatusBar)
+        status_bar = await _wait_for_status_bar(app)
 
         assert app.app_state.current_pane.selected_paths == {
             "/home/tadashi/develop/plain/docs"
@@ -105,7 +105,7 @@ async def test_app_keyboard_input_handles_filter_mode() -> None:
     async with app.run_test() as pilot:
         await pilot.press("ctrl+f", "r", "e", "a", "d", "enter")
 
-        status_bar = app.query_one("#status-bar", StatusBar)
+        status_bar = await _wait_for_status_bar(app)
 
         assert app.app_state.ui_mode == "BROWSING"
         assert app.app_state.filter.query == "read"
@@ -124,7 +124,7 @@ async def test_app_keyboard_input_shows_busy_warning() -> None:
         app._app_state = reduce_app_state(app.app_state, SetUiMode("BUSY")).state
         await pilot.press("x")
 
-        status_bar = app.query_one("#status-bar", StatusBar)
+        status_bar = await _wait_for_status_bar(app)
 
         assert str(status_bar.renderable) == (
             "/home/tadashi/develop/plain | 5 items | 0 selected | "
@@ -155,7 +155,7 @@ async def test_app_background_snapshot_keeps_keyboard_responsive() -> None:
 
         await asyncio.sleep(0.25)
 
-        status_bar = app.query_one("#status-bar", StatusBar)
+        status_bar = await _wait_for_status_bar(app)
 
         assert app.app_state.current_path == "/tmp/loaded"
         assert str(status_bar.renderable) == (
@@ -175,7 +175,7 @@ async def test_app_background_snapshot_failure_shows_error() -> None:
         await app.dispatch_actions((RequestBrowserSnapshot("/tmp/fail"),))
         await asyncio.sleep(0.05)
 
-        status_bar = app.query_one("#status-bar", StatusBar)
+        status_bar = await _wait_for_status_bar(app)
 
         assert app.app_state.current_path == "/home/tadashi/develop/plain"
         assert str(status_bar.renderable) == (
