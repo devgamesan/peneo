@@ -26,7 +26,6 @@ class PaneEntry:
 class StatusBarState:
     """Summary values displayed in the bottom status bar."""
 
-    path: str
     item_count: int
     selected_count: int
     sort_label: str
@@ -39,6 +38,7 @@ class StatusBarState:
 class ThreePaneShellData:
     """Complete display state for the static shell UI."""
 
+    current_path: str
     parent_entries: tuple[PaneEntry, ...]
     current_entries: tuple[PaneEntry, ...]
     child_entries: tuple[PaneEntry, ...]
@@ -57,6 +57,7 @@ def build_dummy_shell_data() -> ThreePaneShellData:
     )
 
     return ThreePaneShellData(
+        current_path="/home/tadashi/develop/plain",
         parent_entries=(
             PaneEntry("develop", "dir"),
             PaneEntry("downloads", "dir"),
@@ -70,7 +71,6 @@ def build_dummy_shell_data() -> ThreePaneShellData:
         ),
         current_cursor_index=0,
         status=StatusBarState(
-            path="/home/tadashi/develop/plain",
             item_count=len(current_entries),
             selected_count=0,
             sort_label="name asc",

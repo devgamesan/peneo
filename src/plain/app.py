@@ -30,7 +30,7 @@ from plain.state import (
     reduce_app_state,
     select_shell_data,
 )
-from plain.ui import MainPane, SidePane, StatusBar
+from plain.ui import CurrentPathBar, MainPane, SidePane, StatusBar
 
 
 class PlainApp(App[None]):
@@ -94,9 +94,19 @@ class PlainApp(App[None]):
         padding: 0 1;
     }
 
+    #current-path-bar,
     #status-bar {
         height: 1;
         padding: 0 1;
+    }
+
+    #current-path-bar {
+        background: $boost;
+        color: $text;
+        text-style: bold;
+    }
+
+    #status-bar {
         background: $surface;
         color: $text;
     }
@@ -122,6 +132,7 @@ class PlainApp(App[None]):
 
     def compose(self) -> ComposeResult:
         shell = select_shell_data(self._app_state)
+        yield CurrentPathBar(shell.current_path, id="current-path-bar")
         yield self._build_body(shell)
         yield StatusBar(shell.status, id="status-bar")
 
@@ -309,11 +320,16 @@ class PlainApp(App[None]):
     async def _refresh_shell(self) -> None:
         shell = select_shell_data(self._app_state)
         try:
+            current_path_bar = self.query_one("#current-path-bar", CurrentPathBar)
             parent_pane = self.query_one("#parent-pane", SidePane)
             current_pane = self.query_one("#current-pane", MainPane)
             child_pane = self.query_one("#child-pane", SidePane)
             status_bar = self.query_one("#status-bar", StatusBar)
         except NoMatches:
+            try:
+                await self.query_one("#current-path-bar").remove()
+            except NoMatches:
+                pass
             try:
                 await self.query_one("#body").remove()
             except NoMatches:
@@ -322,10 +338,12 @@ class PlainApp(App[None]):
                 await self.query_one("#status-bar").remove()
             except NoMatches:
                 pass
+            await self.mount(CurrentPathBar(shell.current_path, id="current-path-bar"))
             await self.mount(self._build_body(shell))
             await self.mount(StatusBar(shell.status, id="status-bar"))
             return
 
+        current_path_bar.set_path(shell.current_path)
         await parent_pane.set_entries(shell.parent_entries)
         current_pane.set_entries(shell.current_entries, shell.current_cursor_index)
         await child_pane.set_entries(shell.child_entries)

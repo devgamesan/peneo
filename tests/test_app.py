@@ -8,7 +8,7 @@ from textual.widgets import DataTable, Label, ListView
 from plain import create_app
 from plain.services import FakeBrowserSnapshotLoader
 from plain.state import BrowserSnapshot, DirectoryEntryState, PaneState
-from plain.ui import StatusBar
+from plain.ui import CurrentPathBar, StatusBar
 
 
 def _build_snapshot(
@@ -48,6 +48,17 @@ async def _wait_for_status_bar(app, timeout: float = 0.5) -> StatusBar:
     while True:
         try:
             return app.query_one("#status-bar", StatusBar)
+        except NoMatches:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise
+            await asyncio.sleep(0.01)
+
+
+async def _wait_for_current_path_bar(app, timeout: float = 0.5) -> CurrentPathBar:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        try:
+            return app.query_one("#current-path-bar", CurrentPathBar)
         except NoMatches:
             if asyncio.get_running_loop().time() >= deadline:
                 raise
@@ -127,11 +138,11 @@ async def test_app_uses_cwd_for_default_initial_path(tmp_path, monkeypatch) -> N
     async with app.run_test():
         await _wait_for_snapshot_loaded(app, str(tmp_path))
         await _wait_for_row_count(app, 2)
+        current_path_bar = await _wait_for_current_path_bar(app)
         status_bar = await _wait_for_status_bar(app)
 
-        assert str(status_bar.renderable) == (
-            f"{tmp_path} | 2 items | 0 selected | sort: name asc | filter: none"
-        )
+        assert str(current_path_bar.renderable) == f"Current Path: {tmp_path}"
+        assert str(status_bar.renderable) == "2 items | 0 selected | sort: name asc | filter: none"
 
 
 @pytest.mark.asyncio
@@ -166,6 +177,7 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
         parent_title = app.query_one("#parent-pane .pane-title", Label)
         current_title = app.query_one("#current-pane .pane-title", Label)
         child_title = app.query_one("#child-pane .pane-title", Label)
+        current_path_bar = await _wait_for_current_path_bar(app)
         status_bar = await _wait_for_status_bar(app)
         parent_entries = [str(item.query_one(Label).renderable) for item in parent_list.children]
         child_entries = [str(item.query_one(Label).renderable) for item in child_list.children]
@@ -178,9 +190,8 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
         assert headers == ["Type", "Name", "Size", "Modified"]
         assert current_table.row_count == 2
         assert child_entries == ["spec.md"]
-        assert str(status_bar.renderable) == (
-            f"{path} | 2 items | 0 selected | sort: name asc | filter: none"
-        )
+        assert str(current_path_bar.renderable) == f"Current Path: {path}"
+        assert str(status_bar.renderable) == "2 items | 0 selected | sort: name asc | filter: none"
 
 
 @pytest.mark.asyncio
@@ -243,14 +254,14 @@ async def test_app_keyboard_input_updates_selection_and_child_pane() -> None:
 
         child_list = app.query_one("#child-pane-list", ListView)
         child_names = [str(item.query_one(Label).renderable) for item in child_list.children]
+        current_path_bar = await _wait_for_current_path_bar(app)
         status_bar = await _wait_for_status_bar(app)
 
         assert app.app_state.current_pane.selected_paths == {f"{path}/docs"}
         assert app.app_state.current_pane.cursor_path == f"{path}/src"
         assert child_names == ["main.py"]
-        assert str(status_bar.renderable) == (
-            f"{path} | 3 items | 1 selected | sort: name asc | filter: none"
-        )
+        assert str(current_path_bar.renderable) == f"Current Path: {path}"
+        assert str(status_bar.renderable) == "3 items | 1 selected | sort: name asc | filter: none"
 
 
 @pytest.mark.asyncio
@@ -292,8 +303,12 @@ async def test_app_right_enters_directory_and_backspace_returns_to_parent() -> N
 
     async with app.run_test() as pilot:
         await _wait_for_snapshot_loaded(app, root)
+        current_path_bar = await _wait_for_current_path_bar(app)
+        assert str(current_path_bar.renderable) == f"Current Path: {root}"
+
         await pilot.press("right")
         await _wait_for_path(app, docs)
+        assert str(current_path_bar.renderable) == f"Current Path: {docs}"
 
         current_table = app.query_one("#current-pane-table", DataTable)
         assert app.app_state.current_path == docs
@@ -301,6 +316,7 @@ async def test_app_right_enters_directory_and_backspace_returns_to_parent() -> N
 
         await pilot.press("backspace")
         await _wait_for_path(app, root)
+        assert str(current_path_bar.renderable) == f"Current Path: {root}"
 
         assert app.app_state.current_path == root
         assert app.app_state.current_pane.cursor_path == docs
@@ -494,6 +510,7 @@ async def test_app_refresh_updates_widgets_in_place() -> None:
         await _wait_for_row_count(app, 2)
 
         body = app.query_one("#body")
+        current_path_bar = app.query_one("#current-path-bar", CurrentPathBar)
         status_bar = app.query_one("#status-bar", StatusBar)
         current_table = app.query_one("#current-pane-table", DataTable)
         child_list = app.query_one("#child-pane-list", ListView)
@@ -502,6 +519,7 @@ async def test_app_refresh_updates_widgets_in_place() -> None:
         await asyncio.sleep(0.05)
 
         assert app.query_one("#body") is body
+        assert app.query_one("#current-path-bar", CurrentPathBar) is current_path_bar
         assert app.query_one("#status-bar", StatusBar) is status_bar
         assert app.query_one("#current-pane-table", DataTable) is current_table
         assert app.query_one("#child-pane-list", ListView) is child_list
@@ -603,10 +621,12 @@ async def test_app_child_snapshot_failure_shows_error() -> None:
         await asyncio.sleep(0.05)
 
         child_list = app.query_one("#child-pane-list", ListView)
+        current_path_bar = await _wait_for_current_path_bar(app)
         status_bar = await _wait_for_status_bar(app)
 
         assert list(child_list.children) == []
+        assert str(current_path_bar.renderable) == f"Current Path: {path}"
         assert str(status_bar.renderable) == (
-            f"{path} | 2 items | 0 selected | sort: name asc | filter: none | "
+            "2 items | 0 selected | sort: name asc | filter: none | "
             "error: permission denied"
         )
