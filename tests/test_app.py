@@ -816,7 +816,9 @@ async def test_app_displays_browsing_help_bar() -> None:
         await asyncio.sleep(0.05)
         help_bar = app.query_one("#help-bar", HelpBar)
 
-        assert str(help_bar.renderable) == "Space select | y copy | x cut | p paste"
+        assert str(help_bar.renderable) == (
+            "Space select | y copy | x cut | p paste | F2 rename | ctrl+n file | ctrl+shift+n dir"
+        )
 
 
 @pytest.mark.asyncio

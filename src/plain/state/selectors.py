@@ -96,7 +96,9 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
         return HelpBarState("type name | enter apply | esc cancel")
     if state.ui_mode == "BUSY":
         return HelpBarState("processing...")
-    return HelpBarState("Space select | y copy | x cut | p paste")
+    return HelpBarState(
+        "Space select | y copy | x cut | p paste | F2 rename | ctrl+n file | ctrl+shift+n dir"
+    )
 
 
 def select_input_bar_state(state: AppState) -> InputBarState | None:

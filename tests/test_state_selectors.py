@@ -150,7 +150,9 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
 
     help_state = select_help_bar_state(state)
 
-    assert help_state.text == "Space select | y copy | x cut | p paste"
+    assert help_state.text == (
+        "Space select | y copy | x cut | p paste | F2 rename | ctrl+n file | ctrl+shift+n dir"
+    )
 
 
 def test_select_input_bar_state_for_create_mode() -> None:
