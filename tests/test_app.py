@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from textual.css.query import NoMatches
 from textual.widgets import DataTable, Label, ListView
 
 from plain import create_app
@@ -29,6 +30,17 @@ def _build_snapshot(path: str, current_entries: tuple[DirectoryEntryState, ...])
     )
 
 
+async def _wait_for_status_bar(app, timeout: float = 0.5) -> StatusBar:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        try:
+            return app.query_one("#status-bar", StatusBar)
+        except NoMatches:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise
+            await asyncio.sleep(0.01)
+
+
 def test_create_app_returns_plain_app() -> None:
     app = create_app()
 
@@ -44,7 +56,7 @@ async def test_app_renders_three_pane_shell() -> None:
         parent_list = app.query_one("#parent-pane-list", ListView)
         current_table = app.query_one("#current-pane-table", DataTable)
         child_list = app.query_one("#child-pane-list", ListView)
-        status_bar = app.query_one("#status-bar", StatusBar)
+        status_bar = await _wait_for_status_bar(app)
         parent_entries = [str(item.query_one(Label).renderable) for item in parent_list.children]
         child_entries = [str(item.query_one(Label).renderable) for item in child_list.children]
         headers = [str(column.label) for column in current_table.ordered_columns]
