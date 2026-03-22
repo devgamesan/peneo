@@ -80,7 +80,7 @@ sequenceDiagram
     Worker-->>App: success / failure action
     App->>Selector: 最新 AppState
     Selector-->>App: ThreePaneShellData
-    App->>UI: body / status-bar を再描画
+    App->>UI: current-path-bar / body / status-bar を再描画
 ```
 
 ## 4. ディレクトリ責務
@@ -95,7 +95,7 @@ sequenceDiagram
 
 ### `src/plain/ui/`
 
-- `MainPane`, `SidePane`, `StatusBar` は表示責務に限定
+- `CurrentPathBar`, `MainPane`, `SidePane`, `StatusBar` は表示責務に限定
 - widget 自体はキー意味の分岐を持たない
 - 現在の入力解釈は app / state 側で一元管理する
 
@@ -173,6 +173,7 @@ stateDiagram-v2
 - 選択トグルと全解除
 - フィルタ入力と再帰フラグ切り替え
 - モード別キー解釈
+- 画面上部へのカレントパス表示
 - ステータスバーへの warning / error 通知表示
 - child pane の必要時のみ再取得
 

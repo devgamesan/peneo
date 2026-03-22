@@ -10,6 +10,7 @@ def select_shell_data(state: AppState) -> ThreePaneShellData:
 
     current_entries = select_visible_current_entry_states(state)
     return ThreePaneShellData(
+        current_path=state.current_path,
         parent_entries=select_parent_entries(state),
         current_entries=tuple(_to_pane_entry(entry) for entry in current_entries),
         child_entries=select_child_entries(state),
@@ -49,7 +50,6 @@ def select_status_bar_state(state: AppState) -> StatusBarState:
 
     visible_entries = select_visible_current_entry_states(state)
     return StatusBarState(
-        path=state.current_path,
         item_count=len(visible_entries),
         selected_count=len(state.current_pane.selected_paths),
         sort_label=_format_sort_label(state.sort),

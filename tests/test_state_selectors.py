@@ -56,18 +56,19 @@ def test_select_shell_data_exposes_visible_cursor_index() -> None:
 
     shell = select_shell_data(state)
 
+    assert shell.current_path == "/home/tadashi/develop/plain"
     assert shell.current_cursor_index == 2
 
 
-def test_select_status_bar_keeps_existing_format() -> None:
+def test_select_status_bar_keeps_summary_format() -> None:
     state = build_initial_app_state()
 
     status = select_status_bar_state(state)
 
     assert (
-        f"{status.path} | {status.item_count} items | {status.selected_count} selected | "
+        f"{status.item_count} items | {status.selected_count} selected | "
         f"sort: {status.sort_label} | filter: {status.filter_label}"
-    ) == "/home/tadashi/develop/plain | 5 items | 0 selected | sort: name asc | filter: none"
+    ) == "5 items | 0 selected | sort: name asc | filter: none"
 
 
 def test_recursive_filter_label_is_reflected_in_status_bar() -> None:
