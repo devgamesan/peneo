@@ -127,7 +127,7 @@ sequenceDiagram
 ### `src/plain/state/selectors.py`
 
 - `AppState` を UI 用の `ThreePaneShellData` に変換する
-- フィルタとソートをここで適用する
+- 中央ペインにはフィルタと現在の sort を適用し、親・子ペインは固定の名前順で整形する
 - ステータスバー、ヘルプ行、入力バーの表示文字列をここで組み立てる
 
 ### `src/plain/models/`

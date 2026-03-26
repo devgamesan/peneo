@@ -16,6 +16,8 @@ from plain.models import (
 from .command_palette import get_filtered_command_palette_items, normalize_command_palette_cursor
 from .models import AppState, DirectoryEntryState, SortState
 
+SIDE_PANE_SORT = SortState(field="name", descending=False, directories_first=True)
+
 
 def select_shell_data(state: AppState) -> ThreePaneShellData:
     """Build the display shell data consumed by the UI layer."""
@@ -54,7 +56,7 @@ def select_parent_entries(state: AppState) -> tuple[PaneEntry, ...]:
         _to_pane_entry(entry, cut=entry.path in cut_paths)
         for entry in _sort_entries(
             _filter_hidden_entries(state.parent_pane.entries, state.show_hidden),
-            state.sort,
+            SIDE_PANE_SORT,
         )
     )
 
@@ -86,7 +88,7 @@ def select_child_entries(state: AppState) -> tuple[PaneEntry, ...]:
         _to_pane_entry(entry, cut=entry.path in cut_paths)
         for entry in _sort_entries(
             _filter_hidden_entries(state.child_pane.entries, state.show_hidden),
-            state.sort,
+            SIDE_PANE_SORT,
         )
     )
 

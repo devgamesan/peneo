@@ -318,7 +318,7 @@ def test_select_child_entries_is_empty_when_cursor_is_file() -> None:
     assert select_child_entries(state) == ()
 
 
-def test_select_parent_and_child_entries_follow_sort_state() -> None:
+def test_select_parent_and_child_entries_keep_fixed_name_sort() -> None:
     state = build_initial_app_state()
     state = replace(
         state,
@@ -351,17 +351,17 @@ def test_select_parent_and_child_entries_follow_sort_state() -> None:
                 ),
             ),
         ),
-        sort=replace(state.sort, field="name", descending=False),
+        sort=replace(state.sort, field="modified", descending=True, directories_first=False),
     )
     state = _reduce_state(
         state,
-        SetSort(field="name", descending=False, directories_first=False),
+        SetSort(field="modified", descending=True, directories_first=False),
     )
 
     parent_entries = select_parent_entries(state)
     child_entries = select_child_entries(state)
 
-    assert [entry.name for entry in parent_entries] == ["alpha", "beta.txt", "gamma"]
+    assert [entry.name for entry in parent_entries] == ["alpha", "gamma", "beta.txt"]
     assert [entry.name for entry in child_entries] == ["archive", "readme.txt"]
 
 
