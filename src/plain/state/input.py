@@ -290,7 +290,7 @@ def _visible_paths(state: AppState) -> tuple[str, ...]:
 
 def _current_entry(state: AppState) -> DirectoryEntryState | None:
     cursor_path = state.current_pane.cursor_path
-    for entry in state.current_pane.entries:
+    for entry in select_visible_current_entry_states(state):
         if entry.path == cursor_path:
             return entry
     return None

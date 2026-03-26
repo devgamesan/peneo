@@ -13,6 +13,7 @@ class PaneEntry:
 
     name: str
     kind: EntryKind
+    name_detail: str | None = None
     size_label: str = "-"
     modified_label: str = "-"
     selected: bool = False

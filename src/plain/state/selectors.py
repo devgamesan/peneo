@@ -31,6 +31,7 @@ def select_shell_data(state: AppState) -> ThreePaneShellData:
         current_entries=tuple(
             _to_pane_entry(
                 entry,
+                name_detail=_format_current_entry_name_detail(state, entry),
                 selected=entry.path in state.current_pane.selected_paths,
                 cut=entry.path in cut_paths,
             )
@@ -70,6 +71,7 @@ def select_current_entries(state: AppState) -> tuple[PaneEntry, ...]:
     return tuple(
         _to_pane_entry(
             entry,
+            name_detail=_format_current_entry_name_detail(state, entry),
             selected=entry.path in state.current_pane.selected_paths,
             cut=entry.path in cut_paths,
         )
@@ -373,12 +375,14 @@ def _select_cut_paths(state: AppState) -> frozenset[str]:
 def _to_pane_entry(
     entry: DirectoryEntryState,
     *,
+    name_detail: str | None = None,
     selected: bool = False,
     cut: bool = False,
 ) -> PaneEntry:
     return PaneEntry(
         name=entry.name,
         kind=entry.kind,
+        name_detail=name_detail,
         size_label=_format_size_label(entry.size_bytes),
         modified_label=_format_modified_label(entry),
         selected=selected,
@@ -410,3 +414,20 @@ def _format_modified_label(entry: DirectoryEntryState) -> str:
     if entry.modified_at is None:
         return "-"
     return entry.modified_at.strftime("%Y-%m-%d %H:%M")
+
+
+def _format_current_entry_name_detail(
+    state: AppState,
+    entry: DirectoryEntryState,
+) -> str | None:
+    if not (state.filter.recursive and state.filter.active):
+        return None
+
+    try:
+        relative_path = Path(entry.path).relative_to(state.current_path)
+    except ValueError:
+        return None
+
+    if str(relative_path.parent) == ".":
+        return None
+    return f"{relative_path.parent.as_posix()}/"
