@@ -1092,7 +1092,7 @@ async def test_app_external_launch_failure_surfaces_error_notification() -> None
 
 
 @pytest.mark.asyncio
-async def test_app_sort_shortcuts_update_side_panes_and_status_bar() -> None:
+async def test_app_sort_shortcuts_keep_side_panes_fixed_and_update_status_bar() -> None:
     path = "/tmp/plain-sort-shortcuts"
     parent_path = "/tmp"
     child_path = f"{path}/zeta"
@@ -1143,13 +1143,13 @@ async def test_app_sort_shortcuts_update_side_panes_and_status_bar() -> None:
         assert app.app_state.sort.descending is True
         assert app.app_state.sort.directories_first is False
         assert [str(item.query_one(Label).renderable) for item in parent_list.children] == [
+            "alpha",
             "plain-sort-shortcuts",
             "beta.txt",
-            "alpha",
         ]
         assert [str(item.query_one(Label).renderable) for item in child_list.children] == [
-            "notes.txt",
             "archive",
+            "notes.txt",
         ]
         assert str(status_bar.renderable) == (
             "3 items | 0 selected | sort: name desc dirs:off | filter: none"
