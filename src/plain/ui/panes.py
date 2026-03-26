@@ -153,7 +153,7 @@ class MainPane(Vertical):
             table.add_row(
                 self._render_cell(entry.selection_marker, entry.selected, entry.cut),
                 self._render_cell(entry.kind_label, entry.selected, entry.cut),
-                self._render_cell(entry.name, entry.selected, entry.cut),
+                self._render_cell(self._render_name(entry), entry.selected, entry.cut),
                 self._render_cell(entry.size_label, entry.selected, entry.cut),
                 self._render_cell(entry.modified_label, entry.selected, entry.cut),
             )
@@ -192,3 +192,9 @@ class MainPane(Vertical):
         if not selected:
             return Text(value)
         return Text(value, style=cls.SELECTED_STYLE)
+
+    @staticmethod
+    def _render_name(entry: PaneEntry) -> str:
+        if entry.name_detail is None:
+            return entry.name
+        return f"{entry.name}  ({entry.name_detail})"

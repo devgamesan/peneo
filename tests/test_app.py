@@ -1288,6 +1288,59 @@ async def test_app_recursive_filter_updates_current_entries() -> None:
 
 
 @pytest.mark.asyncio
+async def test_app_recursive_filter_shows_relative_path_and_enter_opens_file() -> None:
+    path = "/tmp/plain-recursive-open"
+    docs = f"{path}/docs"
+    launch_service = FakeExternalLaunchService()
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (DirectoryEntryState(docs, "docs", "dir"),),
+                child_path=docs,
+            )
+        },
+        recursive_results={
+            (path, "readme"): (
+                DirectoryEntryState(f"{path}/README.md", "README.md", "file"),
+                DirectoryEntryState(f"{docs}/README.md", "README.md", "file"),
+            ),
+        },
+    )
+    app = create_app(
+        snapshot_loader=loader,
+        external_launch_service=launch_service,
+        initial_path=path,
+    )
+
+    async with app.run_test() as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("/")
+        await pilot.press("space")
+        await pilot.press("r", "e", "a", "d", "m", "e")
+        await _wait_for_row_count(app, 2)
+        await pilot.press("enter")
+        await asyncio.sleep(0.05)
+
+        current_table = app.query_one("#current-pane-table", DataTable)
+        first_row = current_table.get_row_at(0)
+        second_row = current_table.get_row_at(1)
+
+        assert isinstance(first_row[2], Text)
+        assert isinstance(second_row[2], Text)
+        assert first_row[2].plain == "README.md"
+        assert second_row[2].plain == "README.md  (docs/)"
+
+        await pilot.press("down")
+        await pilot.press("enter")
+        await _wait_for_external_launch_count(app, 1)
+
+        assert launch_service.executed_requests == [
+            ExternalLaunchRequest(kind="open_file", path=f"{docs}/README.md")
+        ]
+
+
+@pytest.mark.asyncio
 async def test_app_rename_mode_shows_context_input_and_updates_help() -> None:
     path = "/tmp/plain-rename-mode"
     docs = f"{path}/docs"

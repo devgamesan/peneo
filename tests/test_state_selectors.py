@@ -78,6 +78,32 @@ def test_select_current_entries_uses_recursive_results_when_enabled() -> None:
     assert [entry.name for entry in entries] == ["notes.md", "spec_mvp.md"]
 
 
+def test_select_current_entries_adds_relative_parent_detail_for_recursive_duplicates() -> None:
+    state = build_initial_app_state()
+    state = replace(
+        state,
+        filter=replace(state.filter, query="readme", active=True, recursive=True),
+        recursive_entries=(
+            DirectoryEntryState("/home/tadashi/develop/plain/README.md", "README.md", "file"),
+            DirectoryEntryState(
+                "/home/tadashi/develop/plain/docs/README.md",
+                "README.md",
+                "file",
+            ),
+        ),
+        current_pane=replace(
+            state.current_pane,
+            cursor_path="/home/tadashi/develop/plain/README.md",
+        ),
+    )
+
+    entries = select_current_entries(state)
+
+    assert [entry.name for entry in entries] == ["README.md", "README.md"]
+    assert entries[0].name_detail is None
+    assert entries[1].name_detail == "docs/"
+
+
 def test_select_current_entries_hides_hidden_by_default() -> None:
     state = replace(
         build_initial_app_state(),
