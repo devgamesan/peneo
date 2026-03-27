@@ -2,7 +2,7 @@
 
 from textual.widgets import Static
 
-from plain.models import HelpBarState
+from peneo.models import HelpBarState
 
 
 class HelpBar(Static):

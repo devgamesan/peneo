@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import DataTable, Label, ListItem, ListView
 
-from plain.models.shell_data import CurrentSummaryState, InputBarState, PaneEntry
+from peneo.models.shell_data import CurrentSummaryState, InputBarState, PaneEntry
 
 from .input_bar import InputBar
 from .summary_bar import SummaryBar

@@ -1,7 +1,7 @@
 from dataclasses import replace
 
-from plain.models import PasteConflict, PasteRequest
-from plain.state import (
+from peneo.models import PasteConflict, PasteRequest
+from peneo.state import (
     BeginCommandPalette,
     BeginCreateInput,
     BeginFilterInput,
@@ -57,17 +57,17 @@ def test_select_current_entries_hides_hidden_by_default() -> None:
     state = replace(
         build_initial_app_state(),
         current_pane=PaneState(
-            directory_path="/home/tadashi/develop/plain",
+            directory_path="/home/tadashi/develop/peneo",
             entries=(
                 DirectoryEntryState(
-                    "/home/tadashi/develop/plain/.env",
+                    "/home/tadashi/develop/peneo/.env",
                     ".env",
                     "file",
                     hidden=True,
                 ),
-                DirectoryEntryState("/home/tadashi/develop/plain/docs", "docs", "dir"),
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
             ),
-            cursor_path="/home/tadashi/develop/plain/docs",
+            cursor_path="/home/tadashi/develop/peneo/docs",
         ),
     )
 
@@ -80,22 +80,22 @@ def test_select_visible_current_entries_sorts_by_modified_with_missing_values_la
     state = replace(
         build_initial_app_state(),
         current_pane=pane(
-            "/home/tadashi/develop/plain",
+            "/home/tadashi/develop/peneo",
             (
                 entry(
-                    "/home/tadashi/develop/plain/alpha.txt",
+                    "/home/tadashi/develop/peneo/alpha.txt",
                     modified_at=None,
                 ),
                 entry(
-                    "/home/tadashi/develop/plain/beta.txt",
+                    "/home/tadashi/develop/peneo/beta.txt",
                     modified_at=build_initial_app_state().current_pane.entries[3].modified_at,
                 ),
                 entry(
-                    "/home/tadashi/develop/plain/gamma.txt",
+                    "/home/tadashi/develop/peneo/gamma.txt",
                     modified_at=build_initial_app_state().current_pane.entries[4].modified_at,
                 ),
             ),
-            cursor_path="/home/tadashi/develop/plain/alpha.txt",
+            cursor_path="/home/tadashi/develop/peneo/alpha.txt",
         ),
         sort=replace(build_initial_app_state().sort, field="modified", descending=True),
     )
@@ -109,13 +109,13 @@ def test_select_visible_current_entries_sorts_by_size_without_directories_first(
     state = replace(
         build_initial_app_state(),
         current_pane=pane(
-            "/home/tadashi/develop/plain",
+            "/home/tadashi/develop/peneo",
             (
-                entry("/home/tadashi/develop/plain/docs", kind="dir"),
-                entry("/home/tadashi/develop/plain/alpha.txt", size_bytes=500),
-                entry("/home/tadashi/develop/plain/beta.txt", size_bytes=2_000),
+                entry("/home/tadashi/develop/peneo/docs", kind="dir"),
+                entry("/home/tadashi/develop/peneo/alpha.txt", size_bytes=500),
+                entry("/home/tadashi/develop/peneo/beta.txt", size_bytes=2_000),
             ),
-            cursor_path="/home/tadashi/develop/plain/docs",
+            cursor_path="/home/tadashi/develop/peneo/docs",
         ),
         sort=replace(
             build_initial_app_state().sort,
@@ -137,26 +137,26 @@ def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
             directory_path="/tmp",
             entries=(
                 DirectoryEntryState("/tmp/.cache", ".cache", "dir", hidden=True),
-                DirectoryEntryState("/tmp/plain", "plain", "dir"),
+                DirectoryEntryState("/tmp/peneo", "peneo", "dir"),
             ),
-            cursor_path="/tmp/plain",
+            cursor_path="/tmp/peneo",
         ),
         current_pane=PaneState(
-            directory_path="/home/tadashi/develop/plain",
-            entries=(DirectoryEntryState("/home/tadashi/develop/plain/docs", "docs", "dir"),),
-            cursor_path="/home/tadashi/develop/plain/docs",
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),),
+            cursor_path="/home/tadashi/develop/peneo/docs",
         ),
         child_pane=PaneState(
-            directory_path="/home/tadashi/develop/plain/docs",
+            directory_path="/home/tadashi/develop/peneo/docs",
             entries=(
                 DirectoryEntryState(
-                    "/home/tadashi/develop/plain/docs/.draft.md",
+                    "/home/tadashi/develop/peneo/docs/.draft.md",
                     ".draft.md",
                     "file",
                     hidden=True,
                 ),
                 DirectoryEntryState(
-                    "/home/tadashi/develop/plain/docs/spec.md",
+                    "/home/tadashi/develop/peneo/docs/spec.md",
                     "spec.md",
                     "file",
                 ),
@@ -164,12 +164,12 @@ def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
         ),
     )
 
-    assert [entry.name for entry in select_parent_entries(state)] == ["plain"]
+    assert [entry.name for entry in select_parent_entries(state)] == ["peneo"]
     assert [entry.name for entry in select_child_entries(state)] == ["spec.md"]
 
     visible_state = replace(state, show_hidden=True)
 
-    assert [entry.name for entry in select_parent_entries(visible_state)] == [".cache", "plain"]
+    assert [entry.name for entry in select_parent_entries(visible_state)] == [".cache", "peneo"]
     assert [entry.name for entry in select_child_entries(visible_state)] == [
         ".draft.md",
         "spec.md",
@@ -178,8 +178,8 @@ def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
 
 def test_select_current_summary_counts_selected_absolute_paths() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/plain/README.md"))
-    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/plain/tests"))
+    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/peneo/README.md"))
+    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/peneo/tests"))
 
     summary = select_current_summary_state(state)
 
@@ -189,22 +189,22 @@ def test_select_current_summary_counts_selected_absolute_paths() -> None:
 
 def test_select_target_paths_prefers_selection_in_entry_order() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/plain/README.md"))
-    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/plain/docs"))
+    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/peneo/README.md"))
+    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/peneo/docs"))
 
     assert select_target_paths(state) == (
-        "/home/tadashi/develop/plain/docs",
-        "/home/tadashi/develop/plain/README.md",
+        "/home/tadashi/develop/peneo/docs",
+        "/home/tadashi/develop/peneo/README.md",
     )
 
 
 def test_select_target_paths_ignores_hidden_selected_entries_when_hidden_files_are_off() -> None:
-    hidden_path = "/home/tadashi/develop/plain/.env"
-    visible_path = "/home/tadashi/develop/plain/docs"
+    hidden_path = "/home/tadashi/develop/peneo/.env"
+    visible_path = "/home/tadashi/develop/peneo/docs"
     state = replace(
         build_initial_app_state(),
         current_pane=pane(
-            "/home/tadashi/develop/plain",
+            "/home/tadashi/develop/peneo",
             (
                 entry(hidden_path, hidden=True),
                 entry(visible_path, kind="dir"),
@@ -219,9 +219,9 @@ def test_select_target_paths_ignores_hidden_selected_entries_when_hidden_files_a
 
 def test_select_target_paths_falls_back_to_cursor() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, SetCursorPath("/home/tadashi/develop/plain/tests"))
+    state = _reduce_state(state, SetCursorPath("/home/tadashi/develop/peneo/tests"))
 
-    assert select_target_paths(state) == ("/home/tadashi/develop/plain/tests",)
+    assert select_target_paths(state) == ("/home/tadashi/develop/peneo/tests",)
 
 
 def test_select_target_paths_returns_empty_tuple_for_empty_directory() -> None:
@@ -236,7 +236,7 @@ def test_select_target_paths_returns_empty_tuple_for_empty_directory() -> None:
 
 def test_select_current_entries_marks_selected_rows() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/plain/README.md"))
+    state = _reduce_state(state, ToggleSelection("/home/tadashi/develop/peneo/README.md"))
 
     entries = select_current_entries(state)
 
@@ -248,7 +248,7 @@ def test_select_current_entries_marks_selected_rows() -> None:
 
 def test_select_current_entries_marks_cut_rows() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, CutTargets(("/home/tadashi/develop/plain/docs",)))
+    state = _reduce_state(state, CutTargets(("/home/tadashi/develop/peneo/docs",)))
 
     entries = select_current_entries(state)
 
@@ -259,7 +259,7 @@ def test_select_current_entries_marks_cut_rows() -> None:
 
 def test_select_child_entries_is_empty_when_cursor_is_file() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, SetCursorPath("/home/tadashi/develop/plain/README.md"))
+    state = _reduce_state(state, SetCursorPath("/home/tadashi/develop/peneo/README.md"))
 
     assert select_child_entries(state) == ()
 
@@ -278,20 +278,20 @@ def test_select_parent_and_child_entries_keep_fixed_name_sort() -> None:
             cursor_path="/tmp/alpha",
         ),
         current_pane=PaneState(
-            directory_path="/home/tadashi/develop/plain",
+            directory_path="/home/tadashi/develop/peneo",
             entries=state.current_pane.entries,
-            cursor_path="/home/tadashi/develop/plain/docs",
+            cursor_path="/home/tadashi/develop/peneo/docs",
         ),
         child_pane=PaneState(
-            directory_path="/home/tadashi/develop/plain/docs",
+            directory_path="/home/tadashi/develop/peneo/docs",
             entries=(
                 DirectoryEntryState(
-                    "/home/tadashi/develop/plain/docs/readme.txt",
+                    "/home/tadashi/develop/peneo/docs/readme.txt",
                     "readme.txt",
                     "file",
                 ),
                 DirectoryEntryState(
-                    "/home/tadashi/develop/plain/docs/archive",
+                    "/home/tadashi/develop/peneo/docs/archive",
                     "archive",
                     "dir",
                 ),
@@ -313,20 +313,20 @@ def test_select_parent_and_child_entries_keep_fixed_name_sort() -> None:
 
 def test_select_shell_data_exposes_visible_cursor_index() -> None:
     state = build_initial_app_state()
-    state = _reduce_state(state, SetCursorPath("/home/tadashi/develop/plain/tests"))
+    state = _reduce_state(state, SetCursorPath("/home/tadashi/develop/peneo/tests"))
 
     shell = select_shell_data(state)
 
-    assert shell.current_path == "/home/tadashi/develop/plain"
+    assert shell.current_path == "/home/tadashi/develop/peneo"
     assert shell.current_cursor_index == 2
 
 
 def test_select_shell_data_includes_selected_cut_and_contextual_models() -> None:
     state = _reduce_state(
         build_initial_app_state(),
-        ToggleSelection("/home/tadashi/develop/plain/README.md"),
+        ToggleSelection("/home/tadashi/develop/peneo/README.md"),
     )
-    state = _reduce_state(state, CutTargets(("/home/tadashi/develop/plain/docs",)))
+    state = _reduce_state(state, CutTargets(("/home/tadashi/develop/peneo/docs",)))
     state = replace(
         state,
         filter=replace(state.filter, query="read", active=True),
@@ -489,16 +489,16 @@ def test_select_help_bar_state_for_filter_mode() -> None:
 
 def test_select_conflict_dialog_state_formats_first_conflict() -> None:
     conflict = PasteConflict(
-        source_path="/home/tadashi/develop/plain/docs",
-        destination_path="/home/tadashi/develop/plain/docs",
+        source_path="/home/tadashi/develop/peneo/docs",
+        destination_path="/home/tadashi/develop/peneo/docs",
     )
     state = replace(
         build_initial_app_state(),
         paste_conflict=PasteConflictState(
             request=PasteRequest(
                 mode="copy",
-                source_paths=("/home/tadashi/develop/plain/docs",),
-                destination_dir="/home/tadashi/develop/plain",
+                source_paths=("/home/tadashi/develop/peneo/docs",),
+                destination_dir="/home/tadashi/develop/peneo",
             ),
             conflicts=(conflict,),
             first_conflict=conflict,
@@ -517,8 +517,8 @@ def test_select_conflict_dialog_state_formats_delete_confirmation() -> None:
         build_initial_app_state(),
         delete_confirmation=DeleteConfirmationState(
             paths=(
-                "/home/tadashi/develop/plain/docs",
-                "/home/tadashi/develop/plain/src",
+                "/home/tadashi/develop/peneo/docs",
+                "/home/tadashi/develop/peneo/src",
             )
         ),
     )
@@ -558,8 +558,8 @@ def test_select_conflict_dialog_state_formats_create_directory_conflict() -> Non
 
 def test_select_help_bar_for_paste_conflict_uses_generic_guidance() -> None:
     conflict = PasteConflict(
-        source_path="/home/tadashi/develop/plain/docs",
-        destination_path="/home/tadashi/develop/plain/docs",
+        source_path="/home/tadashi/develop/peneo/docs",
+        destination_path="/home/tadashi/develop/peneo/docs",
     )
     state = replace(
         build_initial_app_state(),
@@ -567,8 +567,8 @@ def test_select_help_bar_for_paste_conflict_uses_generic_guidance() -> None:
         paste_conflict=PasteConflictState(
             request=PasteRequest(
                 mode="copy",
-                source_paths=("/home/tadashi/develop/plain/docs",),
-                destination_dir="/home/tadashi/develop/plain",
+                source_paths=("/home/tadashi/develop/peneo/docs",),
+                destination_dir="/home/tadashi/develop/peneo",
             ),
             conflicts=(conflict,),
             first_conflict=conflict,
@@ -597,7 +597,7 @@ def test_select_help_bar_for_delete_confirmation() -> None:
         build_initial_app_state(),
         ui_mode="CONFIRM",
         delete_confirmation=DeleteConfirmationState(
-            paths=("/home/tadashi/develop/plain/docs",),
+            paths=("/home/tadashi/develop/peneo/docs",),
         ),
     )
 

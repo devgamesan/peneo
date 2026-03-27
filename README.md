@@ -1,11 +1,11 @@
-# Plain
+# Peneo
 
 [日本語版 README](README.ja.md)
 
-Plain is a Textual-based TUI file manager that aims to feel closer to a GUI explorer.
+Peneo is a Textual-based TUI file manager that aims to feel closer to a GUI explorer.
 It is designed so you can reach the main actions without having to study a Vim-style key map first.
 
-![Plain screenshot](docs/resources/screen1.png)
+![Peneo screenshot](docs/resources/screen1.png)
 
 _Current three-pane UI showing the parent, current, and child directories side by side._
 
@@ -36,12 +36,12 @@ _Current three-pane UI showing the parent, current, and child directories side b
 
 ## Installation
 
-With `uv` installed, clone the repository and install Plain as a tool.
+With `uv` installed, clone the repository and install Peneo as a tool.
 
 ```bash
-git clone https://github.com/devgamesan/plain.git
-cd plain
-uv tool install --from . plain
+git clone https://github.com/devgamesan/peneo.git
+cd peneo
+uv tool install --from . peneo
 ```
 
 To update, pull the latest changes and run the same install command again.
@@ -49,13 +49,13 @@ To update, pull the latest changes and run the same install command again.
 ## Run
 
 ```bash
-plain
+peneo
 ```
 
 To launch directly from a local checkout during development, run this from the repository root:
 
 ```bash
-uv run plain
+uv run peneo
 ```
 
 ## Basic Operations

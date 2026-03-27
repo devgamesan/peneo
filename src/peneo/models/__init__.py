@@ -1,4 +1,4 @@
-"""Models used across the Plain application."""
+"""Models used across the Peneo application."""
 
 from .external_launch import ExternalLaunchKind, ExternalLaunchRequest
 from .file_operations import (

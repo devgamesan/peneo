@@ -1,4 +1,4 @@
-"""Application assembly for Plain."""
+"""Application assembly for Peneo."""
 
 from collections.abc import Sequence
 from contextlib import nullcontext
@@ -12,13 +12,13 @@ from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.worker import Worker, WorkerState
 
-from plain.models import (
+from peneo.models import (
     FileMutationResult,
     PasteConflictPrompt,
     PasteExecutionResult,
     ThreePaneShellData,
 )
-from plain.services import (
+from peneo.services import (
     BrowserSnapshotLoader,
     ClipboardOperationService,
     ExternalLaunchService,
@@ -28,7 +28,7 @@ from plain.services import (
     LiveExternalLaunchService,
     LiveFileMutationService,
 )
-from plain.state import (
+from peneo.state import (
     Action,
     AppState,
     BrowserSnapshotFailed,
@@ -56,7 +56,7 @@ from plain.state import (
     reduce_app_state,
     select_shell_data,
 )
-from plain.ui import (
+from peneo.ui import (
     CommandPalette,
     ConflictDialog,
     CurrentPathBar,
@@ -67,10 +67,10 @@ from plain.ui import (
 )
 
 
-class PlainApp(App[None]):
+class PeneoApp(App[None]):
     """Three-pane shell with reducer-driven file operations."""
 
-    TITLE = "Plain"
+    TITLE = "Peneo"
     SUB_TITLE = "Three-pane shell"
     BINDINGS = [
         Binding(key, f"dispatch_bound_key('{key}')", show=False, priority=True)
@@ -677,10 +677,10 @@ def create_app(
     external_launch_service: ExternalLaunchService | None = None,
     *,
     initial_path: str | Path | None = None,
-) -> PlainApp:
+) -> PeneoApp:
     """Create the application instance."""
 
-    return PlainApp(
+    return PeneoApp(
         snapshot_loader=snapshot_loader,
         clipboard_service=clipboard_service,
         file_mutation_service=file_mutation_service,

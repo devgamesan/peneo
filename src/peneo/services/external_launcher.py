@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from time import sleep
 from typing import Mapping, Protocol
 
-from plain.adapters import ExternalLaunchAdapter, LocalExternalLaunchAdapter
-from plain.models import ExternalLaunchRequest
+from peneo.adapters import ExternalLaunchAdapter, LocalExternalLaunchAdapter
+from peneo.models import ExternalLaunchRequest
 
 
 class ExternalLaunchService(Protocol):

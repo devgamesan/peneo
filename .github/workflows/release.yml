@@ -56,25 +56,25 @@ jobs:
       - name: Generate release notes
         run: |
           cat << 'EOF' > release_notes.md
-          ## Plain ${{ steps.version.outputs.version }}
+          ## Peneo ${{ steps.version.outputs.version }}
 
-          Plain は、GUI のエクスプローラーに近い感覚で使える Textual ベースの TUI ファイルマネージャです。
+          Peneo は、GUI のエクスプローラーに近い感覚で使える Textual ベースの TUI ファイルマネージャです。
 
           ### インストール方法
 
           \`\`\`bash
-          uv tool install plain==${{ steps.version.outputs.version }}
+          uv tool install peneo==${{ steps.version.outputs.version }}
           \`\`\`
 
           または:
 
           \`\`\`bash
-          pip install plain==${{ steps.version.outputs.version }}
+          pip install peneo==${{ steps.version.outputs.version }}
           \`\`\`
 
           ### 変更点
 
-          詳細は [CHANGELOG.md](https://github.com/devgamesan/plain/blob/main/CHANGELOG.md) をご確認ください。
+          詳細は [CHANGELOG.md](https://github.com/devgamesan/peneo/blob/main/CHANGELOG.md) をご確認ください。
           EOF
           cat release_notes.md
 
@@ -82,7 +82,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Plain ${{ steps.version.outputs.version }}
+          name: Peneo ${{ steps.version.outputs.version }}
           body_path: release_notes.md
           files: |
             dist/*

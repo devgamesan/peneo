@@ -2,9 +2,9 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from plain.adapters import LocalExternalLaunchAdapter
-from plain.models import ExternalLaunchRequest
-from plain.services import LiveExternalLaunchService
+from peneo.adapters import LocalExternalLaunchAdapter
+from peneo.models import ExternalLaunchRequest
+from peneo.services import LiveExternalLaunchService
 
 
 @dataclass
@@ -139,10 +139,10 @@ def test_local_external_launch_adapter_copies_to_clipboard_on_linux() -> None:
         command_runner=runner,
     )
 
-    adapter.copy_to_clipboard("/tmp/plain/docs\n/tmp/plain/README.md")
+    adapter.copy_to_clipboard("/tmp/peneo/docs\n/tmp/peneo/README.md")
 
     assert runner.executed == [
-        (("wl-copy",), None, "/tmp/plain/docs\n/tmp/plain/README.md")
+        (("wl-copy",), None, "/tmp/peneo/docs\n/tmp/peneo/README.md")
     ]
 
 
@@ -197,9 +197,9 @@ def test_local_external_launch_adapter_uses_clipboard_fallback_when_commands_mis
         clipboard_fallbacks=(copied.append,),
     )
 
-    adapter.copy_to_clipboard("/tmp/plain/docs")
+    adapter.copy_to_clipboard("/tmp/peneo/docs")
 
-    assert copied == ["/tmp/plain/docs"]
+    assert copied == ["/tmp/peneo/docs"]
 
 
 def test_live_external_launch_service_formats_open_error(tmp_path) -> None:
@@ -219,18 +219,18 @@ def test_live_external_launch_service_opens_file_with_adapter() -> None:
     adapter = StubExternalLaunchAdapter()
     service = LiveExternalLaunchService(adapter=adapter)
 
-    service.execute(ExternalLaunchRequest(kind="open_file", path="/tmp/plain/README.md"))
+    service.execute(ExternalLaunchRequest(kind="open_file", path="/tmp/peneo/README.md"))
 
-    assert adapter.opened_paths == ["/tmp/plain/README.md"]
+    assert adapter.opened_paths == ["/tmp/peneo/README.md"]
 
 
 def test_live_external_launch_service_opens_terminal_with_adapter() -> None:
     adapter = StubExternalLaunchAdapter()
     service = LiveExternalLaunchService(adapter=adapter)
 
-    service.execute(ExternalLaunchRequest(kind="open_terminal", path="/tmp/plain"))
+    service.execute(ExternalLaunchRequest(kind="open_terminal", path="/tmp/peneo"))
 
-    assert adapter.terminal_paths == ["/tmp/plain"]
+    assert adapter.terminal_paths == ["/tmp/peneo"]
 
 
 def test_live_external_launch_service_copies_paths_with_expected_payload() -> None:
@@ -240,11 +240,11 @@ def test_live_external_launch_service_copies_paths_with_expected_payload() -> No
     service.execute(
         ExternalLaunchRequest(
             kind="copy_paths",
-            paths=("/tmp/plain/docs", "/tmp/plain/README.md"),
+            paths=("/tmp/peneo/docs", "/tmp/peneo/README.md"),
         )
     )
 
-    assert adapter.clipboard_payloads == ["/tmp/plain/docs\n/tmp/plain/README.md"]
+    assert adapter.clipboard_payloads == ["/tmp/peneo/docs\n/tmp/peneo/README.md"]
 
 
 def test_live_external_launch_service_formats_editor_error(tmp_path) -> None:
@@ -300,7 +300,7 @@ def test_live_external_launch_service_formats_copy_error() -> None:
         service.execute(
             ExternalLaunchRequest(
                 kind="copy_paths",
-                paths=("/tmp/plain/docs", "/tmp/plain/README.md"),
+                paths=("/tmp/peneo/docs", "/tmp/peneo/README.md"),
             )
         )
 

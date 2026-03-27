@@ -2,7 +2,7 @@
 
 from textual.widgets import Static
 
-from plain.models.shell_data import CurrentSummaryState
+from peneo.models.shell_data import CurrentSummaryState
 
 
 class SummaryBar(Static):

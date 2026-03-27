@@ -2,7 +2,7 @@
 
 from textual.widgets import Static
 
-from plain.models.shell_data import StatusBarState
+from peneo.models.shell_data import StatusBarState
 
 
 class StatusBar(Static):

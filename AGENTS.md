@@ -2,15 +2,15 @@
 
 ## Project Structure & Module Organization
 
-Core application code lives under `src/plain/`. Keep UI concerns in `src/plain/ui/`, state and reducers in `src/plain/state/`, side-effect orchestration in `src/plain/services/`, external integrations in `src/plain/adapters/`, and shared data models in `src/plain/models/`. Tests live in `tests/`. Product and MVP notes belong in `docs/`. CI is defined in `.github/workflows/python-ci.yml`.
+Core application code lives under `src/peneo/`. Keep UI concerns in `src/peneo/ui/`, state and reducers in `src/peneo/state/`, side-effect orchestration in `src/peneo/services/`, external integrations in `src/peneo/adapters/`, and shared data models in `src/peneo/models/`. Tests live in `tests/`. Product and MVP notes belong in `docs/`. CI is defined in `.github/workflows/python-ci.yml`.
 
-Current input handling is centralized in `src/plain/state/input.py`. Keep key interpretation in the dispatcher and reducer-facing actions rather than embedding per-widget branching in `src/plain/ui/`.
+Current input handling is centralized in `src/peneo/state/input.py`. Keep key interpretation in the dispatcher and reducer-facing actions rather than embedding per-widget branching in `src/peneo/ui/`.
 
 ## Build, Test, and Development Commands
 
 - `uv sync --python 3.12 --dev`: create or refresh the local environment with dev dependencies.
-- `uv run plain`: start the Textual app through the console script.
-- `uv run python -m plain`: alternate module-based entrypoint.
+- `uv run peneo`: start the Textual app through the console script.
+- `uv run python -m peneo`: alternate module-based entrypoint.
 - `uv run ruff check .`: run lint checks.
 - `uv run pytest`: execute the test suite.
 

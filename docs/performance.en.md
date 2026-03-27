@@ -1,4 +1,4 @@
-# Plain Performance Notes
+# Peneo Performance Notes
 
 This note records the conditions for the main-flow integration test and the 1000-entry verification that were run in Issue #24 for MVP judgement.
 

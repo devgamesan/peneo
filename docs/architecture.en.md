@@ -1,6 +1,6 @@
-# Plain Architecture Overview
+# Peneo Architecture Overview
 
-This document gives a high-level view of the current implementation structure of `Plain`.
+This document gives a high-level view of the current implementation structure of `Peneo`.
 It describes the actual responsibilities and data flow that exist in the codebase as of `2026-03-26`, not the full MVP vision.
 
 ## 1. Principles
@@ -20,12 +20,12 @@ The design keeps branching logic out of widgets and centralizes state transition
 
 ```mermaid
 flowchart LR
-    subgraph UI["UI (`src/plain/app.py`, `src/plain/ui`)"]
-        App["PlainApp"]
+    subgraph UI["UI (`src/peneo/app.py`, `src/peneo/ui`)"]
+        App["PeneoApp"]
         Widgets["CurrentPathBar / MainPane / SidePane / CommandPalette / ConflictDialog / HelpBar / StatusBar"]
     end
 
-    subgraph State["State (`src/plain/state`)"]
+    subgraph State["State (`src/peneo/state`)"]
         Input["input.py\nkey input dispatcher"]
         Actions["actions.py\nAction definitions"]
         Reducer["reducer.py\nreduce_app_state"]
@@ -35,20 +35,20 @@ flowchart LR
         Palette["command_palette.py\npalette candidate builder"]
     end
 
-    subgraph Services["Services (`src/plain/services`)"]
+    subgraph Services["Services (`src/peneo/services`)"]
         Snapshot["browser_snapshot.py"]
         Clipboard["clipboard_operations.py"]
         Mutations["file_mutations.py"]
         Launch["external_launcher.py"]
     end
 
-    subgraph Adapters["Adapters (`src/plain/adapters`)"]
+    subgraph Adapters["Adapters (`src/peneo/adapters`)"]
         FS["filesystem.py"]
         FileOps["file_operations.py"]
         External["external_launcher.py"]
     end
 
-    subgraph Display["Display models (`src/plain/models`)"]
+    subgraph Display["Display models (`src/peneo/models`)"]
         Shell["shell_data.py\nThreePaneShellData"]
         Domain["file_operations.py / external_launch.py"]
     end
@@ -78,7 +78,7 @@ The core flow is: input -> Action -> state update -> effect execution -> selecto
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant App as PlainApp
+    participant App as PeneoApp
     participant Input as dispatch_key_input
     participant Reducer as reduce_app_state
     participant Worker as Textual worker
@@ -106,53 +106,53 @@ sequenceDiagram
 
 ## 4. Responsibilities Of Major Modules
 
-### `src/plain/app.py`
+### `src/peneo/app.py`
 
-- `PlainApp` assembles the whole application
+- `PeneoApp` assembles the whole application
 - Sends Textual `Key` events into the central dispatcher
 - Bridges reducer effects to workers and services
 - Updates UI widgets using selector output
 
-### `src/plain/state/input.py`
+### `src/peneo/state/input.py`
 
 - Normalizes key input into `Action` values by mode
 - The main currently supported modes are `BROWSING`, `FILTER`, `RENAME`, `CREATE`, `PALETTE`, `CONFIRM`, and `BUSY`
 - Absorbs context-dependent keys such as `Esc`
 
-### `src/plain/state/reducer.py`
+### `src/peneo/state/reducer.py`
 
 - The single update point for `AppState`
 - Manages screen transitions, cursor movement, selection, filter, sort, clipboard, rename/create/delete, palette execution, and dialog state
 - Does not perform external I/O directly; instead returns `LoadBrowserSnapshotEffect`, `RunClipboardPasteEffect`, `RunFileMutationEffect`, and `RunExternalLaunchEffect`
 - Matches async results by request id and discards stale snapshot results
 
-### `src/plain/state/selectors.py`
+### `src/peneo/state/selectors.py`
 
 - Builds `ThreePaneShellData` from `AppState`
 - Applies filter and sort only to the main pane, while parent and child panes stay fixed to name order plus directories-first
 - Formats the display text for the help bar, status bar, input bar, command palette, and conflict dialog
 - Also assembles cut-item dimming and the summary line fields such as `item_count`, `selected_count`, and `sort_label`
 
-### `src/plain/state/command_palette.py`
+### `src/peneo/state/command_palette.py`
 
 - Builds command palette candidates and filters them by query
 - The current palette includes `Create file`, `Create directory`, `Copy path`, `Show/Hide hidden files`, and `Open terminal here`
 - `Run shell command` may appear as a candidate, but it is still a placeholder with `enabled=False`
 
-### `src/plain/services/`
+### `src/peneo/services/`
 
 - `browser_snapshot.py`: builds the three-pane snapshot from the real filesystem
 - `clipboard_operations.py`: handles copy / cut / paste execution and conflict detection
 - `file_mutations.py`: handles rename / create / trash delete
 - `external_launcher.py`: handles default-app open, editor-in-current-terminal launch, terminal launch, and copying a path to the system clipboard
 
-### `src/plain/adapters/`
+### `src/peneo/adapters/`
 
 - `filesystem.py`: enumerates directory entries and reads metadata
 - `file_operations.py`: performs copy / move / rename / create / trash and related file operations
 - `external_launcher.py`: hides OS-specific command differences and launches external processes
 
-### `src/plain/models/`
+### `src/peneo/models/`
 
 - `shell_data.py`: render-only models
 - `external_launch.py` and `file_operations.py`: request / result models exchanged between services and the reducer

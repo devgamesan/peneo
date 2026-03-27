@@ -5,8 +5,8 @@ from pathlib import Path
 from time import sleep
 from typing import Mapping, Protocol
 
-from plain.adapters import FileOperationAdapter, LocalFileOperationAdapter
-from plain.models import (
+from peneo.adapters import FileOperationAdapter, LocalFileOperationAdapter
+from peneo.models import (
     PasteConflict,
     PasteConflictPrompt,
     PasteExecutionResult,

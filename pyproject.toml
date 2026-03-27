@@ -3,7 +3,7 @@ requires = ["hatchling>=1.24.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "plain"
+name = "peneo"
 version = "0.1.0"
 description = "A simple Textual-based file manager."
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-plain = "plain.__main__:main"
+peneo = "peneo.__main__:main"
 
 [dependency-groups]
 dev = [
@@ -40,4 +40,4 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/plain"]
+packages = ["src/peneo"]

@@ -1,4 +1,4 @@
-# Plain - MVP Specification
+# Peneo - MVP Specification
 
 ## 1. Overview
 

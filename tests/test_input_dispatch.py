@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from plain.state import (
+from peneo.state import (
     BeginCommandPalette,
     BeginDeleteTargets,
     BeginFilterInput,
@@ -51,11 +51,11 @@ def test_browsing_down_dispatches_move_cursor() -> None:
     assert actions[1] == MoveCursor(
         delta=1,
         visible_paths=(
-            "/home/tadashi/develop/plain/docs",
-            "/home/tadashi/develop/plain/src",
-            "/home/tadashi/develop/plain/tests",
-            "/home/tadashi/develop/plain/pyproject.toml",
-            "/home/tadashi/develop/plain/README.md",
+            "/home/tadashi/develop/peneo/docs",
+            "/home/tadashi/develop/peneo/src",
+            "/home/tadashi/develop/peneo/tests",
+            "/home/tadashi/develop/peneo/pyproject.toml",
+            "/home/tadashi/develop/peneo/README.md",
         ),
     )
 
@@ -67,13 +67,13 @@ def test_browsing_space_toggles_selection_and_advances_cursor() -> None:
 
     assert actions[0] == SetNotification(None)
     assert actions[1] == ToggleSelectionAndAdvance(
-        path="/home/tadashi/develop/plain/docs",
+        path="/home/tadashi/develop/peneo/docs",
         visible_paths=(
-            "/home/tadashi/develop/plain/docs",
-            "/home/tadashi/develop/plain/src",
-            "/home/tadashi/develop/plain/tests",
-            "/home/tadashi/develop/plain/pyproject.toml",
-            "/home/tadashi/develop/plain/README.md",
+            "/home/tadashi/develop/peneo/docs",
+            "/home/tadashi/develop/peneo/src",
+            "/home/tadashi/develop/peneo/tests",
+            "/home/tadashi/develop/peneo/pyproject.toml",
+            "/home/tadashi/develop/peneo/README.md",
         ),
     )
 
@@ -121,7 +121,7 @@ def test_browsing_y_dispatches_copy_targets() -> None:
 
     assert actions == (
         SetNotification(None),
-        CopyTargets(("/home/tadashi/develop/plain/docs",)),
+        CopyTargets(("/home/tadashi/develop/peneo/docs",)),
     )
 
 
@@ -132,7 +132,7 @@ def test_browsing_x_dispatches_cut_targets() -> None:
 
     assert actions == (
         SetNotification(None),
-        CutTargets(("/home/tadashi/develop/plain/docs",)),
+        CutTargets(("/home/tadashi/develop/peneo/docs",)),
     )
 
 
@@ -158,7 +158,7 @@ def test_browsing_right_on_file_does_nothing() -> None:
         state,
         current_pane=replace(
             state.current_pane,
-            cursor_path="/home/tadashi/develop/plain/README.md",
+            cursor_path="/home/tadashi/develop/peneo/README.md",
         ),
     )
 
@@ -173,7 +173,7 @@ def test_browsing_enter_on_file_dispatches_open_with_default_app() -> None:
         state,
         current_pane=replace(
             state.current_pane,
-            cursor_path="/home/tadashi/develop/plain/README.md",
+            cursor_path="/home/tadashi/develop/peneo/README.md",
         ),
     )
 
@@ -181,7 +181,7 @@ def test_browsing_enter_on_file_dispatches_open_with_default_app() -> None:
 
     assert actions == (
         SetNotification(None),
-        OpenPathWithDefaultApp("/home/tadashi/develop/plain/README.md"),
+        OpenPathWithDefaultApp("/home/tadashi/develop/peneo/README.md"),
     )
 
 
@@ -191,7 +191,7 @@ def test_browsing_e_on_file_dispatches_open_in_editor() -> None:
         state,
         current_pane=replace(
             state.current_pane,
-            cursor_path="/home/tadashi/develop/plain/README.md",
+            cursor_path="/home/tadashi/develop/peneo/README.md",
         ),
     )
 
@@ -199,7 +199,7 @@ def test_browsing_e_on_file_dispatches_open_in_editor() -> None:
 
     assert actions == (
         SetNotification(None),
-        OpenPathInEditor("/home/tadashi/develop/plain/README.md"),
+        OpenPathInEditor("/home/tadashi/develop/peneo/README.md"),
     )
 
 
@@ -238,7 +238,7 @@ def test_browsing_f2_begins_rename_for_single_target() -> None:
 
     assert actions == (
         SetNotification(None),
-        BeginRenameInput("/home/tadashi/develop/plain/docs"),
+        BeginRenameInput("/home/tadashi/develop/peneo/docs"),
     )
 
 
@@ -250,8 +250,8 @@ def test_browsing_f2_warns_for_multiple_targets() -> None:
             state.current_pane,
             selected_paths=frozenset(
                 {
-                    "/home/tadashi/develop/plain/docs",
-                    "/home/tadashi/develop/plain/src",
+                    "/home/tadashi/develop/peneo/docs",
+                    "/home/tadashi/develop/peneo/src",
                 }
             ),
         ),
@@ -349,7 +349,7 @@ def test_browsing_delete_dispatches_delete_targets() -> None:
 
     assert actions == (
         SetNotification(None),
-        BeginDeleteTargets(("/home/tadashi/develop/plain/docs",)),
+        BeginDeleteTargets(("/home/tadashi/develop/peneo/docs",)),
     )
 
 
@@ -479,8 +479,8 @@ def test_delete_confirm_enter_dispatches_confirmation() -> None:
         ui_mode="CONFIRM",
         delete_confirmation=DeleteConfirmationState(
             paths=(
-                "/home/tadashi/develop/plain/docs",
-                "/home/tadashi/develop/plain/src",
+                "/home/tadashi/develop/peneo/docs",
+                "/home/tadashi/develop/peneo/src",
             )
         ),
     )
@@ -495,7 +495,7 @@ def test_delete_confirm_escape_cancels_confirmation() -> None:
         build_initial_app_state(),
         ui_mode="CONFIRM",
         delete_confirmation=DeleteConfirmationState(
-            paths=("/home/tadashi/develop/plain/docs",),
+            paths=("/home/tadashi/develop/peneo/docs",),
         ),
     )
 

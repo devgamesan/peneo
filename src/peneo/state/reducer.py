@@ -3,7 +3,7 @@
 from dataclasses import replace
 from pathlib import Path
 
-from plain.models import (
+from peneo.models import (
     CreatePathRequest,
     ExternalLaunchRequest,
     FileMutationResult,

@@ -4,7 +4,7 @@ from rich.text import Text
 from textual.containers import Container
 from textual.widgets import Static
 
-from plain.models import CommandPaletteViewState
+from peneo.models import CommandPaletteViewState
 
 
 class CommandPalette(Container):

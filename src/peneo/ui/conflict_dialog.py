@@ -3,7 +3,7 @@
 from textual.containers import Container
 from textual.widgets import Static
 
-from plain.models import ConflictDialogState
+from peneo.models import ConflictDialogState
 
 
 class ConflictDialog(Container):

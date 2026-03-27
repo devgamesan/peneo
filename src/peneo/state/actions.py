@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from plain.models import (
+from peneo.models import (
     ConflictResolution,
     CreateKind,
     ExternalLaunchRequest,

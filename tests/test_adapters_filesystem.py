@@ -1,4 +1,4 @@
-from plain.adapters import LocalFilesystemAdapter
+from peneo.adapters import LocalFilesystemAdapter
 
 
 def test_local_filesystem_adapter_lists_entries_with_metadata(tmp_path) -> None:
