@@ -199,7 +199,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
                 )
                 for index, result in visible_results
             ),
-            empty_message="No matching files",
+            empty_message=_file_search_empty_message(state),
         )
 
     items = get_command_palette_items(state)
@@ -393,6 +393,12 @@ def _select_file_search_window(
     end = min(total, start + FILE_SEARCH_VISIBLE_WINDOW)
     visible_results = tuple((index, results[index]) for index in range(start, end))
     return visible_results, f"Find File ({start + 1}-{end} / {total})"
+
+
+def _file_search_empty_message(state: AppState) -> str:
+    if state.pending_file_search_request_id is not None:
+        return "Searching files..."
+    return "No matching files"
 
 
 def _get_current_cursor_entry(state: AppState) -> DirectoryEntryState | None:

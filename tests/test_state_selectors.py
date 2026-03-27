@@ -462,6 +462,27 @@ def test_select_command_palette_state_for_file_search_results() -> None:
     assert [item.label for item in palette_state.items] == ["README.md"]
 
 
+def test_select_command_palette_state_shows_searching_message_while_file_search_is_pending(
+) -> None:
+    state = _reduce_state(build_initial_app_state(), BeginCommandPalette())
+    state = replace(
+        state,
+        command_palette=CommandPaletteState(
+            source="file_search",
+            query=".py",
+            file_search_results=(),
+        ),
+        pending_file_search_request_id=7,
+    )
+
+    palette_state = select_command_palette_state(state)
+
+    assert palette_state is not None
+    assert palette_state.title == "Find File"
+    assert palette_state.empty_message == "Searching files..."
+    assert palette_state.items == ()
+
+
 def test_select_command_palette_state_windows_large_file_search_results() -> None:
     results = tuple(
         FileSearchResultState(
