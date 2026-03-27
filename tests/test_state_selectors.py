@@ -440,7 +440,6 @@ def test_select_command_palette_state_uses_hidden_toggle_label_from_state() -> N
     assert visible_palette_state is not None
     assert [item.label for item in visible_palette_state.items] == ["Hide hidden files"]
 
-
 def test_select_command_palette_state_for_file_search_results() -> None:
     state = _reduce_state(build_initial_app_state(), BeginCommandPalette())
     state = replace(
