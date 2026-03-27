@@ -1,5 +1,5 @@
-from plain.models import PasteConflictPrompt, PasteRequest
-from plain.services import LiveClipboardOperationService
+from peneo.models import PasteConflictPrompt, PasteRequest
+from peneo.services import LiveClipboardOperationService
 
 
 def test_clipboard_service_requests_resolution_when_destination_exists(tmp_path) -> None:

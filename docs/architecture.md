@@ -1,6 +1,6 @@
-# Plain アーキテクチャ概要
+# Peneo アーキテクチャ概要
 
-このドキュメントは、`Plain` の現在の実装構造を俯瞰するためのものです。  
+このドキュメントは、`Peneo` の現在の実装構造を俯瞰するためのものです。  
 対象は `2026-03-26` 時点でコード上に存在する責務分割とデータフローであり、MVP 構想全体ではなく現実装を説明します。
 
 ## 1. 方針
@@ -20,12 +20,12 @@ widget 側に操作分岐を持たせず、状態遷移は `state/` に寄せる
 
 ```mermaid
 flowchart LR
-    subgraph UI["UI (`src/plain/app.py`, `src/plain/ui`)"]
-        App["PlainApp"]
+    subgraph UI["UI (`src/peneo/app.py`, `src/peneo/ui`)"]
+        App["PeneoApp"]
         Widgets["CurrentPathBar / MainPane / SidePane / CommandPalette / ConflictDialog / HelpBar / StatusBar"]
     end
 
-    subgraph State["State (`src/plain/state`)"]
+    subgraph State["State (`src/peneo/state`)"]
         Input["input.py\nキー入力 dispatcher"]
         Actions["actions.py\nAction 定義"]
         Reducer["reducer.py\nreduce_app_state"]
@@ -35,20 +35,20 @@ flowchart LR
         Palette["command_palette.py\npalette 候補構築"]
     end
 
-    subgraph Services["Services (`src/plain/services`)"]
+    subgraph Services["Services (`src/peneo/services`)"]
         Snapshot["browser_snapshot.py"]
         Clipboard["clipboard_operations.py"]
         Mutations["file_mutations.py"]
         Launch["external_launcher.py"]
     end
 
-    subgraph Adapters["Adapters (`src/plain/adapters`)"]
+    subgraph Adapters["Adapters (`src/peneo/adapters`)"]
         FS["filesystem.py"]
         FileOps["file_operations.py"]
         External["external_launcher.py"]
     end
 
-    subgraph Display["Display models (`src/plain/models`)"]
+    subgraph Display["Display models (`src/peneo/models`)"]
         Shell["shell_data.py\nThreePaneShellData"]
         Domain["file_operations.py / external_launch.py"]
     end
@@ -78,7 +78,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant App as PlainApp
+    participant App as PeneoApp
     participant Input as dispatch_key_input
     participant Reducer as reduce_app_state
     participant Worker as Textual worker
@@ -106,53 +106,53 @@ sequenceDiagram
 
 ## 4. 主要モジュールの責務
 
-### `src/plain/app.py`
+### `src/peneo/app.py`
 
-- `PlainApp` がアプリ全体の組み立て役
+- `PeneoApp` がアプリ全体の組み立て役
 - Textual の `Key` イベントを中央 dispatcher に流す
 - reducer が返した effect を worker と各 service に橋渡しする
 - selector の結果を使って UI widget を更新する
 
-### `src/plain/state/input.py`
+### `src/peneo/state/input.py`
 
 - モード別にキー入力を `Action` へ正規化する
 - 現在サポートしている主なモードは `BROWSING` / `FILTER` / `RENAME` / `CREATE` / `PALETTE` / `CONFIRM` / `BUSY`
 - `Esc` のように文脈で意味が変わるキーもここで吸収する
 
-### `src/plain/state/reducer.py`
+### `src/peneo/state/reducer.py`
 
 - `AppState` の唯一の更新点
 - 画面遷移、カーソル移動、選択、filter、sort、clipboard、rename/create/delete、palette 実行、dialog 状態を管理する
 - 外部 I/O は直接行わず、`LoadBrowserSnapshotEffect`、`RunClipboardPasteEffect`、`RunFileMutationEffect`、`RunExternalLaunchEffect` を返す
 - 非同期結果は request id で突き合わせ、古い snapshot 結果を破棄する
 
-### `src/plain/state/selectors.py`
+### `src/peneo/state/selectors.py`
 
 - `AppState` から `ThreePaneShellData` を組み立てる
 - 中央ペインにだけ filter / sort を適用し、親・子ペインは名前順 + ディレクトリ優先で固定表示する
 - help bar、status bar、input bar、command palette、conflict dialog の表示文言もここで整形する
 - cut 対象の dim 表示や summary 行の `item_count / selected_count / sort_label` も selector 側で組み立てる
 
-### `src/plain/state/command_palette.py`
+### `src/peneo/state/command_palette.py`
 
 - コマンドパレット候補の構築と query フィルタリングを担当する
 - 現在の palette には `Create file`、`Create directory`、`Copy path`、`Show/Hide hidden files`、`Open terminal here` がある
 - `Run shell command` は候補として見える場合があるが、現時点では `enabled=False` のプレースホルダ
 
-### `src/plain/services/`
+### `src/peneo/services/`
 
 - `browser_snapshot.py`: 実 filesystem から 3 ペイン用 snapshot を構築
 - `clipboard_operations.py`: copy / cut / paste の実処理と競合検出を担当
 - `file_mutations.py`: rename / create / trash delete を担当
 - `external_launcher.py`: 既定アプリ起動、現在のターミナル内エディタ起動、ターミナル起動、システムクリップボードへのパスコピーを担当
 
-### `src/plain/adapters/`
+### `src/peneo/adapters/`
 
 - `filesystem.py`: ディレクトリエントリの列挙とメタデータ取得
 - `file_operations.py`: copy / move / rename / create / trash などのファイル操作
 - `external_launcher.py`: OS ごとのコマンド差異を吸収して外部プロセスを起動
 
-### `src/plain/models/`
+### `src/peneo/models/`
 
 - `shell_data.py`: 描画専用モデル
 - `external_launch.py` と `file_operations.py`: service と reducer が受け渡す request / result モデル

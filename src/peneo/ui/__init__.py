@@ -1,4 +1,4 @@
-"""Textual UI components for Plain."""
+"""Textual UI components for Peneo."""
 
 from .command_palette import CommandPalette
 from .conflict_dialog import ConflictDialog

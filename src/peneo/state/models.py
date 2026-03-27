@@ -5,8 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from plain.models import ConflictResolution, CreateKind, PasteConflict, PasteRequest
-from plain.models.shell_data import EntryKind, NotificationLevel
+from peneo.models import ConflictResolution, CreateKind, PasteConflict, PasteRequest
+from peneo.models.shell_data import EntryKind, NotificationLevel
 
 UiMode = Literal["BROWSING", "FILTER", "RENAME", "CREATE", "PALETTE", "CONFIRM", "BUSY"]
 SortField = Literal["name", "modified", "size"]
@@ -161,7 +161,7 @@ class AppState:
 def build_initial_app_state() -> AppState:
     """Return a deterministic initial state used by selector and reducer tests."""
 
-    current_path = "/home/tadashi/develop/plain"
+    current_path = "/home/tadashi/develop/peneo"
     docs_path = f"{current_path}/docs"
 
     parent_entries = (

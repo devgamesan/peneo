@@ -5,8 +5,8 @@ from pathlib import Path
 from time import sleep
 from typing import Mapping, Protocol
 
-from plain.adapters import FileOperationAdapter, LocalFileOperationAdapter
-from plain.models import CreatePathRequest, FileMutationResult, RenameRequest, TrashDeleteRequest
+from peneo.adapters import FileOperationAdapter, LocalFileOperationAdapter
+from peneo.models import CreatePathRequest, FileMutationResult, RenameRequest, TrashDeleteRequest
 
 
 class FileMutationService(Protocol):

@@ -1,4 +1,4 @@
-"""Plain package."""
+"""Peneo package."""
 
 __all__ = ["create_app"]
 

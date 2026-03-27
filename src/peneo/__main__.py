@@ -1,4 +1,4 @@
-"""CLI entrypoint for Plain."""
+"""CLI entrypoint for Peneo."""
 
 from .app import create_app
 

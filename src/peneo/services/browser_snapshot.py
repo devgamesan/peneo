@@ -5,8 +5,8 @@ from pathlib import Path
 from time import sleep
 from typing import Mapping, Protocol
 
-from plain.adapters import DirectoryReader, LocalFilesystemAdapter
-from plain.state.models import (
+from peneo.adapters import DirectoryReader, LocalFilesystemAdapter
+from peneo.state.models import (
     AppState,
     BrowserSnapshot,
     PaneState,

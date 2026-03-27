@@ -3,7 +3,7 @@
 from rich.text import Text
 from textual.widgets import Static
 
-from plain.models import InputBarState
+from peneo.models import InputBarState
 
 
 class InputBar(Static):

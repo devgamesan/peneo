@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from plain.state.models import DirectoryEntryState
+from peneo.state.models import DirectoryEntryState
 
 
 class DirectoryReader(Protocol):

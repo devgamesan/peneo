@@ -7,8 +7,8 @@ from rich.text import Text
 from textual.css.query import NoMatches
 from textual.widgets import DataTable, Label, ListView, Static
 
-from plain import create_app
-from plain.models import (
+from peneo import create_app
+from peneo.models import (
     ExternalLaunchRequest,
     FileMutationResult,
     PasteConflict,
@@ -18,14 +18,14 @@ from plain.models import (
     PasteSummary,
     TrashDeleteRequest,
 )
-from plain.services import (
+from peneo.services import (
     FakeBrowserSnapshotLoader,
     FakeClipboardOperationService,
     FakeExternalLaunchService,
     FakeFileMutationService,
 )
-from plain.state import BrowserSnapshot, DirectoryEntryState, PaneState
-from plain.ui import (
+from peneo.state import BrowserSnapshot, DirectoryEntryState, PaneState
+from peneo.ui import (
     CommandPalette,
     ConflictDialog,
     CurrentPathBar,
@@ -206,10 +206,10 @@ async def _wait_for_external_launch_count(app, expected_count: int, timeout: flo
         await asyncio.sleep(0.01)
 
 
-def test_create_app_returns_plain_app() -> None:
+def test_create_app_returns_peneo_app() -> None:
     app = create_app()
 
-    assert app.title == "Plain"
+    assert app.title == "Peneo"
     assert app.sub_title == "Three-pane shell"
 
 
@@ -251,7 +251,7 @@ async def test_app_uses_cwd_for_default_initial_path(tmp_path, monkeypatch) -> N
 
 @pytest.mark.asyncio
 async def test_app_renders_loaded_three_pane_shell() -> None:
-    path = "/tmp/plain-app"
+    path = "/tmp/peneo-app"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/README.md", "README.md", "file", size_bytes=120),
@@ -291,7 +291,7 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
         assert str(parent_title.renderable) == "Parent Directory"
         assert str(current_title.renderable) == "Current Directory"
         assert str(child_title.renderable) == "Child Directory"
-        assert parent_entries == ["plain-app", "sibling"]
+        assert parent_entries == ["peneo-app", "sibling"]
         assert headers == ["Sel", "Type", "Name", "Size", "Modified"]
         assert current_table.row_count == 2
         assert child_entries == ["spec.md"]
@@ -304,7 +304,7 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
 
 @pytest.mark.asyncio
 async def test_app_can_start_in_narrow_headless_mode() -> None:
-    path = "/tmp/plain-narrow"
+    path = "/tmp/peneo-narrow"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -324,7 +324,7 @@ async def test_app_can_start_in_narrow_headless_mode() -> None:
 
 @pytest.mark.asyncio
 async def test_app_tab_keeps_focus_on_current_pane() -> None:
-    path = "/tmp/plain-tab-focus"
+    path = "/tmp/peneo-tab-focus"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -365,7 +365,7 @@ async def test_app_tab_keeps_focus_on_current_pane() -> None:
 
 @pytest.mark.asyncio
 async def test_app_keyboard_input_updates_selection_and_child_pane() -> None:
-    path = "/tmp/plain-keyboard"
+    path = "/tmp/peneo-keyboard"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -427,7 +427,7 @@ async def test_app_keyboard_input_updates_selection_and_child_pane() -> None:
 
 @pytest.mark.asyncio
 async def test_app_cut_marks_row_with_dimmed_style() -> None:
-    path = "/tmp/plain-cut"
+    path = "/tmp/peneo-cut"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -460,7 +460,7 @@ async def test_app_cut_marks_row_with_dimmed_style() -> None:
 
 @pytest.mark.asyncio
 async def test_app_right_enters_directory_and_backspace_returns_to_parent() -> None:
-    root = "/tmp/plain-nav"
+    root = "/tmp/peneo-nav"
     docs = f"{root}/docs"
     root_entries = (
         DirectoryEntryState(docs, "docs", "dir"),
@@ -519,15 +519,15 @@ async def test_app_right_enters_directory_and_backspace_returns_to_parent() -> N
 
 @pytest.mark.asyncio
 async def test_app_backspace_can_move_above_initial_directory() -> None:
-    initial_path = "/tmp/plain-nav/deeper"
-    parent_path = "/tmp/plain-nav"
+    initial_path = "/tmp/peneo-nav/deeper"
+    parent_path = "/tmp/peneo-nav"
     grandparent_path = "/tmp"
     parent_entries = (
         DirectoryEntryState(initial_path, "deeper", "dir"),
         DirectoryEntryState(f"{parent_path}/sibling", "sibling", "dir"),
     )
     grandparent_entries = (
-        DirectoryEntryState(parent_path, "plain-nav", "dir"),
+        DirectoryEntryState(parent_path, "peneo-nav", "dir"),
         DirectoryEntryState("/tmp/other", "other", "dir"),
     )
     loader = FakeBrowserSnapshotLoader(
@@ -590,7 +590,7 @@ async def test_app_backspace_can_move_above_initial_directory() -> None:
 
 @pytest.mark.asyncio
 async def test_app_f5_keeps_cursor_when_entry_still_exists() -> None:
-    path = "/tmp/plain-reload"
+    path = "/tmp/peneo-reload"
     initial_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -634,7 +634,7 @@ async def test_app_f5_keeps_cursor_when_entry_still_exists() -> None:
 
 @pytest.mark.asyncio
 async def test_app_f5_falls_back_to_first_row_when_cursor_disappears() -> None:
-    path = "/tmp/plain-reload-fallback"
+    path = "/tmp/peneo-reload-fallback"
     initial_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -676,7 +676,7 @@ async def test_app_f5_falls_back_to_first_row_when_cursor_disappears() -> None:
 
 @pytest.mark.asyncio
 async def test_app_f5_drops_selection_for_missing_entries() -> None:
-    path = "/tmp/plain-reload-selection"
+    path = "/tmp/peneo-reload-selection"
     initial_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -724,7 +724,7 @@ async def test_app_f5_drops_selection_for_missing_entries() -> None:
 
 @pytest.mark.asyncio
 async def test_app_navigation_clears_selection_in_new_directory() -> None:
-    root = "/tmp/plain-selection-nav"
+    root = "/tmp/peneo-selection-nav"
     docs = f"{root}/docs"
     root_entries = (
         DirectoryEntryState(docs, "docs", "dir"),
@@ -778,7 +778,7 @@ async def test_app_navigation_clears_selection_in_new_directory() -> None:
 
 @pytest.mark.asyncio
 async def test_app_refresh_updates_widgets_in_place() -> None:
-    path = "/tmp/plain-refresh"
+    path = "/tmp/peneo-refresh"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -825,7 +825,7 @@ async def test_app_refresh_updates_widgets_in_place() -> None:
 
 @pytest.mark.asyncio
 async def test_app_refresh_keeps_parent_pane_items_when_entries_are_unchanged() -> None:
-    path = "/tmp/plain-parent-stable"
+    path = "/tmp/peneo-parent-stable"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -863,7 +863,7 @@ async def test_app_refresh_keeps_parent_pane_items_when_entries_are_unchanged() 
 
 @pytest.mark.asyncio
 async def test_app_file_cursor_clears_child_pane() -> None:
-    path = "/tmp/plain-file"
+    path = "/tmp/peneo-file"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/README.md", "README.md", "file", size_bytes=120),
@@ -894,7 +894,7 @@ async def test_app_file_cursor_clears_child_pane() -> None:
 
 @pytest.mark.asyncio
 async def test_app_child_snapshot_failure_shows_error() -> None:
-    path = "/tmp/plain-failure"
+    path = "/tmp/peneo-failure"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
         DirectoryEntryState(f"{path}/src", "src", "dir"),
@@ -931,7 +931,7 @@ async def test_app_child_snapshot_failure_shows_error() -> None:
 
 @pytest.mark.asyncio
 async def test_app_displays_browsing_help_bar() -> None:
-    path = "/tmp/plain-help"
+    path = "/tmp/peneo-help"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -957,7 +957,7 @@ async def test_app_displays_browsing_help_bar() -> None:
 
 @pytest.mark.asyncio
 async def test_app_colon_shows_command_palette() -> None:
-    path = "/tmp/plain-command-palette"
+    path = "/tmp/peneo-command-palette"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -984,7 +984,7 @@ async def test_app_colon_shows_command_palette() -> None:
 
 @pytest.mark.asyncio
 async def test_app_command_palette_create_file_opens_context_input() -> None:
-    path = "/tmp/plain-command-palette-create"
+    path = "/tmp/peneo-command-palette-create"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -1011,7 +1011,7 @@ async def test_app_command_palette_create_file_opens_context_input() -> None:
 
 @pytest.mark.asyncio
 async def test_app_command_palette_toggles_hidden_files() -> None:
-    path = "/tmp/plain-command-palette-hidden"
+    path = "/tmp/peneo-command-palette-hidden"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -1049,7 +1049,7 @@ async def test_app_command_palette_toggles_hidden_files() -> None:
 
 @pytest.mark.asyncio
 async def test_app_enter_on_file_launches_default_app() -> None:
-    path = "/tmp/plain-open-file"
+    path = "/tmp/peneo-open-file"
     launch_service = FakeExternalLaunchService()
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1083,7 +1083,7 @@ async def test_app_enter_on_file_launches_default_app() -> None:
 
 @pytest.mark.asyncio
 async def test_app_right_on_file_does_not_launch_default_app() -> None:
-    path = "/tmp/plain-right-file"
+    path = "/tmp/peneo-right-file"
     launch_service = FakeExternalLaunchService()
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1117,7 +1117,7 @@ async def test_app_right_on_file_does_not_launch_default_app() -> None:
 
 @pytest.mark.asyncio
 async def test_app_command_palette_copy_path_copies_cursor_target() -> None:
-    path = "/tmp/plain-copy-path"
+    path = "/tmp/peneo-copy-path"
     copied_text: list[str] = []
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1152,7 +1152,7 @@ async def test_app_command_palette_copy_path_copies_cursor_target() -> None:
 
 @pytest.mark.asyncio
 async def test_app_command_palette_open_terminal_launches_current_directory() -> None:
-    path = "/tmp/plain-open-terminal"
+    path = "/tmp/peneo-open-terminal"
     launch_service = FakeExternalLaunchService()
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1187,7 +1187,7 @@ async def test_app_command_palette_open_terminal_launches_current_directory() ->
 
 @pytest.mark.asyncio
 async def test_app_pressing_e_launches_editor_for_file() -> None:
-    path = "/tmp/plain-open-editor"
+    path = "/tmp/peneo-open-editor"
     launch_service = FakeExternalLaunchService()
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1222,7 +1222,7 @@ async def test_app_pressing_e_launches_editor_for_file() -> None:
 
 @pytest.mark.asyncio
 async def test_app_pressing_e_refreshes_after_editor_returns() -> None:
-    path = "/tmp/plain-open-editor-refresh"
+    path = "/tmp/peneo-open-editor-refresh"
     launch_service = FakeExternalLaunchService()
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1262,10 +1262,10 @@ async def test_app_pressing_e_refreshes_after_editor_returns() -> None:
 
 @pytest.mark.asyncio
 async def test_app_external_launch_failure_surfaces_error_notification() -> None:
-    path = "/tmp/plain-open-failure"
+    path = "/tmp/peneo-open-failure"
     request = ExternalLaunchRequest(kind="open_file", path=f"{path}/README.md")
     launch_service = FakeExternalLaunchService(
-        failure_messages={request: "Failed to open /tmp/plain-open-failure/README.md: denied"}
+        failure_messages={request: "Failed to open /tmp/peneo-open-failure/README.md: denied"}
     )
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1292,14 +1292,14 @@ async def test_app_external_launch_failure_surfaces_error_notification() -> None
         await _wait_for_external_launch_count(app, 1)
 
         status_bar = await _wait_for_status_bar(app)
-        assert "error: Failed to open /tmp/plain-open-failure/README.md: denied" in str(
+        assert "error: Failed to open /tmp/peneo-open-failure/README.md: denied" in str(
             status_bar.renderable
         )
 
 
 @pytest.mark.asyncio
 async def test_app_sort_shortcuts_keep_side_panes_fixed_and_update_status_bar() -> None:
-    path = "/tmp/plain-sort-shortcuts"
+    path = "/tmp/peneo-sort-shortcuts"
     parent_path = "/tmp"
     child_path = f"{path}/zeta"
     snapshot = BrowserSnapshot(
@@ -1309,7 +1309,7 @@ async def test_app_sort_shortcuts_keep_side_panes_fixed_and_update_status_bar() 
             entries=(
                 DirectoryEntryState(f"{parent_path}/beta.txt", "beta.txt", "file"),
                 DirectoryEntryState(f"{parent_path}/alpha", "alpha", "dir"),
-                DirectoryEntryState(path, "plain-sort-shortcuts", "dir"),
+                DirectoryEntryState(path, "peneo-sort-shortcuts", "dir"),
             ),
             cursor_path=path,
         ),
@@ -1350,7 +1350,7 @@ async def test_app_sort_shortcuts_keep_side_panes_fixed_and_update_status_bar() 
         assert app.app_state.sort.directories_first is False
         assert [str(item.query_one(Label).renderable) for item in parent_list.children] == [
             "alpha",
-            "plain-sort-shortcuts",
+            "peneo-sort-shortcuts",
             "beta.txt",
         ]
         assert [str(item.query_one(Label).renderable) for item in child_list.children] == [
@@ -1364,7 +1364,7 @@ async def test_app_sort_shortcuts_keep_side_panes_fixed_and_update_status_bar() 
 
 @pytest.mark.asyncio
 async def test_app_filter_mode_accepts_printable_bound_keys() -> None:
-    path = "/tmp/plain-filter-keys"
+    path = "/tmp/peneo-filter-keys"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -1391,7 +1391,7 @@ async def test_app_filter_mode_accepts_printable_bound_keys() -> None:
 
 @pytest.mark.asyncio
 async def test_app_confirmed_filter_stays_visible_in_current_pane() -> None:
-    path = "/tmp/plain-filter-confirm"
+    path = "/tmp/peneo-filter-confirm"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -1424,7 +1424,7 @@ async def test_app_confirmed_filter_stays_visible_in_current_pane() -> None:
 
 @pytest.mark.asyncio
 async def test_app_filter_down_confirms_and_returns_to_browsing() -> None:
-    path = "/tmp/plain-filter-down"
+    path = "/tmp/peneo-filter-down"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
             path: _build_snapshot(
@@ -1457,7 +1457,7 @@ async def test_app_filter_down_confirms_and_returns_to_browsing() -> None:
 
 @pytest.mark.asyncio
 async def test_app_escape_clears_active_filter_before_selection() -> None:
-    path = "/tmp/plain-filter-escape-priority"
+    path = "/tmp/peneo-filter-escape-priority"
     docs = f"{path}/docs"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1492,7 +1492,7 @@ async def test_app_escape_clears_active_filter_before_selection() -> None:
 
 @pytest.mark.asyncio
 async def test_app_rename_mode_shows_context_input_and_updates_help() -> None:
-    path = "/tmp/plain-rename-mode"
+    path = "/tmp/peneo-rename-mode"
     docs = f"{path}/docs"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1604,7 +1604,7 @@ async def test_app_create_name_conflict_dialog_returns_to_input(tmp_path) -> Non
 
 @pytest.mark.asyncio
 async def test_app_paste_conflict_dialog_round_trip() -> None:
-    path = "/tmp/plain-paste-conflict"
+    path = "/tmp/peneo-paste-conflict"
     docs = f"{path}/docs"
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -1676,7 +1676,7 @@ async def test_app_paste_conflict_dialog_round_trip() -> None:
 
 @pytest.mark.asyncio
 async def test_app_delete_confirmation_round_trip() -> None:
-    path = "/tmp/plain-delete-confirm"
+    path = "/tmp/peneo-delete-confirm"
     docs = f"{path}/docs"
     src = f"{path}/src"
     loader = FakeBrowserSnapshotLoader(

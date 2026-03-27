@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from plain.services import FakeBrowserSnapshotLoader, LiveBrowserSnapshotLoader
-from plain.state import BrowserSnapshot, DirectoryEntryState, PaneState
+from peneo.services import FakeBrowserSnapshotLoader, LiveBrowserSnapshotLoader
+from peneo.state import BrowserSnapshot, DirectoryEntryState, PaneState
 
 
 @dataclass
@@ -45,7 +45,7 @@ def test_live_browser_snapshot_loader_uses_cursor_path_for_child_pane(tmp_path) 
     docs.mkdir()
     src = project / "src"
     src.mkdir()
-    (src / "main.py").write_text("print('plain')\n", encoding="utf-8")
+    (src / "main.py").write_text("print('peneo')\n", encoding="utf-8")
 
     loader = LiveBrowserSnapshotLoader()
 
@@ -90,7 +90,7 @@ def test_live_browser_snapshot_loader_normalizes_permission_error() -> None:
 
 
 def test_fake_browser_snapshot_loader_prefers_requested_cursor_path() -> None:
-    path = "/tmp/plain"
+    path = "/tmp/peneo"
     docs = f"{path}/docs"
     src = f"{path}/src"
     snapshot = BrowserSnapshot(

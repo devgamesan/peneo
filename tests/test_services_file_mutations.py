@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from plain.models import CreatePathRequest, RenameRequest, TrashDeleteRequest
-from plain.services import LiveFileMutationService
+from peneo.models import CreatePathRequest, RenameRequest, TrashDeleteRequest
+from peneo.services import LiveFileMutationService
 
 
 @dataclass
@@ -55,12 +55,12 @@ def test_file_mutation_service_trashes_single_path() -> None:
     service = LiveFileMutationService(adapter=adapter)
 
     result = service.execute(
-        TrashDeleteRequest(paths=("/tmp/plain/docs",))
+        TrashDeleteRequest(paths=("/tmp/peneo/docs",))
     )
 
-    assert adapter.trashed_paths == ["/tmp/plain/docs"]
+    assert adapter.trashed_paths == ["/tmp/peneo/docs"]
     assert result.message == "Trashed 1 item"
-    assert result.removed_paths == ("/tmp/plain/docs",)
+    assert result.removed_paths == ("/tmp/peneo/docs",)
 
 
 def test_file_mutation_service_renames_single_path() -> None:
@@ -68,20 +68,20 @@ def test_file_mutation_service_renames_single_path() -> None:
     service = LiveFileMutationService(adapter=adapter)
 
     result = service.execute(
-        RenameRequest(source_path="/tmp/plain/docs", new_name="docs-old")
+        RenameRequest(source_path="/tmp/peneo/docs", new_name="docs-old")
     )
 
-    assert adapter.moved_paths == [("/tmp/plain/docs", "/tmp/plain/docs-old")]
-    assert result.path == "/tmp/plain/docs-old"
+    assert adapter.moved_paths == [("/tmp/peneo/docs", "/tmp/peneo/docs-old")]
+    assert result.path == "/tmp/peneo/docs-old"
     assert result.message == "Renamed to docs-old"
 
 
 def test_file_mutation_service_raises_rename_error() -> None:
-    adapter = StubFileOperationAdapter(failing_paths={"/tmp/plain/docs-old"})
+    adapter = StubFileOperationAdapter(failing_paths={"/tmp/peneo/docs-old"})
     service = LiveFileMutationService(adapter=adapter)
 
     with pytest.raises(OSError, match="rename failed"):
-        service.execute(RenameRequest(source_path="/tmp/plain/docs", new_name="docs-old"))
+        service.execute(RenameRequest(source_path="/tmp/peneo/docs", new_name="docs-old"))
 
 
 def test_file_mutation_service_creates_file() -> None:
@@ -89,11 +89,11 @@ def test_file_mutation_service_creates_file() -> None:
     service = LiveFileMutationService(adapter=adapter)
 
     result = service.execute(
-        CreatePathRequest(parent_dir="/tmp/plain", name="README.md", kind="file")
+        CreatePathRequest(parent_dir="/tmp/peneo", name="README.md", kind="file")
     )
 
-    assert adapter.created_files == ["/tmp/plain/README.md"]
-    assert result.path == "/tmp/plain/README.md"
+    assert adapter.created_files == ["/tmp/peneo/README.md"]
+    assert result.path == "/tmp/peneo/README.md"
     assert result.message == "Created file README.md"
 
 
@@ -101,45 +101,45 @@ def test_file_mutation_service_creates_directory() -> None:
     adapter = StubFileOperationAdapter()
     service = LiveFileMutationService(adapter=adapter)
 
-    result = service.execute(CreatePathRequest(parent_dir="/tmp/plain", name="docs", kind="dir"))
+    result = service.execute(CreatePathRequest(parent_dir="/tmp/peneo", name="docs", kind="dir"))
 
-    assert adapter.created_directories == ["/tmp/plain/docs"]
-    assert result.path == "/tmp/plain/docs"
+    assert adapter.created_directories == ["/tmp/peneo/docs"]
+    assert result.path == "/tmp/peneo/docs"
     assert result.message == "Created directory docs"
 
 
 def test_file_mutation_service_raises_create_file_error() -> None:
-    adapter = StubFileOperationAdapter(failing_paths={"/tmp/plain/README.md"})
+    adapter = StubFileOperationAdapter(failing_paths={"/tmp/peneo/README.md"})
     service = LiveFileMutationService(adapter=adapter)
 
     with pytest.raises(OSError, match="file creation failed"):
-        service.execute(CreatePathRequest(parent_dir="/tmp/plain", name="README.md", kind="file"))
+        service.execute(CreatePathRequest(parent_dir="/tmp/peneo", name="README.md", kind="file"))
 
 
 def test_file_mutation_service_raises_create_directory_error() -> None:
-    adapter = StubFileOperationAdapter(failing_paths={"/tmp/plain/docs"})
+    adapter = StubFileOperationAdapter(failing_paths={"/tmp/peneo/docs"})
     service = LiveFileMutationService(adapter=adapter)
 
     with pytest.raises(OSError, match="directory creation failed"):
-        service.execute(CreatePathRequest(parent_dir="/tmp/plain", name="docs", kind="dir"))
+        service.execute(CreatePathRequest(parent_dir="/tmp/peneo", name="docs", kind="dir"))
 
 
 def test_file_mutation_service_reports_partial_delete_failures() -> None:
-    adapter = StubFileOperationAdapter(failing_paths={"/tmp/plain/src"})
+    adapter = StubFileOperationAdapter(failing_paths={"/tmp/peneo/src"})
     service = LiveFileMutationService(adapter=adapter)
 
     result = service.execute(
-        TrashDeleteRequest(paths=("/tmp/plain/docs", "/tmp/plain/src"))
+        TrashDeleteRequest(paths=("/tmp/peneo/docs", "/tmp/peneo/src"))
     )
 
-    assert adapter.trashed_paths == ["/tmp/plain/docs"]
+    assert adapter.trashed_paths == ["/tmp/peneo/docs"]
     assert result.level == "warning"
-    assert result.removed_paths == ("/tmp/plain/docs",)
+    assert result.removed_paths == ("/tmp/peneo/docs",)
 
 
 def test_file_mutation_service_raises_when_all_deletes_fail() -> None:
-    adapter = StubFileOperationAdapter(failing_paths={"/tmp/plain/docs"})
+    adapter = StubFileOperationAdapter(failing_paths={"/tmp/peneo/docs"})
     service = LiveFileMutationService(adapter=adapter)
 
     with pytest.raises(OSError, match="Failed to trash docs"):
-        service.execute(TrashDeleteRequest(paths=("/tmp/plain/docs",)))
+        service.execute(TrashDeleteRequest(paths=("/tmp/peneo/docs",)))

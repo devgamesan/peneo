@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from plain.models import (
+from peneo.models import (
     CommandPaletteItemViewState,
     CommandPaletteViewState,
     ConflictDialogState,

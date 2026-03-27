@@ -123,7 +123,7 @@ def build_dummy_shell_data() -> ThreePaneShellData:
     )
 
     return ThreePaneShellData(
-        current_path="/home/tadashi/develop/plain",
+        current_path="/home/tadashi/develop/peneo",
         parent_entries=(
             PaneEntry("develop", "dir"),
             PaneEntry("downloads", "dir"),
