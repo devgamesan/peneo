@@ -232,8 +232,23 @@ def _dispatch_split_terminal_input(
     if key == "backspace":
         return _supported(SendSplitTerminalInput("\x7f"))
 
+    if key == "delete":
+        return _supported(SendSplitTerminalInput("\x1b[3~"))
+
     if key == "escape":
         return _supported(SendSplitTerminalInput("\x1b"))
+
+    if key == "home":
+        return _supported(SendSplitTerminalInput("\x1b[H"))
+
+    if key == "end":
+        return _supported(SendSplitTerminalInput("\x1b[F"))
+
+    if key == "pageup":
+        return _supported(SendSplitTerminalInput("\x1b[5~"))
+
+    if key == "pagedown":
+        return _supported(SendSplitTerminalInput("\x1b[6~"))
 
     if key == "up":
         return _supported(SendSplitTerminalInput("\x1b[A"))
@@ -250,10 +265,26 @@ def _dispatch_split_terminal_input(
     if key == "ctrl+c":
         return _supported(SendSplitTerminalInput("\x03"))
 
+    control_character = _terminal_control_character(key)
+    if control_character is not None:
+        return _supported(SendSplitTerminalInput(control_character))
+
     if character and character.isprintable():
         return _supported(SendSplitTerminalInput(character))
 
     return ()
+
+
+def _terminal_control_character(key: str) -> str | None:
+    if not key.startswith("ctrl+") or key == "ctrl+t":
+        return None
+
+    suffix = key[5:]
+    if len(suffix) != 1 or not suffix.isalpha():
+        return None
+
+    letter = suffix.lower()
+    return chr(ord(letter) - ord("a") + 1)
 
 
 def _dispatch_command_palette_input(

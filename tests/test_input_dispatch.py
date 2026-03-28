@@ -430,6 +430,72 @@ def test_split_terminal_focus_sends_tab_for_completion() -> None:
     assert actions == (SetNotification(None), SendSplitTerminalInput("\t"))
 
 
+def test_split_terminal_focus_sends_delete_sequence() -> None:
+    state = replace(
+        build_initial_app_state(),
+        split_terminal=replace(
+            build_initial_app_state().split_terminal,
+            visible=True,
+            status="running",
+            focus_target="terminal",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="delete")
+
+    assert actions == (SetNotification(None), SendSplitTerminalInput("\x1b[3~"))
+
+
+def test_split_terminal_focus_sends_navigation_sequences() -> None:
+    state = replace(
+        build_initial_app_state(),
+        split_terminal=replace(
+            build_initial_app_state().split_terminal,
+            visible=True,
+            status="running",
+            focus_target="terminal",
+        ),
+    )
+
+    assert dispatch_key_input(state, key="home") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[H"),
+    )
+    assert dispatch_key_input(state, key="end") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[F"),
+    )
+    assert dispatch_key_input(state, key="pageup") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[5~"),
+    )
+    assert dispatch_key_input(state, key="pagedown") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[6~"),
+    )
+
+
+def test_split_terminal_focus_sends_ctrl_shortcuts_except_ctrl_t() -> None:
+    state = replace(
+        build_initial_app_state(),
+        split_terminal=replace(
+            build_initial_app_state().split_terminal,
+            visible=True,
+            status="running",
+            focus_target="terminal",
+        ),
+    )
+
+    assert dispatch_key_input(state, key="ctrl+d") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x04"),
+    )
+    assert dispatch_key_input(state, key="ctrl+l") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x0c"),
+    )
+
+
 def test_browsing_s_cycles_sort_state() -> None:
     state = build_initial_app_state()
 
