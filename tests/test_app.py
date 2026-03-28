@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from rich.text import Text
+from textual.containers import VerticalScroll
 from textual.css.query import NoMatches
 from textual.widgets import DataTable, Label, ListView, Static
 
@@ -24,6 +25,7 @@ from peneo.services import (
     FakeExternalLaunchService,
     FakeFileMutationService,
     FakeFileSearchService,
+    FakeSplitTerminalService,
 )
 from peneo.state import BrowserSnapshot, DirectoryEntryState, FileSearchResultState, PaneState
 from peneo.ui import (
@@ -33,6 +35,7 @@ from peneo.ui import (
     CurrentPathBar,
     HelpBar,
     InputBar,
+    SplitTerminalPane,
     StatusBar,
     SummaryBar,
 )
@@ -130,6 +133,17 @@ async def _wait_for_attribute_dialog(app, timeout: float = 0.5) -> AttributeDial
     while True:
         try:
             return app.query_one("#attribute-dialog", AttributeDialog)
+        except NoMatches:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise
+            await asyncio.sleep(0.01)
+
+
+async def _wait_for_split_terminal(app, timeout: float = 0.5) -> SplitTerminalPane:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        try:
+            return app.query_one("#split-terminal", SplitTerminalPane)
         except NoMatches:
             if asyncio.get_running_loop().time() >= deadline:
                 raise
@@ -1020,7 +1034,7 @@ async def test_app_displays_browsing_help_bar() -> None:
         help_bar = app.query_one("#help-bar", HelpBar)
 
         assert str(help_bar.renderable) == (
-            "Enter open | e edit | / filter | : palette | q quit\n"
+            "Enter open | e edit | / filter | : palette | q quit | ctrl+t split\n"
             "Space select | y copy | x cut | p paste | s sort | d dirs | F2 rename"
         )
 
@@ -1371,6 +1385,111 @@ async def test_app_command_palette_open_terminal_launches_current_directory() ->
             ExternalLaunchRequest(kind="open_terminal", path=path)
         ]
         assert app.app_state.ui_mode == "BROWSING"
+
+
+@pytest.mark.asyncio
+async def test_app_ctrl_t_opens_split_terminal_and_focuses_it() -> None:
+    path = "/tmp/peneo-split-terminal"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                    DirectoryEntryState(f"{path}/README.md", "README.md", "file"),
+                ),
+                child_path=f"{path}/docs",
+            )
+        }
+    )
+    split_terminal_service = FakeSplitTerminalService()
+    app = create_app(
+        snapshot_loader=loader,
+        split_terminal_service=split_terminal_service,
+        initial_path=path,
+    )
+
+    async with app.run_test() as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("ctrl+t")
+        await asyncio.sleep(0.05)
+
+        split_terminal = await _wait_for_split_terminal(app)
+
+        assert split_terminal.display is True
+        assert split_terminal_service.started_cwds == [path]
+        assert app.app_state.split_terminal.visible is True
+        assert app.app_state.split_terminal.status == "running"
+
+        assert app.app_state.split_terminal.focus_target == "terminal"
+        assert app.focused is split_terminal
+
+
+@pytest.mark.asyncio
+async def test_app_split_terminal_focus_routes_input_to_session() -> None:
+    path = "/tmp/peneo-split-terminal-input"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (DirectoryEntryState(f"{path}/docs", "docs", "dir"),),
+                child_path=f"{path}/docs",
+            )
+        }
+    )
+    split_terminal_service = FakeSplitTerminalService()
+    app = create_app(
+        snapshot_loader=loader,
+        split_terminal_service=split_terminal_service,
+        initial_path=path,
+    )
+
+    async with app.run_test() as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("ctrl+t")
+        await asyncio.sleep(0.05)
+        await pilot.press("a", "enter")
+        await asyncio.sleep(0.05)
+
+        session = split_terminal_service.sessions[0]
+        assert session.writes == ["a", "\r"]
+
+
+@pytest.mark.asyncio
+async def test_app_split_terminal_routes_tab_to_completion_and_auto_scrolls() -> None:
+    path = "/tmp/peneo-split-terminal-scroll"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (DirectoryEntryState(f"{path}/docs", "docs", "dir"),),
+                child_path=f"{path}/docs",
+            )
+        }
+    )
+    split_terminal_service = FakeSplitTerminalService()
+    app = create_app(
+        snapshot_loader=loader,
+        split_terminal_service=split_terminal_service,
+        initial_path=path,
+    )
+
+    async with app.run_test(size=(72, 16)) as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("ctrl+t")
+        await asyncio.sleep(0.05)
+        await pilot.press("tab")
+        await asyncio.sleep(0.05)
+
+        session = split_terminal_service.sessions[0]
+        session.emit_output("\n".join(f"line {index}" for index in range(20)))
+        await asyncio.sleep(0.05)
+
+        scroll = app.query_one("#split-terminal-scroll", VerticalScroll)
+
+        assert session.writes == ["\t"]
+        assert scroll.max_scroll_y > 0
+        assert scroll.scroll_y == scroll.max_scroll_y
 
 
 @pytest.mark.asyncio
