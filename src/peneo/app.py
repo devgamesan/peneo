@@ -2,6 +2,7 @@
 
 import threading
 from collections.abc import Sequence
+from concurrent.futures import CancelledError as FutureCancelledError
 from contextlib import nullcontext
 from functools import partial
 from pathlib import Path
@@ -63,7 +64,6 @@ from peneo.state import (
     RunFileMutationEffect,
     RunFileSearchEffect,
     SplitTerminalExited,
-    SplitTerminalOutputReceived,
     SplitTerminalStarted,
     SplitTerminalStartFailed,
     StartSplitTerminalEffect,
@@ -680,33 +680,39 @@ class PeneoApp(App[None]):
 
     def _handle_split_terminal_output(self, session_id: int, data: str) -> None:
         message = self.SplitTerminalOutput(session_id=session_id, data=data)
-        if self._thread_id == threading.get_ident():
-            self.post_message(message)
+        try:
+            if self._thread_id == threading.get_ident():
+                self.post_message(message)
+                return
+            self.call_from_thread(self.post_message, message)
+        except (RuntimeError, FutureCancelledError):
             return
-        self.call_from_thread(self.post_message, message)
 
     def _handle_split_terminal_exit(self, session_id: int, exit_code: int | None) -> None:
         message = self.SplitTerminalExitedMessage(session_id=session_id, exit_code=exit_code)
-        if self._thread_id == threading.get_ident():
-            self.post_message(message)
+        try:
+            if self._thread_id == threading.get_ident():
+                self.post_message(message)
+                return
+            self.call_from_thread(self.post_message, message)
+        except (RuntimeError, FutureCancelledError):
             return
-        self.call_from_thread(self.post_message, message)
 
     async def on_peneo_app_split_terminal_output(
         self,
         message: SplitTerminalOutput,
     ) -> None:
-        changed, effects = self._apply_actions(
-            (
-                SplitTerminalOutputReceived(
-                    session_id=message.session_id,
-                    data=message.data,
-                ),
-            )
-        )
-        if changed:
-            await self._refresh_split_terminal_only()
-        self._schedule_effects(effects)
+        split_terminal_state = self._app_state.split_terminal
+        if (
+            not split_terminal_state.visible
+            or split_terminal_state.session_id != message.session_id
+        ):
+            return
+        try:
+            split_terminal = self.query_one("#split-terminal", SplitTerminalPane)
+        except NoMatches:
+            return
+        split_terminal.append_output(message.data)
 
     async def on_peneo_app_split_terminal_exited_message(
         self,
@@ -957,15 +963,6 @@ class PeneoApp(App[None]):
                 self.set_focus(current_pane.query_one("#current-pane-table"))
             except NoMatches:
                 pass
-
-    async def _refresh_split_terminal_only(self) -> None:
-        try:
-            split_terminal = self.query_one("#split-terminal", SplitTerminalPane)
-        except NoMatches:
-            await self._refresh_shell()
-            return
-        split_terminal.set_state(select_shell_data(self._app_state).split_terminal)
-        self._resize_split_terminal_session()
 
     def _resize_split_terminal_session(self) -> None:
         if self._split_terminal_session is None or not self._app_state.split_terminal.visible:

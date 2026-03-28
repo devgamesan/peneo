@@ -457,7 +457,6 @@ def test_select_split_terminal_state_builds_terminal_view() -> None:
             visible=True,
             status="running",
             focus_target="terminal",
-            output="echo ok",
         ),
     )
 
@@ -466,7 +465,7 @@ def test_select_split_terminal_state_builds_terminal_view() -> None:
     assert terminal_state.visible is True
     assert terminal_state.focused is True
     assert terminal_state.title == "Split Terminal"
-    assert terminal_state.body == "echo ok"
+    assert terminal_state.body == "Shell ready."
 
 
 def test_select_command_palette_state_marks_selected_and_enabled_items() -> None:

@@ -262,12 +262,10 @@ def select_split_terminal_state(state: AppState) -> SplitTerminalViewState:
             focused=False,
         )
 
-    body = split_terminal.output.rstrip()
-    if not body:
-        if split_terminal.status == "starting":
-            body = "Starting shell..."
-        else:
-            body = "Shell ready."
+    if split_terminal.status == "starting":
+        body = "Starting shell..."
+    else:
+        body = "Shell ready."
     return SplitTerminalViewState(
         visible=True,
         title="Split Terminal",

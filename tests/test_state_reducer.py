@@ -678,7 +678,7 @@ def test_split_terminal_started_marks_session_running() -> None:
     )
 
 
-def test_split_terminal_output_received_appends_and_trims_output() -> None:
+def test_split_terminal_output_received_does_not_mutate_reducer_state() -> None:
     state = replace(
         build_initial_app_state(),
         split_terminal=replace(
@@ -692,35 +692,7 @@ def test_split_terminal_output_received_appends_and_trims_output() -> None:
 
     next_state = _reduce_state(state, SplitTerminalOutputReceived(session_id=5, data=" world"))
 
-    assert next_state.split_terminal.output.endswith("hello world")
-
-
-def test_split_terminal_output_received_preserves_raw_terminal_sequences() -> None:
-    state = replace(
-        build_initial_app_state(),
-        split_terminal=replace(
-            build_initial_app_state().split_terminal,
-            visible=True,
-            status="running",
-            session_id=9,
-            output="",
-        ),
-    )
-
-    next_state = _reduce_state(
-        state,
-        SplitTerminalOutputReceived(
-            session_id=9,
-            data=(
-                "\x1b]0;tadashi@kubuntu: ~/develop/peneo\x07"
-                "prompt$ abc\x08\x1b[K\r\n"
-            ),
-        ),
-    )
-
-    assert next_state.split_terminal.output == (
-        "\x1b]0;tadashi@kubuntu: ~/develop/peneo\x07prompt$ abc\x08\x1b[K\r\n"
-    )
+    assert next_state == state
 
 
 def test_split_terminal_exited_resets_state_and_notifies() -> None:

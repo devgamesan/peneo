@@ -1,5 +1,7 @@
 """Split-terminal widget."""
 
+import re
+
 import pyte
 from pyte.screens import Char, Screen
 from rich.text import Text
@@ -38,7 +40,8 @@ class SplitTerminalPane(Static):
         self.state = state
         self._screen: Screen | None = None
         self._stream: pyte.Stream | None = None
-        self._synced_body: str = ""
+        self._has_terminal_output = False
+        self._pending_escape_sequence = ""
         self._screen_columns = self.DEFAULT_COLUMNS
         self._screen_rows = self.DEFAULT_ROWS
 
@@ -52,9 +55,14 @@ class SplitTerminalPane(Static):
         self.set_state(self.state)
 
     def on_resize(self, _event: events.Resize) -> None:
-        if self.state.visible:
-            self._screen_columns = 0
-            self._render_body()
+        if not self.state.visible:
+            return
+        columns, rows = self.terminal_dimensions()
+        if self._screen is not None:
+            self._screen.resize(lines=rows, columns=columns)
+            self._screen_columns = columns
+            self._screen_rows = rows
+        self._render_body()
 
     def terminal_dimensions(self) -> tuple[int, int]:
         """Return the PTY size that best matches the visible body area."""
@@ -72,6 +80,7 @@ class SplitTerminalPane(Static):
     def set_state(self, state: SplitTerminalViewState) -> None:
         """Update visibility and rendered terminal content."""
 
+        was_visible = self.state.visible
         self.state = state
         self.display = state.visible
         self.set_class(state.visible, "-visible")
@@ -82,39 +91,50 @@ class SplitTerminalPane(Static):
 
         title.update(state.title)
         status.update(f"Status: {state.status}")
+        if was_visible and not state.visible:
+            self._reset_terminal_screen()
+        self._render_body()
+
+    def append_output(self, data: str) -> None:
+        """Feed raw PTY output into the emulator and redraw the pane."""
+
+        if not self.state.visible or not data:
+            return
+
+        columns, rows = self.terminal_dimensions()
+        self._ensure_terminal_screen(columns=columns, rows=rows)
+        safe_data = self._take_complete_terminal_data(data)
+        sanitized = _sanitize_terminal_output(safe_data)
+        if sanitized and self._stream is not None:
+            try:
+                self._stream.feed(sanitized)
+            except Exception:
+                # Ignore unsupported terminal queries instead of crashing the app.
+                pass
+            else:
+                self._has_terminal_output = True
         self._render_body()
 
     def _render_body(self) -> None:
         body = self.query_one("#split-terminal-body", Static)
         rendered = Text("")
         if self.state.visible:
-            columns, rows = self.terminal_dimensions()
-            self._sync_terminal_screen(self.state.body, columns=columns, rows=rows)
-            if self._screen is not None:
+            if self._has_terminal_output and self._screen is not None:
                 rendered = _screen_to_text(self._screen, focused=self.state.focused)
+            else:
+                rendered = Text(self.state.body)
         else:
             self._reset_terminal_screen()
         body.update(rendered)
 
-    def _sync_terminal_screen(self, body: str, *, columns: int, rows: int) -> None:
-        if (
-            self._screen is None
-            or self._stream is None
-            or columns != self._screen_columns
-            or rows != self._screen_rows
-            or len(body) < len(self._synced_body)
-            or not body.startswith(self._synced_body)
-        ):
+    def _ensure_terminal_screen(self, *, columns: int, rows: int) -> None:
+        if self._screen is None or self._stream is None:
             self._reset_terminal_screen(columns=columns, rows=rows)
-            if self._stream is not None and body:
-                self._stream.feed(body)
-                self._synced_body = body
             return
-
-        delta = body[len(self._synced_body) :]
-        if delta and self._stream is not None:
-            self._stream.feed(delta)
-            self._synced_body = body
+        if columns != self._screen_columns or rows != self._screen_rows:
+            self._screen.resize(lines=rows, columns=columns)
+            self._screen_columns = columns
+            self._screen_rows = rows
 
     def _reset_terminal_screen(
         self,
@@ -126,10 +146,21 @@ class SplitTerminalPane(Static):
         self._screen_rows = rows or self.DEFAULT_ROWS
         self._screen = Screen(self._screen_columns, self._screen_rows)
         self._stream = pyte.Stream(self._screen, strict=False)
-        self._synced_body = ""
+        self._has_terminal_output = False
+        self._pending_escape_sequence = ""
+
+    def _take_complete_terminal_data(self, data: str) -> str:
+        combined = self._pending_escape_sequence + data
+        complete, pending = _split_complete_terminal_data(combined)
+        self._pending_escape_sequence = pending
+        return complete
 
 
 _DEFAULT_CHAR = Char(" ")
+_DCS_SEQUENCE_RE = re.compile(r"\x1bP.*?(?:\x1b\\|\x9c)", re.DOTALL)
+_OSC_SEQUENCE_RE = re.compile(r"\x1b\].*?(?:\x07|\x1b\\|\x9c)", re.DOTALL)
+_PRIVATE_SGR_RE = re.compile(r"\x1b\[[?>][0-9;]*m")
+_INCOMPLETE_CSI_RE = re.compile(r"(\x1b\[[0-9:;<=>?]*[ -/]*)$")
 _TERMINAL_COLOR_MAP = {
     "black": "black",
     "red": "red",
@@ -148,6 +179,22 @@ _TERMINAL_COLOR_MAP = {
     "brightcyan": "bright_cyan",
     "brightwhite": "bright_white",
 }
+
+
+def _sanitize_terminal_output(data: str) -> str:
+    data = _DCS_SEQUENCE_RE.sub("", data)
+    data = _OSC_SEQUENCE_RE.sub("", data)
+    return _PRIVATE_SGR_RE.sub("", data)
+
+
+def _split_complete_terminal_data(data: str) -> tuple[str, str]:
+    if data.endswith("\x1b"):
+        return (data[:-1], "\x1b")
+    match = _INCOMPLETE_CSI_RE.search(data)
+    if match is None:
+        return (data, "")
+    pending = match.group(1)
+    return (data[: -len(pending)], pending)
 
 
 def _screen_to_text(screen: Screen, *, focused: bool) -> Text:

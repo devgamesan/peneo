@@ -204,13 +204,22 @@ class _PtySplitTerminalSession:
             while not self._closed.is_set():
                 ready, _, _ = select.select([self.master_fd], [], [], 0.1)
                 if self.master_fd in ready:
-                    try:
-                        chunk = os.read(self.master_fd, 4096)
-                    except OSError:
+                    chunks: list[str] = []
+                    while True:
+                        try:
+                            chunk = os.read(self.master_fd, 4096)
+                        except OSError:
+                            chunk = b""
+                        if not chunk:
+                            break
+                        chunks.append(chunk.decode(errors="replace"))
+                        more_ready, _, _ = select.select([self.master_fd], [], [], 0)
+                        if self.master_fd not in more_ready:
+                            break
+                    if chunks:
+                        self.on_output("".join(chunks))
+                    elif self.process.poll() is not None:
                         break
-                    if not chunk:
-                        break
-                    self.on_output(chunk.decode(errors="replace"))
                 if self.process.poll() is not None and not ready:
                     break
         finally:

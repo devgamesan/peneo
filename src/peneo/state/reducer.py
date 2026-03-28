@@ -1125,17 +1125,7 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
         )
 
     if isinstance(action, SplitTerminalOutputReceived):
-        if state.split_terminal.session_id != action.session_id or not state.split_terminal.visible:
-            return done(state)
-        return done(
-            replace(
-                state,
-                split_terminal=replace(
-                    state.split_terminal,
-                    output=_trim_split_terminal_output(state.split_terminal.output + action.data),
-                ),
-            )
-        )
+        return done(state)
 
     if isinstance(action, SplitTerminalExited):
         if state.split_terminal.session_id != action.session_id:
@@ -1248,15 +1238,6 @@ def _run_file_mutation_request(
         state=next_state,
         effects=(RunFileMutationEffect(request_id=request_id, request=request),),
     )
-
-
-def _trim_split_terminal_output(output: str) -> str:
-    max_chars = 200_000
-    if len(output) <= max_chars:
-        return output
-    return output[-max_chars:]
-
-
 def _cursor_path_after_file_mutation(
     state: AppState,
     result: FileMutationResult,

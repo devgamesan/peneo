@@ -1493,6 +1493,41 @@ async def test_app_split_terminal_handles_full_screen_terminal_output() -> None:
 
 
 @pytest.mark.asyncio
+async def test_app_split_terminal_ignores_unsupported_private_sgr_sequences() -> None:
+    path = "/tmp/peneo-split-terminal-private-sgr"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (DirectoryEntryState(f"{path}/docs", "docs", "dir"),),
+                child_path=f"{path}/docs",
+            )
+        }
+    )
+    split_terminal_service = FakeSplitTerminalService()
+    app = create_app(
+        snapshot_loader=loader,
+        split_terminal_service=split_terminal_service,
+        initial_path=path,
+    )
+
+    async with app.run_test(size=(72, 16)) as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("ctrl+t")
+        await asyncio.sleep(0.05)
+
+        session = split_terminal_service.sessions[0]
+        session.emit_output("\x1b[?1049h\x1b[2J\x1b[Hvim\x1b[?4m")
+        await asyncio.sleep(0.05)
+
+        body = app.query_one("#split-terminal-body", Static)
+        renderable = body.renderable
+
+        assert app.app_state.split_terminal.visible is True
+        assert str(renderable).splitlines()[0].startswith("vim")
+
+
+@pytest.mark.asyncio
 async def test_app_command_palette_open_in_file_manager_launches_current_directory() -> None:
     path = "/tmp/peneo-open-file-manager"
     launch_service = FakeExternalLaunchService()
