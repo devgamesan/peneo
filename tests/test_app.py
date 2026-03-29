@@ -1327,7 +1327,8 @@ async def test_app_displays_browsing_help_bar() -> None:
 
         assert str(help_bar.renderable) == (
             "Enter open | e edit | / filter | ctrl+f find | ctrl+g grep | q quit\n"
-            "Space select | y copy | x cut | p paste | s sort | d dirs | F2 rename | ctrl+t term"
+            "Space select | y copy | x cut | p paste | s sort | d dirs | F2 rename | ctrl+t term\n"
+            "alt+\u2190 back | alt+\u2192 fwd | ctrl+o history"
         )
 
 

@@ -512,10 +512,12 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
     assert help_state.lines == (
         "Enter open | e edit | / filter | ctrl+f find | ctrl+g grep | q quit",
         "Space select | y copy | x cut | p paste | s sort | d dirs | F2 rename | ctrl+t term",
+        "alt+\u2190 back | alt+\u2192 fwd | ctrl+o history",
     )
     assert help_state.text == (
         "Enter open | e edit | / filter | ctrl+f find | ctrl+g grep | q quit\n"
-        "Space select | y copy | x cut | p paste | s sort | d dirs | F2 rename | ctrl+t term"
+        "Space select | y copy | x cut | p paste | s sort | d dirs | F2 rename | ctrl+t term\n"
+        "alt+\u2190 back | alt+\u2192 fwd | ctrl+o history"
     )
 
 
