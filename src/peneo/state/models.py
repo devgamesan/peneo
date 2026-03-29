@@ -22,9 +22,11 @@ NameConflictKind = Literal["rename", "create_file", "create_dir"]
 CommandPaletteSource = Literal["commands", "file_search", "grep_search"]
 SplitTerminalStatus = Literal["closed", "starting", "running"]
 SplitTerminalFocusTarget = Literal["browser", "terminal"]
+DirectorySizeStatus = Literal["pending", "ready", "failed"]
 ConfigFieldId = Literal[
     "editor.command",
     "display.show_hidden_files",
+    "display.show_directory_sizes",
     "display.theme",
     "display.default_sort_field",
     "display.default_sort_descending",
@@ -157,6 +159,16 @@ class PendingInputState:
 
 
 @dataclass(frozen=True)
+class DirectorySizeCacheEntry:
+    """Cached recursive directory size for a visible path."""
+
+    path: str
+    status: DirectorySizeStatus
+    size_bytes: int | None = None
+    error_message: str | None = None
+
+
+@dataclass(frozen=True)
 class FileSearchResultState:
     """A single file-search result shown in the command palette."""
 
@@ -247,12 +259,14 @@ class AppState:
     attribute_inspection: AttributeInspectionState | None = None
     config_editor: ConfigEditorState | None = None
     post_reload_notification: NotificationState | None = None
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...] = ()
     pending_browser_snapshot_request_id: int | None = None
     pending_child_pane_request_id: int | None = None
     pending_paste_request_id: int | None = None
     pending_file_mutation_request_id: int | None = None
     pending_file_search_request_id: int | None = None
     pending_grep_search_request_id: int | None = None
+    pending_directory_size_request_id: int | None = None
     pending_config_save_request_id: int | None = None
     next_request_id: int = 1
 

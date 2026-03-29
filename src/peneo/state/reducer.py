@@ -43,6 +43,8 @@ from .actions import (
     CopyTargets,
     CutTargets,
     CycleConfigEditorValue,
+    DirectorySizesFailed,
+    DirectorySizesLoaded,
     DismissAttributeDialog,
     DismissConfigEditor,
     DismissNameConflict,
@@ -67,6 +69,7 @@ from .actions import (
     PasteClipboard,
     ReloadDirectory,
     RequestBrowserSnapshot,
+    RequestDirectorySizes,
     ResolvePasteConflict,
     SaveConfigEditor,
     SendSplitTerminalInput,
@@ -100,6 +103,7 @@ from .effects import (
     ReduceResult,
     RunClipboardPasteEffect,
     RunConfigSaveEffect,
+    RunDirectorySizeEffect,
     RunExternalLaunchEffect,
     RunFileMutationEffect,
     RunFileSearchEffect,
@@ -115,6 +119,7 @@ from .models import (
     ConfigEditorState,
     DeleteConfirmationState,
     DirectoryEntryState,
+    DirectorySizeCacheEntry,
     FileSearchResultState,
     NameConflictKind,
     NameConflictState,
@@ -1074,8 +1079,10 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
             state,
             notification=None,
             command_palette=None,
+            directory_size_cache=(),
             pending_browser_snapshot_request_id=request_id,
             pending_child_pane_request_id=None,
+            pending_directory_size_request_id=None,
             next_request_id=request_id + 1,
             ui_mode="BUSY" if action.blocking else state.ui_mode,
         )
@@ -1087,6 +1094,28 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
                 cursor_path=action.cursor_path,
                 blocking=action.blocking,
             ),
+        )
+
+    if isinstance(action, RequestDirectorySizes):
+        unique_paths = tuple(dict.fromkeys(action.paths))
+        if not unique_paths:
+            return done(state)
+        request_id = state.next_request_id
+        next_state = replace(
+            state,
+            directory_size_cache=_upsert_directory_size_entries(
+                state.directory_size_cache,
+                tuple(
+                    DirectorySizeCacheEntry(path=path, status="pending")
+                    for path in unique_paths
+                ),
+            ),
+            pending_directory_size_request_id=request_id,
+            next_request_id=request_id + 1,
+        )
+        return done(
+            next_state,
+            RunDirectorySizeEffect(request_id=request_id, paths=unique_paths),
         )
 
     if isinstance(action, BrowserSnapshotLoaded):
@@ -1113,7 +1142,7 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
             pending_child_pane_request_id=None,
             ui_mode="BROWSING" if action.blocking else state.ui_mode,
         )
-        return done(next_state)
+        return _maybe_request_directory_sizes(next_state)
 
     if isinstance(action, BrowserSnapshotFailed):
         if action.request_id != state.pending_browser_snapshot_request_id:
@@ -1132,14 +1161,13 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
     if isinstance(action, ChildPaneSnapshotLoaded):
         if action.request_id != state.pending_child_pane_request_id:
             return done(state)
-        return done(
-            replace(
-                state,
-                child_pane=action.pane,
-                notification=None,
-                pending_child_pane_request_id=None,
-            )
+        next_state = replace(
+            state,
+            child_pane=action.pane,
+            notification=None,
+            pending_child_pane_request_id=None,
         )
+        return _maybe_request_directory_sizes(next_state)
 
     if isinstance(action, ChildPaneSnapshotFailed):
         if action.request_id != state.pending_child_pane_request_id:
@@ -1152,6 +1180,55 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
                 pending_child_pane_request_id=None,
             )
         )
+
+    if isinstance(action, DirectorySizesLoaded):
+        if action.request_id != state.pending_directory_size_request_id:
+            return done(state)
+        loaded_entries = tuple(
+            DirectorySizeCacheEntry(
+                path=path,
+                status="ready",
+                size_bytes=size_bytes,
+            )
+            for path, size_bytes in action.sizes
+        )
+        failed_entries = tuple(
+            DirectorySizeCacheEntry(
+                path=path,
+                status="failed",
+                error_message=message,
+            )
+            for path, message in action.failures
+        )
+        next_state = replace(
+            state,
+            directory_size_cache=_upsert_directory_size_entries(
+                state.directory_size_cache,
+                (*loaded_entries, *failed_entries),
+            ),
+            pending_directory_size_request_id=None,
+        )
+        return done(next_state)
+
+    if isinstance(action, DirectorySizesFailed):
+        if action.request_id != state.pending_directory_size_request_id:
+            return done(state)
+        next_state = replace(
+            state,
+            directory_size_cache=_upsert_directory_size_entries(
+                state.directory_size_cache,
+                tuple(
+                    DirectorySizeCacheEntry(
+                        path=path,
+                        status="failed",
+                        error_message=action.message,
+                    )
+                    for path in action.paths
+                ),
+            ),
+            pending_directory_size_request_id=None,
+        )
+        return done(next_state)
 
     if isinstance(action, ClipboardPasteNeedsResolution):
         if action.request_id != state.pending_paste_request_id or not action.conflicts:
@@ -1431,22 +1508,21 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
                 draft=action.config,
                 dirty=False,
             )
-        return done(
-            _apply_config_to_runtime_state(
-                replace(
-                    state,
-                    config=action.config,
-                    config_path=action.path,
-                    config_editor=next_config_editor,
-                    pending_config_save_request_id=None,
-                    notification=NotificationState(
-                        level="info",
-                        message=f"Config saved: {action.path}",
-                    ),
+        next_state = _apply_config_to_runtime_state(
+            replace(
+                state,
+                config=action.config,
+                config_path=action.path,
+                config_editor=next_config_editor,
+                pending_config_save_request_id=None,
+                notification=NotificationState(
+                    level="info",
+                    message=f"Config saved: {action.path}",
                 ),
-                action.config,
-            )
+            ),
+            action.config,
         )
+        return _maybe_request_directory_sizes(next_state)
 
     if isinstance(action, ConfigSaveFailed):
         if state.pending_config_save_request_id != action.request_id:
@@ -1624,22 +1700,95 @@ def _request_snapshot_refresh(
     )
 
 
+def _maybe_request_directory_sizes(
+    state: AppState,
+    *effects: Effect,
+) -> ReduceResult:
+    target_paths = _directory_size_target_paths(state)
+    if not target_paths:
+        return ReduceResult(state=state, effects=effects)
+
+    cache_by_path = _directory_size_cache_by_path(state.directory_size_cache)
+    pending_paths = tuple(
+        path
+        for path in target_paths
+        if cache_by_path.get(path) is not None and cache_by_path[path].status == "pending"
+    )
+    missing_paths = tuple(path for path in target_paths if cache_by_path.get(path) is None)
+
+    if not missing_paths:
+        if pending_paths and state.pending_directory_size_request_id is None:
+            return reduce_app_state(state, RequestDirectorySizes(pending_paths))
+        return ReduceResult(state=state, effects=effects)
+
+    request_paths = tuple(dict.fromkeys((*pending_paths, *missing_paths)))
+    result = reduce_app_state(state, RequestDirectorySizes(request_paths))
+    return ReduceResult(state=result.state, effects=(*effects, *result.effects))
+
+
+def _directory_size_target_paths(state: AppState) -> tuple[str, ...]:
+    display_directory_sizes = state.config.display.show_directory_sizes
+    target_paths: list[str] = []
+    if display_directory_sizes:
+        target_paths.extend(_visible_directory_paths(state.parent_pane.entries, state.show_hidden))
+    target_paths.extend(
+        _visible_directory_paths(select_visible_current_entry_states(state), show_hidden=True)
+    )
+    if display_directory_sizes:
+        target_paths.extend(_visible_directory_paths(state.child_pane.entries, state.show_hidden))
+    if not display_directory_sizes and state.sort.field != "size":
+        return ()
+    if display_directory_sizes:
+        return tuple(dict.fromkeys(target_paths))
+    return tuple(
+        dict.fromkeys(
+            _visible_directory_paths(select_visible_current_entry_states(state), show_hidden=True)
+        )
+    )
+
+
+def _visible_directory_paths(
+    entries: tuple[DirectoryEntryState, ...],
+    show_hidden: bool,
+) -> tuple[str, ...]:
+    return tuple(
+        entry.path
+        for entry in entries
+        if entry.kind == "dir" and (show_hidden or not entry.hidden)
+    )
+
+
+def _directory_size_cache_by_path(
+    entries: tuple[DirectorySizeCacheEntry, ...],
+) -> dict[str, DirectorySizeCacheEntry]:
+    return {entry.path: entry for entry in entries}
+
+
+def _upsert_directory_size_entries(
+    current_entries: tuple[DirectorySizeCacheEntry, ...],
+    new_entries: tuple[DirectorySizeCacheEntry, ...],
+) -> tuple[DirectorySizeCacheEntry, ...]:
+    cache_by_path = _directory_size_cache_by_path(current_entries)
+    for entry in new_entries:
+        cache_by_path[entry.path] = entry
+    return tuple(sorted(cache_by_path.values(), key=lambda entry: entry.path))
+
+
 def _sync_child_pane(state: AppState, cursor_path: str | None) -> ReduceResult:
     entry = _current_entry_for_path(state, cursor_path)
     if entry is None or entry.kind != "dir":
-        return ReduceResult(
-            state=replace(
-                state,
-                child_pane=PaneState(directory_path=state.current_path, entries=()),
-                pending_child_pane_request_id=None,
-            )
+        next_state = replace(
+            state,
+            child_pane=PaneState(directory_path=state.current_path, entries=()),
+            pending_child_pane_request_id=None,
         )
+        return _maybe_request_directory_sizes(next_state)
 
     if (
         entry.path == state.child_pane.directory_path
         and state.pending_child_pane_request_id is None
     ):
-        return ReduceResult(state=state)
+        return _maybe_request_directory_sizes(state)
 
     request_id = state.next_request_id
     next_state = replace(
@@ -1647,14 +1796,12 @@ def _sync_child_pane(state: AppState, cursor_path: str | None) -> ReduceResult:
         pending_child_pane_request_id=request_id,
         next_request_id=request_id + 1,
     )
-    return ReduceResult(
-        state=next_state,
-        effects=(
-            LoadChildPaneSnapshotEffect(
-                request_id=request_id,
-                current_path=state.current_path,
-                cursor_path=entry.path,
-            ),
+    return _maybe_request_directory_sizes(
+        next_state,
+        LoadChildPaneSnapshotEffect(
+            request_id=request_id,
+            current_path=state.current_path,
+            cursor_path=entry.path,
         ),
     )
 
@@ -1710,6 +1857,14 @@ def _cycle_config_editor_value(config: AppConfig, cursor_index: int, delta: int)
             display=replace(
                 config.display,
                 show_hidden_files=not config.display.show_hidden_files,
+            ),
+        )
+    if field_id == "display.show_directory_sizes":
+        return replace(
+            config,
+            display=replace(
+                config.display,
+                show_directory_sizes=not config.display.show_directory_sizes,
             ),
         )
     if field_id == "display.theme":
@@ -1791,6 +1946,7 @@ def _config_editor_field_ids() -> tuple[str, ...]:
         "editor.command",
         "display.show_hidden_files",
         "display.theme",
+        "display.show_directory_sizes",
         "display.default_sort_field",
         "display.default_sort_descending",
         "display.directories_first",
@@ -1804,6 +1960,7 @@ def _config_editor_labels() -> tuple[str, ...]:
         "Editor command",
         "Show hidden files",
         "Theme",
+        "Show directory sizes",
         "Default sort field",
         "Default sort descending",
         "Directories first",

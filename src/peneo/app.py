@@ -28,6 +28,7 @@ from peneo.services import (
     BrowserSnapshotLoader,
     ClipboardOperationService,
     ConfigSaveService,
+    DirectorySizeService,
     ExternalLaunchService,
     FileMutationService,
     FileSearchService,
@@ -37,6 +38,7 @@ from peneo.services import (
     LiveBrowserSnapshotLoader,
     LiveClipboardOperationService,
     LiveConfigSaveService,
+    LiveDirectorySizeService,
     LiveExternalLaunchService,
     LiveFileMutationService,
     LiveFileSearchService,
@@ -59,6 +61,8 @@ from peneo.state import (
     CloseSplitTerminalEffect,
     ConfigSaveCompleted,
     ConfigSaveFailed,
+    DirectorySizesFailed,
+    DirectorySizesLoaded,
     Effect,
     ExitCurrentPath,
     ExternalLaunchCompleted,
@@ -76,6 +80,7 @@ from peneo.state import (
     RequestBrowserSnapshot,
     RunClipboardPasteEffect,
     RunConfigSaveEffect,
+    RunDirectorySizeEffect,
     RunExternalLaunchEffect,
     RunFileMutationEffect,
     RunFileSearchEffect,
@@ -350,6 +355,7 @@ class PeneoApp(App[None]):
         snapshot_loader: BrowserSnapshotLoader | None = None,
         clipboard_service: ClipboardOperationService | None = None,
         config_save_service: ConfigSaveService | None = None,
+        directory_size_service: DirectorySizeService | None = None,
         file_mutation_service: FileMutationService | None = None,
         external_launch_service: ExternalLaunchService | None = None,
         file_search_service: FileSearchService | None = None,
@@ -378,6 +384,7 @@ class PeneoApp(App[None]):
         self._snapshot_loader = snapshot_loader or LiveBrowserSnapshotLoader()
         self._clipboard_service = clipboard_service or LiveClipboardOperationService()
         self._config_save_service = config_save_service or LiveConfigSaveService()
+        self._directory_size_service = directory_size_service or LiveDirectorySizeService()
         self._file_mutation_service = file_mutation_service or LiveFileMutationService()
         self._uses_live_external_launch_service = external_launch_service is None
         self._external_launch_service = (
@@ -394,6 +401,8 @@ class PeneoApp(App[None]):
         self._grep_search_timer: Timer | None = None
         self._active_grep_search_cancel_event: threading.Event | None = None
         self._active_grep_search_request_id: int | None = None
+        self._active_directory_size_cancel_event: threading.Event | None = None
+        self._active_directory_size_request_id: int | None = None
 
     @property
     def app_state(self) -> AppState:
@@ -422,6 +431,7 @@ class PeneoApp(App[None]):
 
         self._cancel_pending_file_search()
         self._cancel_pending_grep_search()
+        self._cancel_pending_directory_size()
         if self._split_terminal_session is None:
             return
         self._split_terminal_session.close()
@@ -507,6 +517,7 @@ class PeneoApp(App[None]):
         changed, effects = self._apply_actions(actions)
         self._sync_file_search_state(previous_state, self._app_state)
         self._sync_grep_search_state(previous_state, self._app_state)
+        self._sync_directory_size_state(previous_state, self._app_state)
         if previous_state.config.display.theme != self._app_state.config.display.theme:
             self.theme = self._app_state.config.display.theme
         if previous_state.config != self._app_state.config:
@@ -557,6 +568,8 @@ class PeneoApp(App[None]):
                 self._schedule_clipboard_paste(effect)
             elif isinstance(effect, RunConfigSaveEffect):
                 self._schedule_config_save(effect)
+            elif isinstance(effect, RunDirectorySizeEffect):
+                self._schedule_directory_sizes(effect)
             elif isinstance(effect, RunFileMutationEffect):
                 self._schedule_file_mutation(effect)
             elif isinstance(effect, RunExternalLaunchEffect):
@@ -631,6 +644,25 @@ class PeneoApp(App[None]):
             name=f"config-save:{effect.request_id}",
             group="config-save",
             description=effect.path,
+            exit_on_error=False,
+            exclusive=True,
+            thread=True,
+        )
+        self._pending_workers[worker.name] = effect
+
+    def _schedule_directory_sizes(self, effect: RunDirectorySizeEffect) -> None:
+        cancel_event = threading.Event()
+        self._active_directory_size_cancel_event = cancel_event
+        self._active_directory_size_request_id = effect.request_id
+        worker = self.run_worker(
+            partial(
+                self._directory_size_service.calculate_sizes,
+                effect.paths,
+                is_cancelled=cancel_event.is_set,
+            ),
+            name=f"directory-size:{effect.request_id}",
+            group="directory-size",
+            description=",".join(effect.paths),
             exit_on_error=False,
             exclusive=True,
             thread=True,
@@ -740,6 +772,14 @@ class PeneoApp(App[None]):
             return
         self._cancel_pending_grep_search()
 
+    def _sync_directory_size_state(self, previous_state: AppState, next_state: AppState) -> None:
+        if (
+            previous_state.pending_directory_size_request_id
+            == next_state.pending_directory_size_request_id
+        ):
+            return
+        self._cancel_pending_directory_size()
+
     def _cancel_pending_file_search(self) -> None:
         self._cancel_file_search_timer()
         self._cancel_active_file_search()
@@ -773,6 +813,13 @@ class PeneoApp(App[None]):
         self._active_grep_search_cancel_event.set()
         self._active_grep_search_cancel_event = None
         self._active_grep_search_request_id = None
+
+    def _cancel_pending_directory_size(self) -> None:
+        if self._active_directory_size_cancel_event is None:
+            return
+        self._active_directory_size_cancel_event.set()
+        self._active_directory_size_cancel_event = None
+        self._active_directory_size_request_id = None
 
     def _start_split_terminal(self, effect: StartSplitTerminalEffect) -> None:
         try:
@@ -971,6 +1018,12 @@ class PeneoApp(App[None]):
         ):
             self._active_grep_search_cancel_event = None
             self._active_grep_search_request_id = None
+        if (
+            isinstance(effect, RunDirectorySizeEffect)
+            and effect.request_id == self._active_directory_size_request_id
+        ):
+            self._active_directory_size_cancel_event = None
+            self._active_directory_size_request_id = None
 
         if event.state == WorkerState.CANCELLED:
             return
@@ -1041,6 +1094,18 @@ class PeneoApp(App[None]):
                             request_id=effect.request_id,
                             path=event.worker.result,
                             config=effect.config,
+                        ),
+                    )
+                )
+                return
+
+            if isinstance(effect, RunDirectorySizeEffect):
+                await self.dispatch_actions(
+                    (
+                        DirectorySizesLoaded(
+                            request_id=effect.request_id,
+                            sizes=event.worker.result[0],
+                            failures=event.worker.result[1],
                         ),
                     )
                 )
@@ -1121,6 +1186,18 @@ class PeneoApp(App[None]):
                 (
                     ConfigSaveFailed(
                         request_id=effect.request_id,
+                        message=message,
+                    ),
+                )
+            )
+            return
+
+        if isinstance(effect, RunDirectorySizeEffect):
+            await self.dispatch_actions(
+                (
+                    DirectorySizesFailed(
+                        request_id=effect.request_id,
+                        paths=effect.paths,
                         message=message,
                     ),
                 )
@@ -1266,6 +1343,7 @@ def create_app(
     snapshot_loader: BrowserSnapshotLoader | None = None,
     clipboard_service: ClipboardOperationService | None = None,
     config_save_service: ConfigSaveService | None = None,
+    directory_size_service: DirectorySizeService | None = None,
     file_mutation_service: FileMutationService | None = None,
     external_launch_service: ExternalLaunchService | None = None,
     file_search_service: FileSearchService | None = None,
@@ -1283,6 +1361,7 @@ def create_app(
         snapshot_loader=snapshot_loader,
         clipboard_service=clipboard_service,
         config_save_service=config_save_service,
+        directory_size_service=directory_size_service,
         file_mutation_service=file_mutation_service,
         external_launch_service=external_launch_service,
         file_search_service=file_search_service,

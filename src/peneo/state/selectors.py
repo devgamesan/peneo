@@ -1,6 +1,6 @@
 """Selectors that convert AppState into display models."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -29,6 +29,7 @@ from .command_palette import (
 from .models import (
     AppState,
     DirectoryEntryState,
+    DirectorySizeCacheEntry,
     FileSearchResultState,
     GrepSearchResultState,
     SortState,
@@ -56,6 +57,8 @@ def select_shell_data(state: AppState) -> ThreePaneShellData:
         parent_entries=select_parent_entries(state),
         current_entries=_select_current_pane_entries(
             current_pane.visible_entries,
+            state.directory_size_cache,
+            state.config.display.show_directory_sizes or state.sort.field == "size",
             state.current_pane.selected_paths,
             _select_cut_paths(state),
         ),
@@ -79,6 +82,8 @@ def select_parent_entries(state: AppState) -> tuple[PaneEntry, ...]:
     visible_entries = _select_side_pane_entry_states(state.parent_pane.entries, state.show_hidden)
     return _select_side_pane_entries(
         visible_entries,
+        state.directory_size_cache,
+        state.config.display.show_directory_sizes,
         _select_visible_cut_paths(visible_entries, _select_cut_paths(state)),
     )
 
@@ -88,6 +93,8 @@ def select_current_entries(state: AppState) -> tuple[PaneEntry, ...]:
 
     return _select_current_pane_entries(
         select_visible_current_entry_states(state),
+        state.directory_size_cache,
+        state.config.display.show_directory_sizes or state.sort.field == "size",
         state.current_pane.selected_paths,
         _select_cut_paths(state),
     )
@@ -111,6 +118,8 @@ def _select_child_entries_for_cursor(
     visible_entries = _select_side_pane_entry_states(state.child_pane.entries, state.show_hidden)
     return _select_side_pane_entries(
         visible_entries,
+        state.directory_size_cache,
+        state.config.display.show_directory_sizes,
         _select_visible_cut_paths(visible_entries, _select_cut_paths(state)),
     )
 
@@ -397,27 +406,38 @@ def select_config_dialog_state(state: AppState) -> ConfigDialogState | None:
             "Show hidden files",
             _format_bool(config.display.show_hidden_files),
         ),
-        _format_config_line(2, selected_index, "Theme", config.display.theme),
+        _format_config_line(
+            2,
+            selected_index,
+            "Theme",
+            config.display.theme,
+        ),
         _format_config_line(
             3,
+            selected_index,
+            "Show directory sizes",
+            _format_bool(config.display.show_directory_sizes),
+        ),
+        _format_config_line(
+            4,
             selected_index,
             "Default sort field",
             config.display.default_sort_field,
         ),
         _format_config_line(
-            4,
+            5,
             selected_index,
             "Default sort descending",
             _format_bool(config.display.default_sort_descending),
         ),
         _format_config_line(
-            5, selected_index, "Directories first", _format_bool(config.display.directories_first)
+            6, selected_index, "Directories first", _format_bool(config.display.directories_first)
         ),
         _format_config_line(
-            6, selected_index, "Confirm delete", _format_bool(config.behavior.confirm_delete)
+            7, selected_index, "Confirm delete", _format_bool(config.behavior.confirm_delete)
         ),
         _format_config_line(
-            7, selected_index, "Paste conflict action", config.behavior.paste_conflict_action
+            8, selected_index, "Paste conflict action", config.behavior.paste_conflict_action
         ),
         "",
         _format_custom_editor_hint(config.editor.command),
@@ -458,6 +478,7 @@ def select_visible_current_entry_states(state: AppState) -> tuple[DirectoryEntry
 
     return _select_visible_current_entry_states(
         state.current_pane.entries,
+        state.directory_size_cache,
         state.show_hidden,
         state.filter.query,
         state.filter.active,
@@ -484,6 +505,7 @@ def _select_current_pane_projection(state: AppState) -> _CurrentPaneProjection:
 @lru_cache(maxsize=256)
 def _select_visible_current_entry_states(
     entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
     show_hidden: bool,
     query: str,
     active: bool,
@@ -491,6 +513,7 @@ def _select_visible_current_entry_states(
 ) -> tuple[DirectoryEntryState, ...]:
     visible_entries = _filter_hidden_entries(entries, show_hidden)
     visible_entries = _filter_entries(visible_entries, query, active)
+    visible_entries = _overlay_directory_sizes(visible_entries, directory_size_cache)
     return _sort_entries(visible_entries, sort)
 
 
@@ -505,6 +528,8 @@ def _select_side_pane_entry_states(
 @lru_cache(maxsize=256)
 def _select_current_pane_entries(
     visible_entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    display_directory_sizes: bool,
     selected_paths: frozenset[str],
     cut_paths: frozenset[str],
 ) -> tuple[PaneEntry, ...]:
@@ -512,6 +537,11 @@ def _select_current_pane_entries(
         _to_pane_entry(
             entry,
             name_detail=_format_current_entry_name_detail(entry),
+            size_label_override=_format_entry_size_label(
+                entry,
+                directory_size_cache,
+                display_directory_sizes=display_directory_sizes,
+            ),
             selected=entry.path in selected_paths,
             cut=entry.path in cut_paths,
         )
@@ -522,9 +552,22 @@ def _select_current_pane_entries(
 @lru_cache(maxsize=256)
 def _select_side_pane_entries(
     visible_entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    display_directory_sizes: bool,
     cut_paths: frozenset[str],
 ) -> tuple[PaneEntry, ...]:
-    return tuple(_to_pane_entry(entry, cut=entry.path in cut_paths) for entry in visible_entries)
+    return tuple(
+        _to_pane_entry(
+            entry,
+            name_detail=_format_side_pane_name_detail(
+                entry,
+                directory_size_cache,
+                display_directory_sizes=display_directory_sizes,
+            ),
+            cut=entry.path in cut_paths,
+        )
+        for entry in visible_entries
+    )
 
 
 @lru_cache(maxsize=512)
@@ -585,6 +628,9 @@ def _sort_entries(
     entries: tuple[DirectoryEntryState, ...],
     sort: SortState,
 ) -> tuple[DirectoryEntryState, ...]:
+    if sort.field == "size":
+        return _sort_entries_by_size(entries, sort)
+
     directories = [entry for entry in entries if entry.kind == "dir"]
     files = [entry for entry in entries if entry.kind == "file"]
 
@@ -596,6 +642,20 @@ def _sort_entries(
     else:
         combined = sorted(entries, key=_sort_key(sort.field), reverse=sort.descending)
 
+    return tuple(combined)
+
+
+def _sort_entries_by_size(
+    entries: tuple[DirectoryEntryState, ...],
+    sort: SortState,
+) -> tuple[DirectoryEntryState, ...]:
+    key = _sort_size_key(sort.descending)
+    directories = [entry for entry in entries if entry.kind == "dir"]
+    files = [entry for entry in entries if entry.kind == "file"]
+    if sort.directories_first:
+        combined = [*sorted(directories, key=key), *sorted(files, key=key)]
+    else:
+        combined = sorted(entries, key=key)
     return tuple(combined)
 
 
@@ -613,6 +673,16 @@ def _sort_key(field: str):
             entry.name.casefold(),
         )
     return lambda entry: entry.name.casefold()
+
+
+def _sort_size_key(descending: bool):
+    def key(entry: DirectoryEntryState) -> tuple[int, int, str]:
+        if entry.size_bytes is None:
+            return (1, 0, entry.name.casefold())
+        value = -entry.size_bytes if descending else entry.size_bytes
+        return (0, value, entry.name.casefold())
+
+    return key
 
 
 def _format_sort_label(sort: SortState) -> str:
@@ -716,6 +786,7 @@ def _to_pane_entry(
     entry: DirectoryEntryState,
     *,
     name_detail: str | None = None,
+    size_label_override: str | None = None,
     selected: bool = False,
     cut: bool = False,
 ) -> PaneEntry:
@@ -723,7 +794,7 @@ def _to_pane_entry(
         name=entry.name,
         kind=entry.kind,
         name_detail=name_detail,
-        size_label=_format_size_label(entry.size_bytes),
+        size_label=size_label_override or _format_size_label(entry.size_bytes),
         modified_label=_format_modified_label(entry),
         selected=selected,
         cut=cut,
@@ -749,7 +820,13 @@ def _format_size_label(size_bytes: int | None) -> str:
         return "-"
     if size_bytes < 1_000:
         return f"{size_bytes} B"
-    return f"{size_bytes / 1_000:.1f} KB"
+    units = ("KB", "MB", "GB", "TB")
+    size = float(size_bytes)
+    for unit in units:
+        size /= 1_000
+        if size < 1_000 or unit == units[-1]:
+            return f"{size:.1f} {unit}"
+    return f"{size:.1f} TB"
 
 
 def _format_modified_label(entry: DirectoryEntryState) -> str:
@@ -787,3 +864,62 @@ def _format_custom_editor_hint(command: str | None) -> str:
 
 def _format_current_entry_name_detail(entry: DirectoryEntryState) -> str | None:
     return None
+
+
+@lru_cache(maxsize=256)
+def _directory_size_cache_by_path(
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+) -> dict[str, DirectorySizeCacheEntry]:
+    return {entry.path: entry for entry in directory_size_cache}
+
+
+@lru_cache(maxsize=256)
+def _overlay_directory_sizes(
+    entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+) -> tuple[DirectoryEntryState, ...]:
+    cache_by_path = _directory_size_cache_by_path(directory_size_cache)
+    return tuple(
+        replace(entry, size_bytes=cache_by_path[entry.path].size_bytes)
+        if entry.kind == "dir"
+        and entry.path in cache_by_path
+        and cache_by_path[entry.path].status == "ready"
+        else entry
+        for entry in entries
+    )
+
+
+def _format_entry_size_label(
+    entry: DirectoryEntryState,
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    *,
+    display_directory_sizes: bool,
+) -> str:
+    if entry.kind != "dir":
+        return _format_size_label(entry.size_bytes)
+    if not display_directory_sizes:
+        return "-"
+    cached_entry = _directory_size_cache_by_path(directory_size_cache).get(entry.path)
+    if cached_entry is None or cached_entry.status == "failed":
+        return "-"
+    if cached_entry.status == "pending":
+        return "calculating..."
+    return _format_size_label(cached_entry.size_bytes)
+
+
+def _format_side_pane_name_detail(
+    entry: DirectoryEntryState,
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    *,
+    display_directory_sizes: bool,
+) -> str | None:
+    if entry.kind != "dir":
+        return None
+    size_label = _format_entry_size_label(
+        entry,
+        directory_size_cache,
+        display_directory_sizes=display_directory_sizes,
+    )
+    if size_label == "-":
+        return None
+    return size_label
