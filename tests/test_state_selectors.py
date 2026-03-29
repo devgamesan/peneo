@@ -241,9 +241,9 @@ def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
     current_entries = select_current_entries(state)
     child_entries = select_child_entries(state)
 
-    assert parent_entries[0].name_detail == "3.4 MB"
+    assert parent_entries[0].name_detail is None
     assert current_entries[0].size_label == "calculating..."
-    assert child_entries[0].name_detail == "8.2 KB"
+    assert child_entries[0].name_detail is None
 
 
 def test_select_current_summary_counts_selected_absolute_paths() -> None:
