@@ -241,12 +241,9 @@ def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
     current_entries = select_current_entries(state)
     child_entries = select_child_entries(state)
 
-    # Parent/Child panes do not show directory sizes (Issue #187)
-    assert parent_entries[0].name_detail is None
-    assert parent_entries[0].size_label == "-"
+    assert parent_entries[0].name_detail == "3.4 MB"
     assert current_entries[0].size_label == "calculating..."
-    assert child_entries[0].name_detail is None
-    assert child_entries[0].size_label == "-"
+    assert child_entries[0].name_detail == "8.2 KB"
 
 
 def test_select_current_summary_counts_selected_absolute_paths() -> None:
