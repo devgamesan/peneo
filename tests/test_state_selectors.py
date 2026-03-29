@@ -14,6 +14,7 @@ from peneo.state import (
     CutTargets,
     DeleteConfirmationState,
     DirectoryEntryState,
+    DirectorySizeCacheEntry,
     FileSearchResultState,
     GrepSearchResultState,
     NameConflictState,
@@ -137,7 +138,7 @@ def test_select_visible_current_entries_sorts_by_size_without_directories_first(
 
     entries = select_visible_current_entry_states(state)
 
-    assert [entry.name for entry in entries] == ["docs", "beta.txt", "alpha.txt"]
+    assert [entry.name for entry in entries] == ["beta.txt", "alpha.txt", "docs"]
 
 
 def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
@@ -184,6 +185,65 @@ def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
         ".draft.md",
         "spec.md",
     ]
+
+
+def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
+    state = replace(
+        build_initial_app_state(
+            config=AppConfig(
+                display=replace(
+                    AppConfig().display,
+                    show_directory_sizes=True,
+                )
+            )
+        ),
+        parent_pane=PaneState(
+            directory_path="/tmp",
+            entries=(DirectoryEntryState("/tmp/peneo", "peneo", "dir"),),
+            cursor_path="/tmp/peneo",
+        ),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/README.md",
+                    "README.md",
+                    "file",
+                    size_bytes=2_150,
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+        child_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo/docs",
+            entries=(DirectoryEntryState("/home/tadashi/develop/peneo/docs/api", "api", "dir"),),
+        ),
+        directory_size_cache=(
+            DirectorySizeCacheEntry(
+                "/tmp/peneo",
+                "ready",
+                size_bytes=3_400_000,
+            ),
+            DirectorySizeCacheEntry(
+                "/home/tadashi/develop/peneo/docs",
+                "pending",
+            ),
+            DirectorySizeCacheEntry(
+                "/home/tadashi/develop/peneo/docs/api",
+                "ready",
+                size_bytes=8_200,
+            ),
+        ),
+    )
+
+    parent_entries = select_parent_entries(state)
+    current_entries = select_current_entries(state)
+    child_entries = select_child_entries(state)
+
+    assert parent_entries[0].name_detail == "3.4 MB"
+    assert current_entries[0].size_label == "calculating..."
+    assert child_entries[0].name_detail == "8.2 KB"
 
 
 def test_select_current_summary_counts_selected_absolute_paths() -> None:

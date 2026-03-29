@@ -381,6 +381,13 @@ class RequestBrowserSnapshot:
 
 
 @dataclass(frozen=True)
+class RequestDirectorySizes:
+    """Request asynchronous recursive sizes for visible directories."""
+
+    paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class BrowserSnapshotLoaded:
     """Apply a loaded browser snapshot to reducer state."""
 
@@ -411,6 +418,24 @@ class ChildPaneSnapshotFailed:
     """Apply an error raised while loading the child pane."""
 
     request_id: int
+    message: str
+
+
+@dataclass(frozen=True)
+class DirectorySizesLoaded:
+    """Apply completed recursive directory sizes."""
+
+    request_id: int
+    sizes: tuple[tuple[str, int], ...]
+    failures: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class DirectorySizesFailed:
+    """Apply a terminal recursive size failure."""
+
+    request_id: int
+    paths: tuple[str, ...]
     message: str
 
 
@@ -574,10 +599,13 @@ Action = (
     | SetSort
     | SetNotification
     | RequestBrowserSnapshot
+    | RequestDirectorySizes
     | BrowserSnapshotLoaded
     | BrowserSnapshotFailed
     | ChildPaneSnapshotLoaded
     | ChildPaneSnapshotFailed
+    | DirectorySizesLoaded
+    | DirectorySizesFailed
     | ClipboardPasteNeedsResolution
     | ClipboardPasteCompleted
     | ClipboardPasteFailed

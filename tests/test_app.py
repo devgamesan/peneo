@@ -29,6 +29,7 @@ from peneo.models import (
 from peneo.services import (
     FakeBrowserSnapshotLoader,
     FakeClipboardOperationService,
+    FakeDirectorySizeService,
     FakeExternalLaunchService,
     FakeFileMutationService,
     FakeFileSearchService,
@@ -200,6 +201,19 @@ async def _wait_for_notification_message(app, expected: str, timeout: float = 0.
             return
         if asyncio.get_running_loop().time() >= deadline:
             raise AssertionError(f"notification did not become {expected!r}")
+        await asyncio.sleep(0.01)
+
+
+async def _wait_for_directory_sizes(app, timeout: float = 0.5) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        if (
+            app.app_state.pending_directory_size_request_id is None
+            and app.app_state.directory_size_cache
+        ):
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("directory sizes did not finish loading")
         await asyncio.sleep(0.01)
 
 
@@ -405,6 +419,104 @@ def test_create_app_applies_configured_startup_state() -> None:
     assert app.app_state.sort.directories_first is False
     assert app.app_state.confirm_delete is False
     assert app.app_state.paste_conflict_action == "skip"
+
+
+@pytest.mark.asyncio
+async def test_app_loads_directory_sizes_when_enabled() -> None:
+    path = "/tmp/peneo-dir-size"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                    DirectoryEntryState(f"{path}/README.md", "README.md", "file", size_bytes=120),
+                ),
+                child_path=f"{path}/docs",
+                child_entries=(DirectoryEntryState(f"{path}/docs/api", "api", "dir"),),
+            )
+        }
+    )
+    directory_size_service = FakeDirectorySizeService(
+        results_by_paths={
+            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
+                (path, 10_000),
+                ("/tmp/sibling", 2_000),
+                (f"{path}/docs", 4_200),
+                (f"{path}/docs/api", 88_000),
+            )
+        }
+    )
+    app = create_app(
+        snapshot_loader=loader,
+        directory_size_service=directory_size_service,
+        app_config=AppConfig(
+            display=DisplayConfig(show_directory_sizes=True),
+        ),
+        initial_path=path,
+    )
+
+    async with app.run_test():
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_directory_sizes(app)
+        await _wait_for_row_count(app, 2)
+
+        table = app.query_one("#current-pane-table", DataTable)
+        child_list = app.query_one("#child-pane-list", ListView)
+
+        assert str(table.get_cell_at((0, 3))) == "4.2 KB"
+        assert "88.0 KB" in str(child_list.children[0].query_one(Label).renderable)
+
+
+@pytest.mark.asyncio
+async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> None:
+    path = "/tmp/peneo-dir-size-partial"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                    DirectoryEntryState(f"{path}/README.md", "README.md", "file", size_bytes=120),
+                ),
+                child_path=f"{path}/docs",
+                child_entries=(DirectoryEntryState(f"{path}/docs/api", "api", "dir"),),
+            )
+        }
+    )
+    directory_size_service = FakeDirectorySizeService(
+        results_by_paths={
+            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
+                (path, 10_000),
+                (f"{path}/docs", 4_200),
+                (f"{path}/docs/api", 88_000),
+            )
+        },
+        failures_by_paths={
+            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
+                ("/tmp/sibling", "permission denied"),
+            )
+        },
+    )
+    app = create_app(
+        snapshot_loader=loader,
+        directory_size_service=directory_size_service,
+        app_config=AppConfig(
+            display=DisplayConfig(show_directory_sizes=True),
+        ),
+        initial_path=path,
+    )
+
+    async with app.run_test():
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_directory_sizes(app)
+        await _wait_for_row_count(app, 2)
+
+        table = app.query_one("#current-pane-table", DataTable)
+        child_list = app.query_one("#child-pane-list", ListView)
+
+        assert str(table.get_cell_at((0, 3))) == "4.2 KB"
+        assert "88.0 KB" in str(child_list.children[0].query_one(Label).renderable)
 
 
 @pytest.mark.asyncio

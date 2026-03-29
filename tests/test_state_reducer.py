@@ -45,6 +45,9 @@ from peneo.state import (
     CycleConfigEditorValue,
     DeleteConfirmationState,
     DirectoryEntryState,
+    DirectorySizeCacheEntry,
+    DirectorySizesFailed,
+    DirectorySizesLoaded,
     DismissAttributeDialog,
     DismissConfigEditor,
     DismissNameConflict,
@@ -77,9 +80,11 @@ from peneo.state import (
     PendingInputState,
     ReloadDirectory,
     RequestBrowserSnapshot,
+    RequestDirectorySizes,
     ResolvePasteConflict,
     RunClipboardPasteEffect,
     RunConfigSaveEffect,
+    RunDirectorySizeEffect,
     RunExternalLaunchEffect,
     RunFileMutationEffect,
     RunFileSearchEffect,
@@ -121,6 +126,125 @@ def test_set_ui_mode_updates_only_mode() -> None:
     assert next_state.ui_mode == "FILTER"
     assert next_state.current_pane == state.current_pane
     assert next_state.filter == state.filter
+
+
+def test_request_directory_sizes_marks_paths_pending_and_emits_effect() -> None:
+    state = build_initial_app_state()
+
+    result = reduce_app_state(
+        state,
+        RequestDirectorySizes(("/home/tadashi/develop/peneo/docs",)),
+    )
+
+    assert result.state.pending_directory_size_request_id == 1
+    assert result.state.directory_size_cache == (
+        DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "pending"),
+    )
+    assert result.effects == (
+        RunDirectorySizeEffect(
+            request_id=1,
+            paths=("/home/tadashi/develop/peneo/docs",),
+        ),
+    )
+
+
+def test_request_browser_snapshot_clears_directory_size_cache() -> None:
+    state = replace(
+        build_initial_app_state(),
+        directory_size_cache=(
+            DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "ready", size_bytes=123),
+        ),
+        pending_directory_size_request_id=7,
+    )
+
+    next_state = reduce_app_state(
+        state,
+        RequestBrowserSnapshot("/home/tadashi/develop/peneo", blocking=True),
+    ).state
+
+    assert next_state.directory_size_cache == ()
+    assert next_state.pending_directory_size_request_id is None
+
+
+def test_directory_sizes_loaded_updates_cache_when_request_matches() -> None:
+    state = replace(
+        build_initial_app_state(),
+        directory_size_cache=(
+            DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "pending"),
+        ),
+        pending_directory_size_request_id=9,
+    )
+
+    next_state = _reduce_state(
+        state,
+        DirectorySizesLoaded(
+            request_id=9,
+            sizes=(("/home/tadashi/develop/peneo/docs", 4321),),
+        ),
+    )
+
+    assert next_state.directory_size_cache == (
+        DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "ready", size_bytes=4321),
+    )
+    assert next_state.pending_directory_size_request_id is None
+
+
+def test_directory_sizes_loaded_marks_partial_failures() -> None:
+    state = replace(
+        build_initial_app_state(),
+        directory_size_cache=(
+            DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "pending"),
+            DirectorySizeCacheEntry("/home/tadashi/develop/peneo/private", "pending"),
+        ),
+        pending_directory_size_request_id=9,
+    )
+
+    next_state = _reduce_state(
+        state,
+        DirectorySizesLoaded(
+            request_id=9,
+            sizes=(("/home/tadashi/develop/peneo/docs", 4321),),
+            failures=(("/home/tadashi/develop/peneo/private", "Permission denied"),),
+        ),
+    )
+
+    assert next_state.directory_size_cache == (
+        DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "ready", size_bytes=4321),
+        DirectorySizeCacheEntry(
+            "/home/tadashi/develop/peneo/private",
+            "failed",
+            error_message="Permission denied",
+        ),
+    )
+    assert next_state.pending_directory_size_request_id is None
+
+
+def test_directory_sizes_failed_marks_requested_paths_failed() -> None:
+    state = replace(
+        build_initial_app_state(),
+        directory_size_cache=(
+            DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "pending"),
+        ),
+        pending_directory_size_request_id=4,
+    )
+
+    next_state = _reduce_state(
+        state,
+        DirectorySizesFailed(
+            request_id=4,
+            paths=("/home/tadashi/develop/peneo/docs",),
+            message="Permission denied",
+        ),
+    )
+
+    assert next_state.directory_size_cache == (
+        DirectorySizeCacheEntry(
+            "/home/tadashi/develop/peneo/docs",
+            "failed",
+            error_message="Permission denied",
+        ),
+    )
+    assert next_state.pending_directory_size_request_id is None
 
 
 def test_toggle_selection_uses_absolute_paths() -> None:
@@ -492,7 +616,7 @@ def test_move_config_editor_cursor_clamps_to_visible_settings() -> None:
     next_state = _reduce_state(state, MoveConfigEditorCursor(delta=99))
 
     assert next_state.config_editor is not None
-    assert next_state.config_editor.cursor_index == 7
+    assert next_state.config_editor.cursor_index == 8
 
 
 def test_cycle_config_editor_editor_command_updates_draft_and_dirty_state() -> None:
@@ -546,6 +670,24 @@ def test_cycle_config_editor_theme_updates_draft_and_dirty_state() -> None:
 
     assert next_state.config_editor is not None
     assert next_state.config_editor.draft.display.theme == "textual-light"
+    assert next_state.config_editor.dirty is True
+
+
+def test_cycle_config_editor_directory_size_visibility_updates_draft_and_dirty_state() -> None:
+    state = replace(
+        build_initial_app_state(config_path="/tmp/peneo/config.toml"),
+        ui_mode="CONFIG",
+        config_editor=ConfigEditorState(
+            path="/tmp/peneo/config.toml",
+            draft=build_initial_app_state().config,
+            cursor_index=3,
+        ),
+    )
+
+    next_state = _reduce_state(state, CycleConfigEditorValue(delta=1))
+
+    assert next_state.config_editor is not None
+    assert next_state.config_editor.draft.display.show_directory_sizes is True
     assert next_state.config_editor.dirty is True
 
 

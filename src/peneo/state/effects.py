@@ -34,6 +34,14 @@ class LoadChildPaneSnapshotEffect:
 
 
 @dataclass(frozen=True)
+class RunDirectorySizeEffect:
+    """Execute recursive size calculation outside the reducer."""
+
+    request_id: int
+    paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class RunClipboardPasteEffect:
     """Execute a clipboard paste outside the reducer."""
 
@@ -112,6 +120,7 @@ class RunConfigSaveEffect:
 Effect = (
     LoadBrowserSnapshotEffect
     | LoadChildPaneSnapshotEffect
+    | RunDirectorySizeEffect
     | RunClipboardPasteEffect
     | RunFileMutationEffect
     | RunExternalLaunchEffect

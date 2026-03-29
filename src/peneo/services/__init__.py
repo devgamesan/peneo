@@ -19,6 +19,11 @@ from .config import (
     render_app_config,
     resolve_config_path,
 )
+from .directory_size import (
+    DirectorySizeService,
+    FakeDirectorySizeService,
+    LiveDirectorySizeService,
+)
 from .external_launcher import (
     ExternalLaunchService,
     FakeExternalLaunchService,
@@ -53,12 +58,14 @@ __all__ = [
     "BrowserSnapshotLoader",
     "ClipboardOperationService",
     "ConfigSaveService",
+    "DirectorySizeService",
     "ExternalLaunchService",
     "FileSearchService",
     "GrepSearchService",
     "FakeFileMutationService",
     "FakeFileSearchService",
     "FakeGrepSearchService",
+    "FakeDirectorySizeService",
     "InvalidFileSearchQueryError",
     "InvalidGrepSearchQueryError",
     "FakeBrowserSnapshotLoader",
@@ -69,6 +76,7 @@ __all__ = [
     "LiveFileSearchService",
     "LiveGrepSearchService",
     "LiveFileMutationService",
+    "LiveDirectorySizeService",
     "LiveClipboardOperationService",
     "LiveBrowserSnapshotLoader",
     "LiveConfigSaveService",
