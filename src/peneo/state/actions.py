@@ -546,6 +546,13 @@ class ConfigSaveFailed:
     message: str
 
 
+@dataclass(frozen=True)
+class SetTerminalHeight:
+    """Update the stored terminal height."""
+
+    height: int
+
+
 Action = (
     InitializeState
     | SetUiMode
@@ -619,4 +626,5 @@ Action = (
     | SplitTerminalExited
     | ConfigSaveCompleted
     | ConfigSaveFailed
+    | SetTerminalHeight
 )

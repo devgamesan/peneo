@@ -49,7 +49,7 @@ from .actions import (
 )
 from .models import AppState, DirectoryEntryState, NotificationState
 from .selectors import (
-    FILE_SEARCH_VISIBLE_WINDOW,
+    compute_search_visible_window,
     select_target_paths,
     select_visible_current_entry_states,
 )
@@ -332,10 +332,12 @@ def _dispatch_command_palette_input(
         return _supported(MoveCommandPaletteCursor(delta=1))
 
     if key == "pageup":
-        return _supported(MoveCommandPaletteCursor(delta=-FILE_SEARCH_VISIBLE_WINDOW))
+        visible = compute_search_visible_window(state.terminal_height)
+        return _supported(MoveCommandPaletteCursor(delta=-visible))
 
     if key == "pagedown":
-        return _supported(MoveCommandPaletteCursor(delta=FILE_SEARCH_VISIBLE_WINDOW))
+        visible = compute_search_visible_window(state.terminal_height)
+        return _supported(MoveCommandPaletteCursor(delta=visible))
 
     if key == "enter":
         return _supported(SubmitCommandPalette())

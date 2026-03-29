@@ -786,11 +786,8 @@ def test_select_command_palette_state_windows_large_file_search_results() -> Non
     palette_state = select_command_palette_state(state)
 
     assert palette_state is not None
-    assert palette_state.title == "Find File (5-16 / 20)"
+    assert palette_state.title == "Find File (8-14 / 20)"
     assert [item.label for item in palette_state.items] == [
-        "src/module_4.py",
-        "src/module_5.py",
-        "src/module_6.py",
         "src/module_7.py",
         "src/module_8.py",
         "src/module_9.py",
@@ -798,10 +795,8 @@ def test_select_command_palette_state_windows_large_file_search_results() -> Non
         "src/module_11.py",
         "src/module_12.py",
         "src/module_13.py",
-        "src/module_14.py",
-        "src/module_15.py",
     ]
-    assert palette_state.items[6].selected is True
+    assert palette_state.items[3].selected is True
 
 
 def test_select_command_palette_state_for_grep_search_results() -> None:
@@ -1026,3 +1021,54 @@ def test_select_help_bar_for_attribute_dialog() -> None:
     help_state = select_help_bar_state(state)
 
     assert help_state.text == "enter close | esc close"
+
+
+class TestComputeSearchVisibleWindow:
+    """Tests for dynamic search window size calculation."""
+
+    def test_default_terminal_height(self) -> None:
+        assert selectors_module.compute_search_visible_window(24) == 7
+
+    def test_large_terminal(self) -> None:
+        assert selectors_module.compute_search_visible_window(48) == 19
+
+    def test_very_large_terminal(self) -> None:
+        assert selectors_module.compute_search_visible_window(80) == 35
+
+    def test_small_terminal_uses_minimum(self) -> None:
+        assert selectors_module.compute_search_visible_window(10) == 3
+
+    def test_tiny_terminal_uses_minimum(self) -> None:
+        assert selectors_module.compute_search_visible_window(1) == 3
+
+
+class TestSelectSearchWindowWithDynamicSize:
+    """Tests for _select_file_search_window with dynamic terminal height."""
+
+    def test_large_terminal_shows_more_items(self) -> None:
+        results = tuple(
+            FileSearchResultState(
+                path=f"/home/tadashi/develop/peneo/src/module_{index}.py",
+                display_path=f"src/module_{index}.py",
+            )
+            for index in range(30)
+        )
+        state = _reduce_state(
+            replace(build_initial_app_state(), terminal_height=48),
+            BeginCommandPalette(),
+        )
+        state = replace(
+            state,
+            command_palette=CommandPaletteState(
+                source="file_search",
+                query=".py",
+                cursor_index=15,
+                file_search_results=results,
+            ),
+        )
+
+        palette_state = select_command_palette_state(state)
+
+        assert palette_state is not None
+        assert len(palette_state.items) == 19
+        assert palette_state.items[15 - (15 - 9)].selected is True
