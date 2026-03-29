@@ -268,6 +268,7 @@ class AppState:
     pending_grep_search_request_id: int | None = None
     pending_directory_size_request_id: int | None = None
     pending_config_save_request_id: int | None = None
+    terminal_height: int = 24
     next_request_id: int = 1
 
 

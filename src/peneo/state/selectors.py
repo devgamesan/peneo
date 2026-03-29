@@ -37,7 +37,8 @@ from .models import (
 
 SIDE_PANE_SORT = SortState(field="name", descending=False, directories_first=True)
 COMMAND_PALETTE_VISIBLE_WINDOW = 8
-FILE_SEARCH_VISIBLE_WINDOW = 12
+MIN_SEARCH_VISIBLE_WINDOW = 3
+_SEARCH_OVERHEAD_ROWS = 5
 
 
 @dataclass(frozen=True)
@@ -221,6 +222,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
     cursor_index = normalize_command_palette_cursor(state, state.command_palette.cursor_index)
     if state.command_palette.source == "file_search":
         visible_results, title = _select_file_search_window(
+            state,
             state.command_palette.file_search_results,
             cursor_index,
         )
@@ -240,6 +242,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
         )
     if state.command_palette.source == "grep_search":
         visible_results, title = _select_grep_search_window(
+            state,
             state.command_palette.grep_search_results,
             cursor_index,
         )
@@ -691,18 +694,32 @@ def _format_sort_label(sort: SortState) -> str:
     return f"{sort.field} {direction} dirs:{directories}"
 
 
+def compute_search_visible_window(terminal_height: int) -> int:
+    """Calculate visible search items based on terminal height."""
+    palette_rows = max(1, terminal_height // 2)
+    return max(MIN_SEARCH_VISIBLE_WINDOW, palette_rows - _SEARCH_OVERHEAD_ROWS)
+
+
 def _select_file_search_window(
+    state: AppState,
     results: tuple[FileSearchResultState, ...],
     cursor_index: int,
 ) -> tuple[tuple[tuple[int, FileSearchResultState], ...], str]:
-    return _select_search_window(results, cursor_index, title="Find File")
+    visible_window = compute_search_visible_window(state.terminal_height)
+    return _select_search_window(
+        results, cursor_index, title="Find File", visible_window=visible_window,
+    )
 
 
 def _select_grep_search_window(
+    state: AppState,
     results: tuple[GrepSearchResultState, ...],
     cursor_index: int,
 ) -> tuple[tuple[tuple[int, GrepSearchResultState], ...], str]:
-    return _select_search_window(results, cursor_index, title="Grep")
+    visible_window = compute_search_visible_window(state.terminal_height)
+    return _select_search_window(
+        results, cursor_index, title="Grep", visible_window=visible_window,
+    )
 
 
 def _select_search_window(
@@ -710,6 +727,7 @@ def _select_search_window(
     cursor_index: int,
     *,
     title: str,
+    visible_window: int,
 ) -> tuple[tuple[tuple[int, FileSearchResultState | GrepSearchResultState], ...], str]:
     total = len(results)
     if total == 0:
@@ -718,11 +736,11 @@ def _select_search_window(
     start = max(
         0,
         min(
-            cursor_index - (FILE_SEARCH_VISIBLE_WINDOW // 2),
-            max(0, total - FILE_SEARCH_VISIBLE_WINDOW),
+            cursor_index - (visible_window // 2),
+            max(0, total - visible_window),
         ),
     )
-    end = min(total, start + FILE_SEARCH_VISIBLE_WINDOW)
+    end = min(total, start + visible_window)
     visible_results = tuple((index, results[index]) for index in range(start, end))
     return visible_results, f"{title} ({start + 1}-{end} / {total})"
 

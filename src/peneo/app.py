@@ -85,6 +85,7 @@ from peneo.state import (
     RunFileMutationEffect,
     RunFileSearchEffect,
     RunGrepSearchEffect,
+    SetTerminalHeight,
     SortState,
     SplitTerminalExited,
     SplitTerminalStarted,
@@ -424,7 +425,10 @@ class PeneoApp(App[None]):
     async def on_mount(self) -> None:
         """Load the initial directory snapshot after the UI mounts."""
 
-        await self.dispatch_actions((RequestBrowserSnapshot(self._initial_path, blocking=True),))
+        await self.dispatch_actions((
+            SetTerminalHeight(height=self.size.height),
+            RequestBrowserSnapshot(self._initial_path, blocking=True),
+        ))
 
     def on_unmount(self) -> None:
         """Ensure the embedded terminal session is stopped when the app exits."""
@@ -1255,6 +1259,8 @@ class PeneoApp(App[None]):
 
     async def on_resize(self, event: events.Resize) -> None:
         """Keep the split-terminal PTY dimensions roughly aligned with the viewport."""
+
+        await self.dispatch_actions((SetTerminalHeight(height=event.size.height),))
 
         if self._split_terminal_session is None or not self._app_state.split_terminal.visible:
             return

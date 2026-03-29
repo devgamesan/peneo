@@ -96,6 +96,7 @@ from peneo.state import (
     SetFilterQuery,
     SetPendingInputValue,
     SetSort,
+    SetTerminalHeight,
     SetUiMode,
     SplitTerminalExited,
     SplitTerminalOutputReceived,
@@ -2557,3 +2558,19 @@ def test_child_pane_snapshot_failure_sets_error_and_clears_entries() -> None:
         level="error",
         message="permission denied",
     )
+
+
+class TestSetTerminalHeight:
+    def test_updates_terminal_height(self) -> None:
+        state = build_initial_app_state()
+        assert state.terminal_height == 24
+
+        next_state = _reduce_state(state, SetTerminalHeight(height=48))
+
+        assert next_state.terminal_height == 48
+
+    def test_no_change_when_same_height(self) -> None:
+        state = build_initial_app_state()
+        next_state = _reduce_state(state, SetTerminalHeight(height=24))
+
+        assert next_state is state

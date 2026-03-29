@@ -79,6 +79,7 @@ from .actions import (
     SetNotification,
     SetPendingInputValue,
     SetSort,
+    SetTerminalHeight,
     SetUiMode,
     SplitTerminalExited,
     SplitTerminalOutputReceived,
@@ -1537,6 +1538,11 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
                 ),
             )
         )
+
+    if isinstance(action, SetTerminalHeight):
+        if action.height == state.terminal_height:
+            return done(state)
+        return done(replace(state, terminal_height=action.height))
 
     if isinstance(action, DismissNameConflict):
         if state.name_conflict is None:
