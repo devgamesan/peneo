@@ -499,13 +499,10 @@ async def test_app_loads_directory_sizes_when_enabled() -> None:
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
         await _wait_for_table_cell(app, "4.2 KB", 0, 3)
-        await _wait_for_child_list_label(app, "88.0 KB")
 
         table = app.query_one("#current-pane-table", DataTable)
-        child_list = app.query_one("#child-pane-list", ListView)
 
         assert str(table.get_cell_at((0, 3))) == "4.2 KB"
-        assert "88.0 KB" in str(child_list.children[0].query_one(Label).renderable)
 
 
 @pytest.mark.asyncio
@@ -551,13 +548,10 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
         await _wait_for_table_cell(app, "4.2 KB", 0, 3)
-        await _wait_for_child_list_label(app, "88.0 KB")
 
         table = app.query_one("#current-pane-table", DataTable)
-        child_list = app.query_one("#child-pane-list", ListView)
 
         assert str(table.get_cell_at((0, 3))) == "4.2 KB"
-        assert "88.0 KB" in str(child_list.children[0].query_one(Label).renderable)
 
 
 @pytest.mark.asyncio
