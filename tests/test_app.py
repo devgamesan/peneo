@@ -458,7 +458,7 @@ async def test_app_loads_directory_sizes_when_enabled() -> None:
 
     async with app.run_test():
         await _wait_for_snapshot_loaded(app, path)
-        await _wait_for_directory_sizes(app)
+        await _wait_for_directory_sizes(app, timeout=5.0)
         await _wait_for_row_count(app, 2)
 
         table = app.query_one("#current-pane-table", DataTable)
@@ -509,7 +509,7 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
 
     async with app.run_test():
         await _wait_for_snapshot_loaded(app, path)
-        await _wait_for_directory_sizes(app)
+        await _wait_for_directory_sizes(app, timeout=5.0)
         await _wait_for_row_count(app, 2)
 
         table = app.query_one("#current-pane-table", DataTable)
