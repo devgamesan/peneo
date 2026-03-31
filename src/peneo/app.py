@@ -577,9 +577,7 @@ class PeneoApp(App[None]):
             elif isinstance(effect, RunFileMutationEffect):
                 self._schedule_file_mutation(effect)
             elif isinstance(effect, RunExternalLaunchEffect):
-                if effect.request.kind == "copy_paths":
-                    self._schedule_system_clipboard_copy(effect)
-                elif effect.request.kind == "open_editor":
+                if effect.request.kind == "open_editor":
                     self.call_next(self._run_foreground_external_launch, effect)
                 else:
                     self._schedule_external_launch(effect)
@@ -877,32 +875,6 @@ class PeneoApp(App[None]):
             self._split_terminal_session.close()
         finally:
             self._split_terminal_session = None
-
-    def _schedule_system_clipboard_copy(self, effect: RunExternalLaunchEffect) -> None:
-        try:
-            self.copy_to_clipboard("\n".join(effect.request.paths))
-        except Exception as error:  # pragma: no cover
-            self.call_next(
-                self.dispatch_actions,
-                (
-                    ExternalLaunchFailed(
-                        request_id=effect.request_id,
-                        request=effect.request,
-                        message=str(error) or "Failed to copy to system clipboard",
-                    ),
-                ),
-            )
-            return
-
-        self.call_next(
-            self.dispatch_actions,
-            (
-                ExternalLaunchCompleted(
-                    request_id=effect.request_id,
-                    request=effect.request,
-                ),
-            ),
-        )
 
     def _run_foreground_external_launch(self, effect: RunExternalLaunchEffect) -> None:
         suspend_context = nullcontext()
