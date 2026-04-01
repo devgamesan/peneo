@@ -1,3 +1,4 @@
+import asyncio
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
@@ -5,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from textual.app import SuspendNotSupported
+from textual.worker import WorkerState
 
 from peneo.app_runtime import (
     cancel_pending_directory_size,
@@ -13,7 +15,9 @@ from peneo.app_runtime import (
     clear_effect_tracking,
     complete_worker_actions,
     failed_worker_actions,
+    handle_worker_state_changed,
     run_foreground_external_launch,
+    schedule_file_search,
     start_file_search_worker,
     start_grep_search_worker,
     start_split_terminal,
@@ -28,6 +32,7 @@ from peneo.state import (
     DirectoryEntryState,
     DirectorySizesLoaded,
     ExternalLaunchFailed,
+    FileSearchCompleted,
     FileSearchFailed,
     LoadBrowserSnapshotEffect,
     PaneState,
@@ -41,6 +46,17 @@ from peneo.state import (
     WriteSplitTerminalInputEffect,
     build_initial_app_state,
 )
+
+
+@dataclass
+class _RecordingTimer:
+    interval: float
+    callback: Any
+    name: str
+    stopped: bool = False
+
+    def stop(self) -> None:
+        self.stopped = True
 
 
 @dataclass
@@ -64,18 +80,32 @@ class _RecordingApp:
     _split_terminal_session: Any = None
     suspend_error: BaseException | None = None
     run_worker_calls: list[dict[str, Any]] = field(default_factory=list)
+    set_timer_calls: list[dict[str, Any]] = field(default_factory=list)
     call_next_calls: list[tuple[Any, tuple[Any, ...]]] = field(default_factory=list)
+    dispatched_actions: list[tuple[Any, ...]] = field(default_factory=list)
     refresh_calls: list[dict[str, Any]] = field(default_factory=list)
 
     def run_worker(self, worker_fn: Any, **kwargs: Any) -> Any:
-        self.run_worker_calls.append(kwargs)
+        self.run_worker_calls.append({"worker_fn": worker_fn, **kwargs})
         return SimpleNamespace(name=kwargs["name"])
+
+    def set_timer(self, interval: float, callback: Any, *, name: str) -> _RecordingTimer:
+        timer = _RecordingTimer(interval=interval, callback=callback, name=name)
+        self.set_timer_calls.append(
+            {
+                "interval": interval,
+                "callback": callback,
+                "name": name,
+                "timer": timer,
+            }
+        )
+        return timer
 
     def call_next(self, callback: Any, *args: Any) -> None:
         self.call_next_calls.append((callback, args))
 
-    def dispatch_actions(self, actions: tuple[Any, ...]) -> None:
-        return None
+    async def dispatch_actions(self, actions: tuple[Any, ...]) -> None:
+        self.dispatched_actions.append(actions)
 
     def refresh(self, **kwargs: Any) -> None:
         self.refresh_calls.append(kwargs)
@@ -252,11 +282,36 @@ def test_start_grep_search_worker_ignores_stale_request() -> None:
     assert app._active_grep_search_request_id is None
 
 
+def test_schedule_file_search_replaces_existing_timer() -> None:
+    app = _RecordingApp()
+    existing_timer = _RecordingTimer(interval=0.1, callback=lambda: None, name="old-file-search")
+    app._file_search_timer = existing_timer
+
+    schedule_file_search(
+        app,
+        RunFileSearchEffect(
+            request_id=5,
+            root_path="/tmp/project",
+            query="docs",
+            show_hidden=False,
+        ),
+    )
+
+    assert existing_timer.stopped is True
+    assert len(app.set_timer_calls) == 1
+    assert app.set_timer_calls[0]["name"] == "file-search-debounce:5"
+    assert app._file_search_timer is app.set_timer_calls[0]["timer"]
+
+
 def test_cancel_pending_runtime_helpers_clear_active_tracking() -> None:
     app = _RecordingApp()
+    file_search_timer = _RecordingTimer(interval=0.1, callback=lambda: None, name="file-search")
+    grep_search_timer = _RecordingTimer(interval=0.1, callback=lambda: None, name="grep-search")
     file_search_cancel = threading.Event()
     grep_search_cancel = threading.Event()
     directory_size_cancel = threading.Event()
+    app._file_search_timer = file_search_timer
+    app._grep_search_timer = grep_search_timer
     app._active_file_search_cancel_event = file_search_cancel
     app._active_file_search_request_id = 3
     app._active_grep_search_cancel_event = grep_search_cancel
@@ -268,9 +323,13 @@ def test_cancel_pending_runtime_helpers_clear_active_tracking() -> None:
     cancel_pending_grep_search(app)
     cancel_pending_directory_size(app)
 
+    assert file_search_timer.stopped is True
+    assert app._file_search_timer is None
     assert file_search_cancel.is_set()
     assert app._active_file_search_cancel_event is None
     assert app._active_file_search_request_id is None
+    assert grep_search_timer.stopped is True
+    assert app._grep_search_timer is None
     assert grep_search_cancel.is_set()
     assert app._active_grep_search_cancel_event is None
     assert app._active_grep_search_request_id is None
@@ -316,6 +375,81 @@ def test_clear_effect_tracking_only_clears_matching_request() -> None:
     assert app._active_grep_search_request_id == 4
     assert app._active_directory_size_cancel_event is directory_size_cancel
     assert app._active_directory_size_request_id == 5
+
+
+def test_handle_worker_state_changed_clears_matching_tracking_and_dispatches_actions() -> None:
+    app = _RecordingApp()
+    file_search_cancel = threading.Event()
+    grep_search_cancel = threading.Event()
+    effect = RunFileSearchEffect(
+        request_id=3,
+        root_path="/tmp/project",
+        query="docs",
+        show_hidden=False,
+    )
+    app._pending_workers["file-search:3"] = effect
+    app._active_file_search_cancel_event = file_search_cancel
+    app._active_file_search_request_id = 3
+    app._active_grep_search_cancel_event = grep_search_cancel
+    app._active_grep_search_request_id = 4
+
+    asyncio.run(
+        handle_worker_state_changed(
+            app,
+            SimpleNamespace(
+                worker=SimpleNamespace(
+                    name="file-search:3",
+                    result=("README.md",),
+                    error=None,
+                ),
+                state=WorkerState.SUCCESS,
+            ),
+        )
+    )
+
+    assert app._pending_workers == {}
+    assert app._active_file_search_cancel_event is None
+    assert app._active_file_search_request_id is None
+    assert app._active_grep_search_cancel_event is grep_search_cancel
+    assert app._active_grep_search_request_id == 4
+    assert app.dispatched_actions == [
+        (
+            FileSearchCompleted(
+                request_id=3,
+                query="docs",
+                results=("README.md",),
+            ),
+        )
+    ]
+
+
+def test_handle_worker_state_changed_cleans_up_cancelled_workers_without_dispatch() -> None:
+    app = _RecordingApp()
+    cancel_event = threading.Event()
+    effect = RunGrepSearchEffect(
+        request_id=9,
+        root_path="/tmp/project",
+        query="TODO",
+        show_hidden=False,
+    )
+    app._pending_workers["grep-search:9"] = effect
+    app._active_grep_search_cancel_event = cancel_event
+    app._active_grep_search_request_id = 9
+
+    asyncio.run(
+        handle_worker_state_changed(
+            app,
+            SimpleNamespace(
+                worker=SimpleNamespace(name="grep-search:9", result=None, error=None),
+                state=WorkerState.CANCELLED,
+            ),
+        )
+    )
+
+    assert app._pending_workers == {}
+    assert app._active_grep_search_cancel_event is None
+    assert app._active_grep_search_request_id is None
+    assert app.dispatched_actions == []
 
 
 def test_run_foreground_external_launch_maps_suspend_failures() -> None:

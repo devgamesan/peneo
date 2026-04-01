@@ -1,9 +1,10 @@
 """Runtime helpers for effect scheduling and worker result handling."""
 
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import CancelledError as FutureCancelledError
 from contextlib import nullcontext
+from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
@@ -57,6 +58,74 @@ FILE_SEARCH_DEBOUNCE_SECONDS = 0.2
 GREP_SEARCH_DEBOUNCE_SECONDS = 0.2
 
 
+@dataclass(frozen=True)
+class _WorkerSpec:
+    name: str
+    group: str
+    description: str
+    exclusive: bool | None = None
+
+
+@dataclass(frozen=True)
+class _TrackingConfig:
+    effect_type: type[Any]
+    cancel_event_attr: str
+    request_id_attr: str
+
+
+@dataclass(frozen=True)
+class _SearchRuntimeConfig:
+    debounce_seconds: float
+    worker_key: str
+    timer_attr: str
+    pending_request_attr: str
+    service_attr: str
+    tracking: _TrackingConfig
+
+
+CompleteActionHandler = Callable[[Effect, object], tuple[Any, ...]]
+FailureActionHandler = Callable[[Effect, BaseException | None, str], tuple[Any, ...]]
+
+
+_FILE_SEARCH_RUNTIME = _SearchRuntimeConfig(
+    debounce_seconds=FILE_SEARCH_DEBOUNCE_SECONDS,
+    worker_key="file-search",
+    timer_attr="_file_search_timer",
+    pending_request_attr="pending_file_search_request_id",
+    service_attr="_file_search_service",
+    tracking=_TrackingConfig(
+        effect_type=RunFileSearchEffect,
+        cancel_event_attr="_active_file_search_cancel_event",
+        request_id_attr="_active_file_search_request_id",
+    ),
+)
+
+_GREP_SEARCH_RUNTIME = _SearchRuntimeConfig(
+    debounce_seconds=GREP_SEARCH_DEBOUNCE_SECONDS,
+    worker_key="grep-search",
+    timer_attr="_grep_search_timer",
+    pending_request_attr="pending_grep_search_request_id",
+    service_attr="_grep_search_service",
+    tracking=_TrackingConfig(
+        effect_type=RunGrepSearchEffect,
+        cancel_event_attr="_active_grep_search_cancel_event",
+        request_id_attr="_active_grep_search_request_id",
+    ),
+)
+
+_DIRECTORY_SIZE_TRACKING = _TrackingConfig(
+    effect_type=RunDirectorySizeEffect,
+    cancel_event_attr="_active_directory_size_cancel_event",
+    request_id_attr="_active_directory_size_request_id",
+)
+
+_TRACKING_CONFIGS = (
+    _FILE_SEARCH_RUNTIME.tracking,
+    _GREP_SEARCH_RUNTIME.tracking,
+    _DIRECTORY_SIZE_TRACKING,
+)
+
+
 def sync_runtime_state(app: Any, previous_state: Any, next_state: Any) -> None:
     if previous_state.pending_file_search_request_id != next_state.pending_file_search_request_id:
         cancel_pending_file_search(app)
@@ -77,264 +146,276 @@ def cancel_pending_runtime_work(app: Any) -> None:
 
 def schedule_effects(app: Any, effects: Sequence[Effect]) -> None:
     for effect in effects:
-        if isinstance(effect, LoadBrowserSnapshotEffect):
-            schedule_browser_snapshot(app, effect)
-        elif isinstance(effect, LoadChildPaneSnapshotEffect):
-            schedule_child_pane_snapshot(app, effect)
-        elif isinstance(effect, RunClipboardPasteEffect):
-            schedule_clipboard_paste(app, effect)
-        elif isinstance(effect, RunConfigSaveEffect):
-            schedule_config_save(app, effect)
-        elif isinstance(effect, RunDirectorySizeEffect):
-            schedule_directory_sizes(app, effect)
-        elif isinstance(effect, RunFileMutationEffect):
-            schedule_file_mutation(app, effect)
-        elif isinstance(effect, RunExternalLaunchEffect):
-            if effect.request.kind == "copy_paths":
-                run_copy_paths(app, effect)
-            elif effect.request.kind == "open_editor":
-                app.call_next(run_foreground_external_launch, app, effect)
-            else:
-                schedule_external_launch(app, effect)
-        elif isinstance(effect, RunFileSearchEffect):
-            schedule_file_search(app, effect)
-        elif isinstance(effect, RunGrepSearchEffect):
-            schedule_grep_search(app, effect)
-        elif isinstance(effect, StartSplitTerminalEffect):
-            start_split_terminal(app, effect)
-        elif isinstance(effect, WriteSplitTerminalInputEffect):
-            write_split_terminal_input(app, effect)
-        elif isinstance(effect, PasteFromClipboardEffect):
-            paste_from_clipboard(app, effect)
-        elif isinstance(effect, CloseSplitTerminalEffect):
-            close_split_terminal(app)
+        _schedule_effect(app, effect)
+
+
+def _schedule_effect(app: Any, effect: Effect) -> None:
+    for effect_type, scheduler in _EFFECT_SCHEDULERS:
+        if isinstance(effect, effect_type):
+            scheduler(app, effect)
+            return
+
+
+def _run_worker(
+    app: Any,
+    effect: Effect,
+    worker_fn: Callable[[], object],
+    spec: _WorkerSpec,
+) -> None:
+    worker_kwargs = {
+        "name": spec.name,
+        "group": spec.group,
+        "description": spec.description,
+        "exit_on_error": False,
+        "thread": True,
+    }
+    if spec.exclusive is not None:
+        worker_kwargs["exclusive"] = spec.exclusive
+    worker = app.run_worker(worker_fn, **worker_kwargs)
+    app._pending_workers[worker.name] = effect
+
+
+def _cancel_timer(app: Any, timer_attr: str) -> None:
+    timer = getattr(app, timer_attr)
+    if timer is None:
+        return
+    cast_timer: Timer = timer
+    cast_timer.stop()
+    setattr(app, timer_attr, None)
+
+
+def _set_active_tracking(
+    app: Any,
+    tracking: _TrackingConfig,
+    request_id: int,
+    cancel_event: threading.Event,
+) -> None:
+    setattr(app, tracking.cancel_event_attr, cancel_event)
+    setattr(app, tracking.request_id_attr, request_id)
+
+
+def _cancel_active_tracking(app: Any, tracking: _TrackingConfig) -> None:
+    cancel_event = getattr(app, tracking.cancel_event_attr)
+    if cancel_event is None:
+        return
+    cancel_event.set()
+    setattr(app, tracking.cancel_event_attr, None)
+    setattr(app, tracking.request_id_attr, None)
+
+
+def _clear_tracking_for_request(app: Any, tracking: _TrackingConfig, request_id: int) -> None:
+    if getattr(app, tracking.request_id_attr) != request_id:
+        return
+    setattr(app, tracking.cancel_event_attr, None)
+    setattr(app, tracking.request_id_attr, None)
 
 
 def schedule_browser_snapshot(app: Any, effect: LoadBrowserSnapshotEffect) -> None:
-    worker = app.run_worker(
+    _run_worker(
+        app,
+        effect,
         partial(
             app._snapshot_loader.load_browser_snapshot,
             effect.path,
             effect.cursor_path,
         ),
-        name=f"browser-snapshot:{effect.request_id}",
-        group="browser-snapshot",
-        description=effect.path,
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"browser-snapshot:{effect.request_id}",
+            group="browser-snapshot",
+            description=effect.path,
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_child_pane_snapshot(app: Any, effect: LoadChildPaneSnapshotEffect) -> None:
-    worker = app.run_worker(
+    _run_worker(
+        app,
+        effect,
         partial(
             app._snapshot_loader.load_child_pane_snapshot,
             effect.current_path,
             effect.cursor_path,
         ),
-        name=f"child-pane-snapshot:{effect.request_id}",
-        group="child-pane-snapshot",
-        description=effect.cursor_path,
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"child-pane-snapshot:{effect.request_id}",
+            group="child-pane-snapshot",
+            description=effect.cursor_path,
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_clipboard_paste(app: Any, effect: RunClipboardPasteEffect) -> None:
-    worker = app.run_worker(
+    _run_worker(
+        app,
+        effect,
         partial(app._clipboard_service.execute_paste, effect.request),
-        name=f"clipboard-paste:{effect.request_id}",
-        group="clipboard-paste",
-        description=effect.request.destination_dir,
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"clipboard-paste:{effect.request_id}",
+            group="clipboard-paste",
+            description=effect.request.destination_dir,
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_config_save(app: Any, effect: RunConfigSaveEffect) -> None:
-    worker = app.run_worker(
+    _run_worker(
+        app,
+        effect,
         partial(
             app._config_save_service.save,
             path=effect.path,
             config=effect.config,
         ),
-        name=f"config-save:{effect.request_id}",
-        group="config-save",
-        description=effect.path,
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"config-save:{effect.request_id}",
+            group="config-save",
+            description=effect.path,
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_directory_sizes(app: Any, effect: RunDirectorySizeEffect) -> None:
     cancel_event = threading.Event()
-    app._active_directory_size_cancel_event = cancel_event
-    app._active_directory_size_request_id = effect.request_id
-    worker = app.run_worker(
+    _set_active_tracking(app, _DIRECTORY_SIZE_TRACKING, effect.request_id, cancel_event)
+    _run_worker(
+        app,
+        effect,
         partial(
             app._directory_size_service.calculate_sizes,
             effect.paths,
             is_cancelled=cancel_event.is_set,
         ),
-        name=f"directory-size:{effect.request_id}",
-        group="directory-size",
-        description=",".join(effect.paths),
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"directory-size:{effect.request_id}",
+            group="directory-size",
+            description=",".join(effect.paths),
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_file_mutation(app: Any, effect: RunFileMutationEffect) -> None:
-    worker = app.run_worker(
+    _run_worker(
+        app,
+        effect,
         partial(app._file_mutation_service.execute, effect.request),
-        name=f"file-mutation:{effect.request_id}",
-        group="file-mutation",
-        description=str(effect.request),
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"file-mutation:{effect.request_id}",
+            group="file-mutation",
+            description=str(effect.request),
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_external_launch(app: Any, effect: RunExternalLaunchEffect) -> None:
-    worker = app.run_worker(
+    _run_worker(
+        app,
+        effect,
         partial(app._external_launch_service.execute, effect.request),
-        name=f"external-launch:{effect.request_id}",
-        group="external-launch",
-        description=str(effect.request),
-        exit_on_error=False,
-        thread=True,
+        _WorkerSpec(
+            name=f"external-launch:{effect.request_id}",
+            group="external-launch",
+            description=str(effect.request),
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def schedule_file_search(app: Any, effect: RunFileSearchEffect) -> None:
-    cancel_file_search_timer(app)
-    app._file_search_timer = app.set_timer(
-        FILE_SEARCH_DEBOUNCE_SECONDS,
-        partial(start_file_search_worker, app, effect),
-        name=f"file-search-debounce:{effect.request_id}",
-    )
+    _schedule_search_effect(app, effect, _FILE_SEARCH_RUNTIME)
 
 
 def start_file_search_worker(app: Any, effect: RunFileSearchEffect) -> None:
-    app._file_search_timer = None
-    if app._app_state.pending_file_search_request_id != effect.request_id:
-        return
-    cancel_event = threading.Event()
-    app._active_file_search_cancel_event = cancel_event
-    app._active_file_search_request_id = effect.request_id
-    worker = app.run_worker(
-        partial(
-            app._file_search_service.search,
-            effect.root_path,
-            effect.query,
-            show_hidden=effect.show_hidden,
-            is_cancelled=cancel_event.is_set,
-        ),
-        name=f"file-search:{effect.request_id}",
-        group="file-search",
-        description=effect.query,
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
-    )
-    app._pending_workers[worker.name] = effect
+    _start_search_worker(app, effect, _FILE_SEARCH_RUNTIME)
 
 
 def schedule_grep_search(app: Any, effect: RunGrepSearchEffect) -> None:
-    cancel_grep_search_timer(app)
-    app._grep_search_timer = app.set_timer(
-        GREP_SEARCH_DEBOUNCE_SECONDS,
-        partial(start_grep_search_worker, app, effect),
-        name=f"grep-search-debounce:{effect.request_id}",
-    )
+    _schedule_search_effect(app, effect, _GREP_SEARCH_RUNTIME)
 
 
 def start_grep_search_worker(app: Any, effect: RunGrepSearchEffect) -> None:
-    app._grep_search_timer = None
-    if app._app_state.pending_grep_search_request_id != effect.request_id:
+    _start_search_worker(app, effect, _GREP_SEARCH_RUNTIME)
+
+
+def _schedule_search_effect(
+    app: Any,
+    effect: RunFileSearchEffect | RunGrepSearchEffect,
+    config: _SearchRuntimeConfig,
+) -> None:
+    _cancel_timer(app, config.timer_attr)
+    timer = app.set_timer(
+        config.debounce_seconds,
+        partial(_start_search_worker, app, effect, config),
+        name=f"{config.worker_key}-debounce:{effect.request_id}",
+    )
+    setattr(app, config.timer_attr, timer)
+
+
+def _start_search_worker(
+    app: Any,
+    effect: RunFileSearchEffect | RunGrepSearchEffect,
+    config: _SearchRuntimeConfig,
+) -> None:
+    setattr(app, config.timer_attr, None)
+    if getattr(app._app_state, config.pending_request_attr) != effect.request_id:
         return
     cancel_event = threading.Event()
-    app._active_grep_search_cancel_event = cancel_event
-    app._active_grep_search_request_id = effect.request_id
-    worker = app.run_worker(
+    _set_active_tracking(app, config.tracking, effect.request_id, cancel_event)
+    service = getattr(app, config.service_attr)
+    _run_worker(
+        app,
+        effect,
         partial(
-            app._grep_search_service.search,
+            service.search,
             effect.root_path,
             effect.query,
             show_hidden=effect.show_hidden,
             is_cancelled=cancel_event.is_set,
         ),
-        name=f"grep-search:{effect.request_id}",
-        group="grep-search",
-        description=effect.query,
-        exit_on_error=False,
-        exclusive=True,
-        thread=True,
+        _WorkerSpec(
+            name=f"{config.worker_key}:{effect.request_id}",
+            group=config.worker_key,
+            description=effect.query,
+            exclusive=True,
+        ),
     )
-    app._pending_workers[worker.name] = effect
 
 
 def cancel_pending_file_search(app: Any) -> None:
-    cancel_file_search_timer(app)
-    cancel_active_file_search(app)
+    _cancel_pending_search(app, _FILE_SEARCH_RUNTIME)
 
 
 def cancel_file_search_timer(app: Any) -> None:
-    if app._file_search_timer is None:
-        return
-    timer: Timer = app._file_search_timer
-    timer.stop()
-    app._file_search_timer = None
+    _cancel_timer(app, _FILE_SEARCH_RUNTIME.timer_attr)
 
 
 def cancel_active_file_search(app: Any) -> None:
-    if app._active_file_search_cancel_event is None:
-        return
-    app._active_file_search_cancel_event.set()
-    app._active_file_search_cancel_event = None
-    app._active_file_search_request_id = None
+    _cancel_active_tracking(app, _FILE_SEARCH_RUNTIME.tracking)
 
 
 def cancel_pending_grep_search(app: Any) -> None:
-    cancel_grep_search_timer(app)
-    cancel_active_grep_search(app)
+    _cancel_pending_search(app, _GREP_SEARCH_RUNTIME)
 
 
 def cancel_grep_search_timer(app: Any) -> None:
-    if app._grep_search_timer is None:
-        return
-    timer: Timer = app._grep_search_timer
-    timer.stop()
-    app._grep_search_timer = None
+    _cancel_timer(app, _GREP_SEARCH_RUNTIME.timer_attr)
 
 
 def cancel_active_grep_search(app: Any) -> None:
-    if app._active_grep_search_cancel_event is None:
-        return
-    app._active_grep_search_cancel_event.set()
-    app._active_grep_search_cancel_event = None
-    app._active_grep_search_request_id = None
+    _cancel_active_tracking(app, _GREP_SEARCH_RUNTIME.tracking)
 
 
 def cancel_pending_directory_size(app: Any) -> None:
-    if app._active_directory_size_cancel_event is None:
-        return
-    app._active_directory_size_cancel_event.set()
-    app._active_directory_size_cancel_event = None
-    app._active_directory_size_request_id = None
+    _cancel_active_tracking(app, _DIRECTORY_SIZE_TRACKING)
+
+
+def _cancel_pending_search(app: Any, config: _SearchRuntimeConfig) -> None:
+    _cancel_timer(app, config.timer_attr)
+    _cancel_active_tracking(app, config.tracking)
 
 
 def start_split_terminal(app: Any, effect: StartSplitTerminalEffect) -> None:
@@ -504,170 +585,184 @@ def handle_split_terminal_exit(app: Any, session_id: int, exit_code: int | None)
         return
 
 
-def complete_worker_actions(effect: Effect, result: object) -> tuple[Any, ...]:
-    if isinstance(effect, LoadBrowserSnapshotEffect):
-        return (
-            BrowserSnapshotLoaded(
-                request_id=effect.request_id,
-                snapshot=result,
-                blocking=effect.blocking,
-            ),
-        )
-
-    if isinstance(effect, LoadChildPaneSnapshotEffect):
-        return (
-            ChildPaneSnapshotLoaded(
-                request_id=effect.request_id,
-                pane=result,
-            ),
-        )
-
-    if isinstance(result, PasteConflictPrompt):
-        return (
-            ClipboardPasteNeedsResolution(
-                request_id=effect.request_id,
-                request=result.request,
-                conflicts=result.conflicts,
-            ),
-        )
-
-    if isinstance(result, PasteExecutionResult):
-        return (
-            ClipboardPasteCompleted(
-                request_id=effect.request_id,
-                summary=result.summary,
-            ),
-        )
-
-    if isinstance(result, FileMutationResult):
-        return (
-            FileMutationCompleted(
-                request_id=effect.request_id,
-                result=result,
-            ),
-        )
-
-    if isinstance(effect, RunConfigSaveEffect):
-        return (
-            ConfigSaveCompleted(
-                request_id=effect.request_id,
-                path=result,
-                config=effect.config,
-            ),
-        )
-
-    if isinstance(effect, RunDirectorySizeEffect):
-        return (
-            DirectorySizesLoaded(
-                request_id=effect.request_id,
-                sizes=result[0],
-                failures=result[1],
-            ),
-        )
-
-    if isinstance(effect, RunExternalLaunchEffect):
-        return (
-            ExternalLaunchCompleted(
-                request_id=effect.request_id,
-                request=effect.request,
-            ),
-        )
-
-    if isinstance(effect, RunFileSearchEffect):
-        return (
-            FileSearchCompleted(
-                request_id=effect.request_id,
-                query=effect.query,
-                results=result,
-            ),
-        )
-
-    if isinstance(effect, RunGrepSearchEffect):
-        return (
-            GrepSearchCompleted(
-                request_id=effect.request_id,
-                query=effect.query,
-                results=result,
-            ),
-        )
-
-    return ()
+def _schedule_external_launch_effect(app: Any, effect: RunExternalLaunchEffect) -> None:
+    if effect.request.kind == "copy_paths":
+        run_copy_paths(app, effect)
+        return
+    if effect.request.kind == "open_editor":
+        app.call_next(run_foreground_external_launch, app, effect)
+        return
+    schedule_external_launch(app, effect)
 
 
-def failed_worker_actions(effect: Effect, error: BaseException | None) -> tuple[Any, ...]:
-    message = str(error) or "Operation failed"
+def _close_split_terminal_effect(app: Any, effect: CloseSplitTerminalEffect) -> None:
+    close_split_terminal(app)
 
-    if isinstance(effect, LoadBrowserSnapshotEffect):
-        return (
-            BrowserSnapshotFailed(
-                request_id=effect.request_id,
-                message=message,
-                blocking=effect.blocking,
-            ),
-        )
 
-    if isinstance(effect, LoadChildPaneSnapshotEffect):
-        return (
-            ChildPaneSnapshotFailed(
-                request_id=effect.request_id,
-                message=message,
-            ),
-        )
+_EFFECT_SCHEDULERS = (
+    (LoadBrowserSnapshotEffect, schedule_browser_snapshot),
+    (LoadChildPaneSnapshotEffect, schedule_child_pane_snapshot),
+    (RunClipboardPasteEffect, schedule_clipboard_paste),
+    (RunConfigSaveEffect, schedule_config_save),
+    (RunDirectorySizeEffect, schedule_directory_sizes),
+    (RunFileMutationEffect, schedule_file_mutation),
+    (RunExternalLaunchEffect, _schedule_external_launch_effect),
+    (RunFileSearchEffect, schedule_file_search),
+    (RunGrepSearchEffect, schedule_grep_search),
+    (StartSplitTerminalEffect, start_split_terminal),
+    (WriteSplitTerminalInputEffect, write_split_terminal_input),
+    (PasteFromClipboardEffect, paste_from_clipboard),
+    (CloseSplitTerminalEffect, _close_split_terminal_effect),
+)
 
-    if isinstance(effect, RunFileMutationEffect):
-        return (
-            FileMutationFailed(
-                request_id=effect.request_id,
-                message=message,
-            ),
-        )
 
-    if isinstance(effect, RunConfigSaveEffect):
-        return (
-            ConfigSaveFailed(
-                request_id=effect.request_id,
-                message=message,
-            ),
-        )
+def _complete_browser_snapshot(
+    effect: LoadBrowserSnapshotEffect,
+    result: object,
+) -> tuple[Any, ...]:
+    return (
+        BrowserSnapshotLoaded(
+            request_id=effect.request_id,
+            snapshot=result,
+            blocking=effect.blocking,
+        ),
+    )
 
-    if isinstance(effect, RunDirectorySizeEffect):
-        return (
-            DirectorySizesFailed(
-                request_id=effect.request_id,
-                paths=effect.paths,
-                message=message,
-            ),
-        )
 
-    if isinstance(effect, RunExternalLaunchEffect):
-        return (
-            ExternalLaunchFailed(
-                request_id=effect.request_id,
-                request=effect.request,
-                message=message,
-            ),
-        )
+def _complete_child_pane_snapshot(
+    effect: LoadChildPaneSnapshotEffect,
+    result: object,
+) -> tuple[Any, ...]:
+    return (
+        ChildPaneSnapshotLoaded(
+            request_id=effect.request_id,
+            pane=result,
+        ),
+    )
 
-    if isinstance(effect, RunFileSearchEffect):
-        return (
-            FileSearchFailed(
-                request_id=effect.request_id,
-                query=effect.query,
-                message=message,
-                invalid_query=isinstance(error, InvalidFileSearchQueryError),
-            ),
-        )
 
-    if isinstance(effect, RunGrepSearchEffect):
-        return (
-            GrepSearchFailed(
-                request_id=effect.request_id,
-                query=effect.query,
-                message=message,
-                invalid_query=isinstance(error, InvalidGrepSearchQueryError),
-            ),
-        )
+def _complete_clipboard_paste_conflicts(
+    effect: Effect,
+    result: PasteConflictPrompt,
+) -> tuple[Any, ...]:
+    return (
+        ClipboardPasteNeedsResolution(
+            request_id=effect.request_id,
+            request=result.request,
+            conflicts=result.conflicts,
+        ),
+    )
 
+
+def _complete_clipboard_paste(
+    effect: Effect,
+    result: PasteExecutionResult,
+) -> tuple[Any, ...]:
+    return (
+        ClipboardPasteCompleted(
+            request_id=effect.request_id,
+            summary=result.summary,
+        ),
+    )
+
+
+def _complete_file_mutation(effect: Effect, result: FileMutationResult) -> tuple[Any, ...]:
+    return (
+        FileMutationCompleted(
+            request_id=effect.request_id,
+            result=result,
+        ),
+    )
+
+
+def _complete_config_save(effect: RunConfigSaveEffect, result: object) -> tuple[Any, ...]:
+    return (
+        ConfigSaveCompleted(
+            request_id=effect.request_id,
+            path=result,
+            config=effect.config,
+        ),
+    )
+
+
+def _complete_directory_sizes(
+    effect: RunDirectorySizeEffect,
+    result: object,
+) -> tuple[Any, ...]:
+    sizes, failures = result
+    return (
+        DirectorySizesLoaded(
+            request_id=effect.request_id,
+            sizes=sizes,
+            failures=failures,
+        ),
+    )
+
+
+def _complete_external_launch(
+    effect: RunExternalLaunchEffect,
+    result: object,
+) -> tuple[Any, ...]:
+    return (
+        ExternalLaunchCompleted(
+            request_id=effect.request_id,
+            request=effect.request,
+        ),
+    )
+
+
+def _complete_file_search(effect: RunFileSearchEffect, result: object) -> tuple[Any, ...]:
+    return (
+        FileSearchCompleted(
+            request_id=effect.request_id,
+            query=effect.query,
+            results=result,
+        ),
+    )
+
+
+def _complete_grep_search(effect: RunGrepSearchEffect, result: object) -> tuple[Any, ...]:
+    return (
+        GrepSearchCompleted(
+            request_id=effect.request_id,
+            query=effect.query,
+            results=result,
+        ),
+    )
+
+
+def _failed_browser_snapshot(
+    effect: LoadBrowserSnapshotEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        BrowserSnapshotFailed(
+            request_id=effect.request_id,
+            message=message,
+            blocking=effect.blocking,
+        ),
+    )
+
+
+def _failed_child_pane_snapshot(
+    effect: LoadChildPaneSnapshotEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        ChildPaneSnapshotFailed(
+            request_id=effect.request_id,
+            message=message,
+        ),
+    )
+
+
+def _failed_clipboard_paste(
+    effect: RunClipboardPasteEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
     return (
         ClipboardPasteFailed(
             request_id=effect.request_id,
@@ -676,25 +771,152 @@ def failed_worker_actions(effect: Effect, error: BaseException | None) -> tuple[
     )
 
 
+def _failed_file_mutation(
+    effect: RunFileMutationEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        FileMutationFailed(
+            request_id=effect.request_id,
+            message=message,
+        ),
+    )
+
+
+def _failed_config_save(
+    effect: RunConfigSaveEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        ConfigSaveFailed(
+            request_id=effect.request_id,
+            message=message,
+        ),
+    )
+
+
+def _failed_directory_sizes(
+    effect: RunDirectorySizeEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        DirectorySizesFailed(
+            request_id=effect.request_id,
+            paths=effect.paths,
+            message=message,
+        ),
+    )
+
+
+def _failed_external_launch(
+    effect: RunExternalLaunchEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        ExternalLaunchFailed(
+            request_id=effect.request_id,
+            request=effect.request,
+            message=message,
+        ),
+    )
+
+
+def _failed_file_search(
+    effect: RunFileSearchEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        FileSearchFailed(
+            request_id=effect.request_id,
+            query=effect.query,
+            message=message,
+            invalid_query=isinstance(error, InvalidFileSearchQueryError),
+        ),
+    )
+
+
+def _failed_grep_search(
+    effect: RunGrepSearchEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        GrepSearchFailed(
+            request_id=effect.request_id,
+            query=effect.query,
+            message=message,
+            invalid_query=isinstance(error, InvalidGrepSearchQueryError),
+        ),
+    )
+
+
+_RESULT_COMPLETE_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] = (
+    (PasteConflictPrompt, _complete_clipboard_paste_conflicts),
+    (PasteExecutionResult, _complete_clipboard_paste),
+    (FileMutationResult, _complete_file_mutation),
+)
+
+_COMPLETE_ACTION_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] = (
+    (LoadBrowserSnapshotEffect, _complete_browser_snapshot),
+    (LoadChildPaneSnapshotEffect, _complete_child_pane_snapshot),
+    (RunConfigSaveEffect, _complete_config_save),
+    (RunDirectorySizeEffect, _complete_directory_sizes),
+    (RunExternalLaunchEffect, _complete_external_launch),
+    (RunFileSearchEffect, _complete_file_search),
+    (RunGrepSearchEffect, _complete_grep_search),
+)
+
+_FAILED_ACTION_HANDLERS: tuple[tuple[type[Any], FailureActionHandler], ...] = (
+    (LoadBrowserSnapshotEffect, _failed_browser_snapshot),
+    (LoadChildPaneSnapshotEffect, _failed_child_pane_snapshot),
+    (RunClipboardPasteEffect, _failed_clipboard_paste),
+    (RunFileMutationEffect, _failed_file_mutation),
+    (RunConfigSaveEffect, _failed_config_save),
+    (RunDirectorySizeEffect, _failed_directory_sizes),
+    (RunExternalLaunchEffect, _failed_external_launch),
+    (RunFileSearchEffect, _failed_file_search),
+    (RunGrepSearchEffect, _failed_grep_search),
+)
+
+
+def _find_handler(
+    value: object,
+    handlers: tuple[tuple[type[Any], Callable[..., tuple[Any, ...]]], ...],
+) -> Callable[..., tuple[Any, ...]] | None:
+    for value_type, handler in handlers:
+        if isinstance(value, value_type):
+            return handler
+    return None
+
+
+def complete_worker_actions(effect: Effect, result: object) -> tuple[Any, ...]:
+    handler = _find_handler(result, _RESULT_COMPLETE_HANDLERS)
+    if handler is not None:
+        return handler(effect, result)
+    handler = _find_handler(effect, _COMPLETE_ACTION_HANDLERS)
+    if handler is None:
+        return ()
+    return handler(effect, result)
+
+
+def failed_worker_actions(effect: Effect, error: BaseException | None) -> tuple[Any, ...]:
+    message = str(error) or "Operation failed"
+    handler = _find_handler(effect, _FAILED_ACTION_HANDLERS)
+    if handler is None:
+        return ()
+    return handler(effect, error, message)
+
+
 def clear_effect_tracking(app: Any, effect: Effect) -> None:
-    if (
-        isinstance(effect, RunFileSearchEffect)
-        and effect.request_id == app._active_file_search_request_id
-    ):
-        app._active_file_search_cancel_event = None
-        app._active_file_search_request_id = None
-    if (
-        isinstance(effect, RunGrepSearchEffect)
-        and effect.request_id == app._active_grep_search_request_id
-    ):
-        app._active_grep_search_cancel_event = None
-        app._active_grep_search_request_id = None
-    if (
-        isinstance(effect, RunDirectorySizeEffect)
-        and effect.request_id == app._active_directory_size_request_id
-    ):
-        app._active_directory_size_cancel_event = None
-        app._active_directory_size_request_id = None
+    for tracking in _TRACKING_CONFIGS:
+        if isinstance(effect, tracking.effect_type):
+            _clear_tracking_for_request(app, tracking, effect.request_id)
+            return
 
 
 async def handle_worker_state_changed(app: Any, event: Worker.StateChanged) -> None:
