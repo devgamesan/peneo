@@ -3,8 +3,6 @@ from stat import S_IFREG
 
 import peneo.state.selectors as selectors_module
 from peneo.models import AppConfig, EditorConfig, PasteConflict, PasteRequest
-from peneo.state.command_palette import CommandPaletteItem
-from peneo.state.selectors import _select_command_palette_window
 from peneo.state import (
     AttributeInspectionState,
     BeginCommandPalette,
@@ -47,6 +45,8 @@ from peneo.state import (
     select_target_paths,
     select_visible_current_entry_states,
 )
+from peneo.state.command_palette import CommandPaletteItem
+from peneo.state.selectors import _select_command_palette_window
 from tests.state_test_helpers import entry, pane, reduce_state
 
 
