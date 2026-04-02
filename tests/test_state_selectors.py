@@ -45,6 +45,7 @@ from peneo.state import (
     select_target_paths,
     select_visible_current_entry_states,
 )
+from peneo.state import command_palette as command_palette_module
 from peneo.state.command_palette import CommandPaletteItem
 from peneo.state.selectors import _select_command_palette_window
 from tests.state_test_helpers import entry, pane, reduce_state
@@ -52,6 +53,10 @@ from tests.state_test_helpers import entry, pane, reduce_state
 
 def _reduce_state(state, action):
     return reduce_state(state, action)
+
+
+def _display_path_for_test(path: str) -> str:
+    return command_palette_module._display_path(path)
 
 
 def test_select_current_entries_applies_filter_and_sort() -> None:
@@ -649,7 +654,9 @@ def test_select_command_palette_state_shows_bookmark_items() -> None:
 
     assert palette_state is not None
     assert palette_state.title == "Bookmarks"
-    assert [item.label for item in palette_state.items] == ["~/docs"]
+    assert [item.label for item in palette_state.items] == [
+        _display_path_for_test("/home/tadashi/docs")
+    ]
     assert palette_state.empty_message == "No bookmarks"
 
 
