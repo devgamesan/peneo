@@ -4097,3 +4097,75 @@ def test_go_forward_then_snapshot_loaded_updates_history_correctly() -> None:
     assert loaded_result.current_path == forward_path
     assert loaded_result.history.back == (initial_path,)
     assert loaded_result.history.forward == ()
+
+
+def test_browser_snapshot_loaded_clears_filter_when_directory_changes() -> None:
+    state = build_initial_app_state()
+    state = _reduce_state(state, SetFilterQuery("readme"))
+
+    requested = reduce_app_state(
+        state,
+        RequestBrowserSnapshot("/tmp/example", blocking=True),
+    ).state
+    snapshot = BrowserSnapshot(
+        current_path="/tmp/example",
+        parent_pane=requested.parent_pane,
+        current_pane=requested.current_pane,
+        child_pane=requested.child_pane,
+    )
+    next_state = _reduce_state(
+        requested,
+        BrowserSnapshotLoaded(request_id=1, snapshot=snapshot, blocking=True),
+    )
+
+    assert next_state.filter.query == ""
+    assert next_state.filter.active is False
+
+
+def test_browser_snapshot_loaded_preserves_filter_on_reload() -> None:
+    state = build_initial_app_state()
+    state = _reduce_state(state, SetFilterQuery("readme"))
+    initial_path = state.current_path
+
+    requested = reduce_app_state(
+        state,
+        RequestBrowserSnapshot(initial_path, blocking=True),
+    ).state
+    snapshot = BrowserSnapshot(
+        current_path=initial_path,
+        parent_pane=requested.parent_pane,
+        current_pane=requested.current_pane,
+        child_pane=requested.child_pane,
+    )
+    next_state = _reduce_state(
+        requested,
+        BrowserSnapshotLoaded(request_id=1, snapshot=snapshot, blocking=True),
+    )
+
+    assert next_state.filter.query == "readme"
+    assert next_state.filter.active is True
+
+
+def test_browser_snapshot_loaded_exits_filter_mode_on_directory_change() -> None:
+    state = build_initial_app_state()
+    state = _reduce_state(state, BeginFilterInput())
+    state = _reduce_state(state, SetFilterQuery("test"))
+
+    requested = reduce_app_state(
+        state,
+        RequestBrowserSnapshot("/tmp/example", blocking=True),
+    ).state
+    snapshot = BrowserSnapshot(
+        current_path="/tmp/example",
+        parent_pane=requested.parent_pane,
+        current_pane=requested.current_pane,
+        child_pane=requested.child_pane,
+    )
+    next_state = _reduce_state(
+        requested,
+        BrowserSnapshotLoaded(request_id=1, snapshot=snapshot, blocking=True),
+    )
+
+    assert next_state.ui_mode == "BROWSING"
+    assert next_state.filter.query == ""
+    assert next_state.filter.active is False

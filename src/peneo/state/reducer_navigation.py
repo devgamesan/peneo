@@ -31,7 +31,7 @@ from .actions import (
     ToggleHiddenFiles,
 )
 from .effects import LoadBrowserSnapshotEffect, ReduceResult, RunDirectorySizeEffect
-from .models import AppState, DirectorySizeCacheEntry, NotificationState, PaneState
+from .models import AppState, DirectorySizeCacheEntry, FilterState, NotificationState, PaneState
 from .reducer_common import (
     ReducerFn,
     build_history_after_snapshot_load,
@@ -386,6 +386,11 @@ def handle_navigation_action(
                 state.current_pane.selection_anchor_path,
                 tuple(entry.path for entry in action.snapshot.current_pane.entries),
             )
+        filter_state = (
+            FilterState()
+            if action.snapshot.current_path != state.current_path
+            else state.filter
+        )
         next_state = replace(
             state,
             current_path=action.snapshot.current_path,
@@ -396,6 +401,7 @@ def handle_navigation_action(
                 selection_anchor_path=selection_anchor_path,
             ),
             child_pane=action.snapshot.child_pane,
+            filter=filter_state,
             notification=state.post_reload_notification,
             post_reload_notification=None,
             pending_browser_snapshot_request_id=None,
