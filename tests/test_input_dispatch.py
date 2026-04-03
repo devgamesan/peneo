@@ -974,6 +974,38 @@ def test_create_space_dispatches_input_update() -> None:
     assert actions == (SetNotification(None), SetPendingInputValue("new "))
 
 
+def test_zip_enter_dispatches_submit_pending_input() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="ZIP",
+        pending_input=PendingInputState(
+            prompt="Compress to: ",
+            value="/tmp/output.zip",
+            zip_source_paths=("/home/tadashi/develop/peneo/docs",),
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="enter")
+
+    assert actions == (SetNotification(None), SubmitPendingInput())
+
+
+def test_zip_printable_character_dispatches_input_update() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="ZIP",
+        pending_input=PendingInputState(
+            prompt="Compress to: ",
+            value="/tmp/output",
+            zip_source_paths=("/home/tadashi/develop/peneo/docs",),
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="z", character="z")
+
+    assert actions == (SetNotification(None), SetPendingInputValue("/tmp/outputz"))
+
+
 def test_pending_input_backspace_updates_value() -> None:
     state = build_initial_app_state()
     state = replace(

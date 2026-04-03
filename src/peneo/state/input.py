@@ -181,7 +181,7 @@ def dispatch_key_input(
     if state.ui_mode == "PALETTE":
         return _dispatch_command_palette_input(state, key=key, character=character)
 
-    if state.ui_mode in {"RENAME", "CREATE", "EXTRACT"}:
+    if state.ui_mode in {"RENAME", "CREATE", "EXTRACT", "ZIP"}:
         return _dispatch_pending_input(state, key=key, character=character)
 
     return _dispatch_browsing_input(state, key)
@@ -200,7 +200,7 @@ def _normalize_input_character(
     if _terminal_has_focus(state):
         return resolved_character
 
-    if state.ui_mode in {"PALETTE", "RENAME", "CREATE", "EXTRACT"}:
+    if state.ui_mode in {"PALETTE", "RENAME", "CREATE", "EXTRACT", "ZIP"}:
         return resolved_character
 
     if state.ui_mode == "FILTER" and not resolved_character.isspace():
