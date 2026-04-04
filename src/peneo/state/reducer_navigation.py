@@ -55,6 +55,12 @@ def handle_navigation_action(
     action: Action,
     reduce_state: ReducerFn,
 ) -> ReduceResult | None:
+    import sys
+    if isinstance(action, MoveCursor):
+        print(f"[DEBUG] MoveCursor action: delta={action.delta}, visible_paths={len(action.visible_paths) if action.visible_paths else 0}", file=sys.stderr)
+        if action.visible_paths:
+            print(f"[DEBUG] First 3 visible paths: {action.visible_paths[:3]}", file=sys.stderr)
+
     if isinstance(action, BeginFilterInput):
         return done(
             replace(
