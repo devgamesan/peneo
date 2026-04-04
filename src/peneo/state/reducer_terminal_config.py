@@ -270,7 +270,11 @@ def handle_terminal_config_action(
     if isinstance(action, OpenPathInEditor):
         return run_external_launch_request(
             replace(state, notification=None),
-            ExternalLaunchRequest(kind="open_editor", path=action.path),
+            ExternalLaunchRequest(
+                kind="open_editor",
+                path=action.path,
+                line_number=action.line_number,
+            ),
         )
 
     if isinstance(action, OpenTerminalAtPath):

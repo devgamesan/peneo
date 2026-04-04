@@ -44,6 +44,7 @@ from peneo.state import (
     MoveCursorAndSelectRange,
     NameConflictState,
     NotificationState,
+    OpenGrepResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     PasteClipboard,
@@ -630,6 +631,39 @@ def test_palette_down_moves_cursor() -> None:
     actions = dispatch_key_input(state, key="down")
 
     assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=1))
+
+
+def test_palette_e_key_opens_grep_result_in_editor() -> None:
+    from peneo.state.models import CommandPaletteState
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            query="test",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="e")
+
+    assert actions == (SetNotification(None), OpenGrepResultInEditor())
+
+
+def test_palette_e_key_does_not_open_editor_for_other_sources() -> None:
+    from peneo.state.models import CommandPaletteState
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="file_search",
+            query="test",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="e", character="e")
+
+    # e キーは file_search では OpenGrepResultInEditor を生成せず、文字として扱われる
+    assert actions == (SetNotification(None), SetCommandPaletteQuery("teste"))
 
 
 def test_palette_printable_key_updates_query() -> None:

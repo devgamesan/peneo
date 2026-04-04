@@ -13,3 +13,4 @@ class ExternalLaunchRequest:
     kind: ExternalLaunchKind
     path: str | None = None
     paths: tuple[str, ...] = ()
+    line_number: int | None = None
