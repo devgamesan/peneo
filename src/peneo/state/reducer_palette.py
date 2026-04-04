@@ -31,6 +31,7 @@ from .actions import (
     GrepSearchCompleted,
     GrepSearchFailed,
     MoveCommandPaletteCursor,
+    OpenGrepResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     OpenTerminalAtPath,
@@ -371,6 +372,26 @@ def _handle_submit_grep_search_palette(
         reduce_state,
         path=str(Path(selected_result.path).parent),
         cursor_path=selected_result.path,
+    )
+
+
+def _handle_open_grep_result_in_editor(
+    state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    results = state.command_palette.grep_search_results
+    message = state.command_palette.grep_search_error_message or "No matching lines"
+    if not results:
+        return _notify(state, level="warning", message=message)
+
+    selected_result = results[
+        normalize_command_palette_cursor(state, state.command_palette.cursor_index)
+    ]
+    return _supported(
+        OpenPathInEditor(
+            path=selected_result.path,
+            line_number=selected_result.line_number,
+        )
     )
 
 
@@ -998,5 +1019,8 @@ def handle_palette_action(
 
     if isinstance(action, GrepSearchFailed):
         return _handle_grep_search_failed(state, action)
+
+    if isinstance(action, OpenGrepResultInEditor):
+        return _handle_open_grep_result_in_editor(state, reduce_state)
 
     return None

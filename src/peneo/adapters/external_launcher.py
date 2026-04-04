@@ -70,9 +70,9 @@ class LocalExternalLaunchAdapter:
         cwd = str(resolved_path if resolved_path.is_dir() else resolved_path.parent)
         self._run_first_available(candidates, context=f"open {resolved_path}", cwd=cwd)
 
-    def open_in_editor(self, path: str) -> None:
+    def open_in_editor(self, path: str, line_number: int | None = None) -> None:
         resolved_path = _resolve_existing_path(path)
-        candidates = self._editor_candidates(str(resolved_path))
+        candidates = self._editor_candidates(str(resolved_path), line_number)
         errors: list[str] = []
         for command in candidates:
             try:
@@ -213,10 +213,10 @@ class LocalExternalLaunchAdapter:
             return (("open", path),)
         raise OSError(f"Unsupported platform kind: {platform_kind}")
 
-    def _editor_candidates(self, path: str) -> tuple[tuple[str, ...], ...]:
+    def _editor_candidates(self, path: str, line_number: int | None = None) -> tuple[tuple[str, ...], ...]:
         editor_commands = [
             command
-            for command in self._terminal_editor_commands(path)
+            for command in self._terminal_editor_commands(path, line_number)
             if self._command_exists(command[0])
         ]
         if not editor_commands:
@@ -224,13 +224,16 @@ class LocalExternalLaunchAdapter:
 
         return tuple(editor_commands)
 
-    def _terminal_editor_commands(self, path: str) -> tuple[tuple[str, ...], ...]:
+    def _terminal_editor_commands(self, path: str, line_number: int | None = None) -> tuple[tuple[str, ...], ...]:
         commands: list[tuple[str, ...]] = []
         configured_editor_command = self.editor_command_template.command
         if configured_editor_command:
             parsed_command = tuple(shlex.split(configured_editor_command))
             if parsed_command and _is_terminal_editor_command(parsed_command[0]):
-                commands.append(parsed_command + (path,))
+                if line_number is not None:
+                    commands.append(parsed_command + (f"+{line_number}", path))
+                else:
+                    commands.append(parsed_command + (path,))
 
         editor_command = self.environment_variable("EDITOR")
         if editor_command:
@@ -239,22 +242,35 @@ class LocalExternalLaunchAdapter:
             except ValueError as error:
                 raise OSError(f"Invalid EDITOR value: {error}") from error
             if parsed_command and _is_terminal_editor_command(parsed_command[0]):
-                commands.append(parsed_command + (path,))
+                if line_number is not None:
+                    commands.append(parsed_command + (f"+{line_number}", path))
+                else:
+                    commands.append(parsed_command + (path,))
 
-        commands.extend(self._default_terminal_editor_commands(path))
+        commands.extend(self._default_terminal_editor_commands(path, line_number))
         return _dedupe_commands(commands)
 
-    def _default_terminal_editor_commands(self, path: str) -> tuple[tuple[str, ...], ...]:
+    def _default_terminal_editor_commands(self, path: str, line_number: int | None = None) -> tuple[tuple[str, ...], ...]:
         platform_kind = self._platform_kind()
         if platform_kind in {"linux", "wsl", "darwin"}:
-            return (
-                ("nvim", path),
-                ("vim", path),
-                ("nano", path),
-                ("hx", path),
-                ("micro", path),
-                ("emacs", "-nw", path),
-            )
+            if line_number is not None:
+                return (
+                    ("nvim", f"+{line_number}", path),
+                    ("vim", f"+{line_number}", path),
+                    ("nano", f"+{line_number}", path),
+                    ("hx", f"+{line_number}", path),
+                    ("micro", f"+{line_number}", path),
+                    ("emacs", "-nw", f"+{line_number}", path),
+                )
+            else:
+                return (
+                    ("nvim", path),
+                    ("vim", path),
+                    ("nano", path),
+                    ("hx", path),
+                    ("micro", path),
+                    ("emacs", "-nw", path),
+                )
         raise OSError(f"Unsupported platform kind: {platform_kind}")
 
     def _command_exists(self, command: str) -> bool:

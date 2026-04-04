@@ -521,6 +521,60 @@ def test_live_external_launch_service_formats_copy_error() -> None:
         )
 
 
+def test_local_external_launch_adapter_opens_editor_with_line_number(tmp_path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("plain\n", encoding="utf-8")
+    runner = StubForegroundRunner()
+    adapter = LocalExternalLaunchAdapter(
+        system_name_resolver=lambda: "Linux",
+        command_available=lambda command: command if command == "nvim" else None,
+        foreground_command_runner=runner,
+        environment_variable=lambda name: None,
+    )
+
+    adapter.open_in_editor(str(readme), line_number=42)
+
+    assert runner.executed == [
+        (("nvim", "+42", str(readme.resolve())), str(tmp_path.resolve()))
+    ]
+
+
+def test_local_external_launch_adapter_opens_vim_with_line_number(tmp_path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("plain\n", encoding="utf-8")
+    runner = StubForegroundRunner()
+    adapter = LocalExternalLaunchAdapter(
+        system_name_resolver=lambda: "Linux",
+        command_available=lambda command: command if command == "vim" else None,
+        foreground_command_runner=runner,
+        environment_variable=lambda name: None,
+    )
+
+    adapter.open_in_editor(str(readme), line_number=100)
+
+    assert runner.executed == [
+        (("vim", "+100", str(readme.resolve())), str(tmp_path.resolve()))
+    ]
+
+
+def test_local_external_launch_adapter_opens_nano_with_line_number(tmp_path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("plain\n", encoding="utf-8")
+    runner = StubForegroundRunner()
+    adapter = LocalExternalLaunchAdapter(
+        system_name_resolver=lambda: "Linux",
+        command_available=lambda command: command if command == "nano" else None,
+        foreground_command_runner=runner,
+        environment_variable=lambda name: None,
+    )
+
+    adapter.open_in_editor(str(readme), line_number=1)
+
+    assert runner.executed == [
+        (("nano", "+1", str(readme.resolve())), str(tmp_path.resolve()))
+    ]
+
+
 def runner_not_expected(
     command: tuple[str, ...],
     cwd: str | None,

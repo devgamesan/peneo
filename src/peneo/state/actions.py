@@ -331,6 +331,12 @@ class OpenPathInEditor:
     """Open a file path with the configured editor."""
 
     path: str
+    line_number: int | None = None
+
+
+@dataclass(frozen=True)
+class OpenGrepResultInEditor:
+    """Open the selected grep search result in editor at the specific line."""
 
 
 @dataclass(frozen=True)

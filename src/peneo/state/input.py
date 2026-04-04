@@ -48,6 +48,7 @@ from .actions import (
     MoveConfigEditorCursor,
     MoveCursor,
     MoveCursorAndSelectRange,
+    OpenGrepResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     PasteClipboard,
@@ -569,6 +570,9 @@ def _dispatch_command_palette_input(
     if key == "backspace":
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(current_query[:-1]))
+
+    if key == "e" and state.command_palette is not None and state.command_palette.source == "grep_search":
+        return _supported(OpenGrepResultInEditor())
 
     if character and character.isprintable():
         current_query = state.command_palette.query if state.command_palette is not None else ""

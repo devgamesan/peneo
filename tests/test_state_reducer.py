@@ -651,6 +651,34 @@ def test_open_path_in_editor_emits_external_launch_effect() -> None:
     )
 
 
+def test_open_path_in_editor_with_line_number_emits_external_launch_effect() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=replace(
+            build_initial_app_state().current_pane,
+            cursor_path="/home/tadashi/develop/peneo/README.md",
+        ),
+    )
+
+    result = reduce_app_state(
+        state,
+        OpenPathInEditor("/home/tadashi/develop/peneo/README.md", line_number=42),
+    )
+
+    assert result.state.ui_mode == "BROWSING"
+    assert result.state.next_request_id == 2
+    assert result.effects == (
+        RunExternalLaunchEffect(
+            request_id=1,
+            request=ExternalLaunchRequest(
+                kind="open_editor",
+                path="/home/tadashi/develop/peneo/README.md",
+                line_number=42,
+            ),
+        ),
+    )
+
+
 def test_open_terminal_at_path_emits_external_launch_effect() -> None:
     state = build_initial_app_state()
 
