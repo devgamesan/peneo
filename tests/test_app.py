@@ -502,6 +502,23 @@ async def _wait_for_child_pane_request_count(
         await asyncio.sleep(0.01)
 
 
+async def _wait_for_child_pane_runtime_idle(app, timeout: float = 0.5) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        pending_child_workers = [
+            name for name in app._pending_workers if name.startswith("child-pane-snapshot:")
+        ]
+        if (
+            app.app_state.pending_child_pane_request_id is None
+            and app._child_pane_timer is None
+            and not pending_child_workers
+        ):
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("child pane runtime did not become idle")
+        await asyncio.sleep(0.01)
+
+
 def test_create_app_returns_peneo_app() -> None:
     app = create_app()
 
@@ -893,6 +910,7 @@ async def test_app_keyboard_input_updates_selection_and_child_pane() -> None:
         assert first_row[0].plain == "*"
         assert first_row[0].style == "bold blue"
         assert first_row[1].plain == "docs"
+        await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
 
 
 @pytest.mark.asyncio
@@ -940,6 +958,7 @@ async def test_app_child_pane_debounces_rapid_cursor_moves() -> None:
         await _wait_for_child_pane_request_count(loader, 1, timeout=1.0)
         assert loader.executed_child_pane_requests == [(path, f"{path}/tests")]
         await _wait_for_child_entries(app, ["test_main.py"], timeout=1.0)
+        await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
 
 
 @pytest.mark.asyncio
@@ -1652,6 +1671,7 @@ async def test_app_child_snapshot_failure_shows_error() -> None:
         assert str(current_path_bar.renderable) == f"Current Path: {path}"
         assert str(summary_bar.renderable) == "2 items | 0 selected | sort: name asc dirs:on"
         assert str(status_bar.renderable) == "error: permission denied"
+        await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
 
 
 @pytest.mark.asyncio
