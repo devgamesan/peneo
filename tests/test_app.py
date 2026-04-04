@@ -513,6 +513,9 @@ async def _wait_for_child_pane_runtime_idle(app, timeout: float = 0.5) -> None:
             and app._child_pane_timer is None
             and not pending_child_workers
         ):
+            # Let the message pump finish any refresh already scheduled by a completed worker
+            # before the test context tears the app down.
+            await asyncio.sleep(0.05)
             return
         if asyncio.get_running_loop().time() >= deadline:
             raise AssertionError("child pane runtime did not become idle")
