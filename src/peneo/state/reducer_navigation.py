@@ -432,7 +432,15 @@ def handle_navigation_action(
         )
 
     if isinstance(action, ChildPaneSnapshotLoaded):
+        with open("/tmp/peneo_debug.log", "a") as f:
+            f.write(f"[DEBUG] ChildPaneSnapshotLoaded: request_id={action.request_id}, pending={state.pending_child_pane_request_id}\n")
+            f.write(f"[DEBUG] action.pane.entries: {len(action.pane.entries)}\n")
+            for e in action.pane.entries[:3]:
+                f.write(f"[DEBUG]   - {e.name} ({e.kind})\n")
+
         if action.request_id != state.pending_child_pane_request_id:
+            with open("/tmp/peneo_debug.log", "a") as f:
+                f.write(f"[DEBUG] Request ID mismatch, skipping\n")
             return done(state)
         next_state = replace(
             state,
@@ -440,6 +448,8 @@ def handle_navigation_action(
             notification=None,
             pending_child_pane_request_id=None,
         )
+        with open("/tmp/peneo_debug.log", "a") as f:
+            f.write(f"[DEBUG] Child pane updated successfully\n")
         return maybe_request_directory_sizes(next_state, reduce_state)
 
     if isinstance(action, ChildPaneSnapshotFailed):
