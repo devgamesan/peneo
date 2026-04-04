@@ -82,7 +82,7 @@ def benchmark(
             times: list[float] = []
             for _ in range(iterations):
                 start = time.perf_counter()
-                result = func(*args, **kwargs)
+                func(*args, **kwargs)
                 end = time.perf_counter()
                 times.append(end - start)
 

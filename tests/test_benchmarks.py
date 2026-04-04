@@ -4,11 +4,10 @@
 主要な操作のパフォーマンスを測定するベンチマークテストを提供します。
 """
 
-import subprocess
-
 import pytest
 
 from peneo.adapters.filesystem import LocalFilesystemAdapter
+from peneo.services.directory_size import DirectorySizeService
 from peneo.state import (
     AppState,
     CommandPaletteSource,
@@ -18,7 +17,6 @@ from peneo.state import (
 from peneo.state.command_palette import get_command_palette_items
 from peneo.state.reducer_common import list_matching_directory_paths
 from peneo.state.selectors import select_shell_data
-from peneo.services.directory_size import DirectorySizeService
 from tests.benchmark_fixtures import (
     create_deep_directory_tree,
     create_flat_directory,
@@ -158,7 +156,9 @@ class TestSelectorBenchmarks:
         # Baseline: 5k sibling dirs ~33ms (2026-04-04)
         # 許容範囲: 40ms (約20%)
         if num_siblings == 5000:
-            assert result.avg_time < 0.040, f"list_matching_directory_paths too slow: {result.avg_time:.4f}s"
+            assert (
+                result.avg_time < 0.040
+            ), f"list_matching_directory_paths too slow: {result.avg_time:.4f}s"
 
     @pytest.mark.parametrize("num_candidates", [1000, 5000])
     def test_command_palette_item_generation(self, tmp_path, num_candidates):
@@ -209,7 +209,9 @@ class TestSelectorBenchmarks:
         # Baseline: 5k candidates ~8.25ms/call (2026-04-04)
         # 許容範囲: 10ms (約20%)
         if num_candidates == 5000:
-            assert result.avg_time < 0.010, f"get_command_palette_items too slow: {result.avg_time:.4f}s"
+            assert (
+                result.avg_time < 0.010
+            ), f"get_command_palette_items too slow: {result.avg_time:.4f}s"
 
 
 class TestSearchBenchmarks:
