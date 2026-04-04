@@ -1,7 +1,7 @@
 name: Performance Benchmark
 
 on:
-  # 手動実行
+  # 手動実行のみ
   workflow_dispatch:
     inputs:
       benchmark_type:
@@ -17,11 +17,6 @@ on:
         required: false
         default: '5'
         type: string
-
-  # PR での自動実行（src/peneo/**/*.py に変更がある場合）
-  pull_request:
-    paths:
-      - 'src/peneo/**/*.py'
 
 jobs:
   benchmark:
@@ -40,14 +35,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Determine benchmark type
-        id: benchmark_type
+      - name: Run quick benchmarks
+        if: github.event.inputs.benchmark_type == 'quick'
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "type=${{ github.event.inputs.benchmark_type }}" >> $GITHUB_OUTPUT
-          else
-            echo "type=quick" >> $GITHUB_OUTPUT
-          fi
+          echo "Running quick benchmarks..."
+          uv run pytest tests/test_benchmarks.py::TestQuickBenchmarks -v --durations=0 --tb=short
+
+      - name: Run full benchmarks
+        if: github.event.inputs.benchmark_type == 'full'
+        run: |
+          echo "Running full benchmarks..."
+          uv run pytest tests/test_benchmarks.py -v --durations=0 --tb=short
 
       - name: Run quick benchmarks
         if: steps.benchmark_type.outputs.type == 'quick'
@@ -65,30 +63,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results-${{ steps.benchmark_type.outputs.type }}
+          name: benchmark-results-${{ github.event.inputs.benchmark_type }}
           path: |
             pytest-logs.txt
             benchmark-results.json
           if-no-files-found: ignore
           retention-days: 30
-
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request' && steps.benchmark_type.outputs.type == 'quick'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const comment = `## Benchmark Results
-
-            Quick benchmarks completed. See workflow run for details.
-
-            - Type: ${{ steps.benchmark_type.outputs.type }}
-            - Run: #${{ github.run_number }}
-            - Logs: [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            `;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
