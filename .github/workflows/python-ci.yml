@@ -7,8 +7,6 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-    env:
-      TMPDIR: ${{ runner.temp }}/peneo-tmp
 
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +22,10 @@ jobs:
         run: uv sync --dev
 
       - name: Prepare temp directory
-        run: mkdir -p "$TMPDIR"
+        run: mkdir -p "$RUNNER_TEMP/peneo-tmp"
 
       - name: Lint
         run: uv run ruff check .
 
       - name: Test
-        run: uv run pytest --ignore=tests/test_benchmarks.py
+        run: TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest --ignore=tests/test_benchmarks.py

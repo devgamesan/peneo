@@ -11,8 +11,6 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    env:
-      TMPDIR: ${{ runner.temp }}/peneo-tmp
 
     steps:
       - name: Checkout code
@@ -29,10 +27,10 @@ jobs:
         run: uv sync --dev
 
       - name: Prepare temp directory
-        run: mkdir -p "$TMPDIR"
+        run: mkdir -p "$RUNNER_TEMP/peneo-tmp"
 
       - name: Run tests
-        run: uv run pytest --ignore=tests/test_benchmarks.py
+        run: TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest --ignore=tests/test_benchmarks.py
 
       - name: Build source distribution
         run: |

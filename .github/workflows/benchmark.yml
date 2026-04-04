@@ -21,8 +21,6 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    env:
-      TMPDIR: ${{ runner.temp }}/peneo-tmp
 
     steps:
       - uses: actions/checkout@v4
@@ -38,31 +36,31 @@ jobs:
         run: uv sync --dev
 
       - name: Prepare temp directory
-        run: mkdir -p "$TMPDIR"
+        run: mkdir -p "$RUNNER_TEMP/peneo-tmp"
 
       - name: Run quick benchmarks
         if: github.event.inputs.benchmark_type == 'quick'
         run: |
           echo "Running quick benchmarks..."
-          uv run pytest tests/test_benchmarks.py::TestQuickBenchmarks -v --durations=0 --tb=short
+          TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest tests/test_benchmarks.py::TestQuickBenchmarks -v --durations=0 --tb=short
 
       - name: Run full benchmarks
         if: github.event.inputs.benchmark_type == 'full'
         run: |
           echo "Running full benchmarks..."
-          uv run pytest tests/test_benchmarks.py -v --durations=0 --tb=short
+          TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest tests/test_benchmarks.py -v --durations=0 --tb=short
 
       - name: Run quick benchmarks
         if: steps.benchmark_type.outputs.type == 'quick'
         run: |
           echo "Running quick benchmarks..."
-          uv run pytest tests/test_benchmarks.py::TestQuickBenchmarks -v --durations=0 --tb=short
+          TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest tests/test_benchmarks.py::TestQuickBenchmarks -v --durations=0 --tb=short
 
       - name: Run full benchmarks
         if: steps.benchmark_type.outputs.type == 'full'
         run: |
           echo "Running full benchmarks..."
-          uv run pytest tests/test_benchmarks.py -v --durations=0 --tb=short
+          TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest tests/test_benchmarks.py -v --durations=0 --tb=short
 
       - name: Upload benchmark results
         if: always()
