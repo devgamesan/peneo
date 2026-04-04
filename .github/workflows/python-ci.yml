@@ -21,8 +21,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
+      - name: Prepare temp directory
+        run: mkdir -p "$RUNNER_TEMP/peneo-tmp"
+
       - name: Lint
         run: uv run ruff check .
 
       - name: Test
-        run: uv run pytest --ignore=tests/test_benchmarks.py
+        run: TMPDIR="$RUNNER_TEMP/peneo-tmp" uv run pytest --ignore=tests/test_benchmarks.py
