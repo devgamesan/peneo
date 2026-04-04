@@ -511,6 +511,10 @@ def sync_child_pane(
     ):
         return maybe_request_directory_sizes(state, reduce_state)
 
+    import sys
+    print(f"[DEBUG] sync_child_pane: cursor_path={cursor_path}, entry.path={entry.path}, entry.kind={entry.kind}", file=sys.stderr)
+    print(f"[DEBUG] is_supported_archive={is_supported_archive_path(entry.path)}", file=sys.stderr)
+
     request_id = state.next_request_id
     next_state = replace(
         state,
