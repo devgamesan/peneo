@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "peneo"
 version = "0.3.0"
-description = "A simple Textual-based file manager."
+description = "A simple TUI file manager with a three-pane layout. Peneo shows parent, current, and child directories side by side, aiming to feel closer to a GUI file explorer than to a keyboard-heavy power-user tool."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
@@ -14,6 +14,31 @@ dependencies = [
   "send2trash>=1.8.3",
   "textual>=0.70,<1.0",
 ]
+
+authors = [
+  { name = "devgamesan", email = "devgamesan@gmail.com" }
+]
+
+keywords = ["tui", "file-manager", "textual", "terminal", "console"]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Filesystems",
+  "Topic :: Utilities",
+]
+
+[project.urls]
+Repository = "https://github.com/devgamesan/peneo"
+Documentation = "https://github.com/devgamesan/peneo#readme"
+Issues = "https://github.com/devgamesan/peneo/issues"
+CI = "https://github.com/devgamesan/peneo/actions"
 
 [project.scripts]
 peneo = "peneo.__main__:main"
