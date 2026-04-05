@@ -8,8 +8,7 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.css.query import NoMatches
-from textual.widgets import DataTable, Label, ListItem, ListView
+from textual.widgets import DataTable, Label, Static
 
 from peneo.models.shell_data import (
     CurrentPaneRowUpdate,
@@ -128,13 +127,13 @@ class SidePane(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Label(self._title, classes="pane-title")
-        list_view = ListView(
-            *self._build_items(self._entries, 0),
+        content = Static(
+            self._render_entries(self._entries, 0),
             id=self.list_view_id,
             classes="pane-list",
         )
-        list_view.can_focus = False
-        yield list_view
+        content.can_focus = False
+        yield content
 
     def on_mount(self) -> None:
         self.call_after_refresh(self._refresh_rendered_labels)
@@ -149,80 +148,29 @@ class SidePane(Vertical):
         if next_entries == self._entries:
             return
 
-        list_view = self.query_one(ListView)
-        render_width = self._entry_width(list_view)
-        previous_entries = self._entries
-        previous_items = tuple(list_view.children)
-        if any(not self._item_has_label(item) for item in previous_items):
-            await self._rebuild_items(list_view, next_entries, render_width)
-            self._entries = next_entries
-            self._last_render_width = render_width
-            return
-
-        shared_count = min(len(previous_items), len(previous_entries), len(next_entries))
-        for index in range(shared_count):
-            if (
-                previous_entries[index] == next_entries[index]
-                and render_width == self._last_render_width
-            ):
-                continue
-            self._update_item(previous_items[index], next_entries[index], render_width)
-
-        if len(previous_items) > len(next_entries):
-            for item in previous_items[len(next_entries) :]:
-                await item.remove()
-        elif len(previous_items) < len(next_entries):
-            items = self._build_items(next_entries[len(previous_items) :], render_width)
-            if items:
-                await list_view.extend(items)
-
+        content = self._content_widget()
+        render_width = self._entry_width(content)
+        content.update(self._render_entries(next_entries, render_width))
         self._entries = next_entries
         self._last_render_width = render_width
 
     def _refresh_rendered_labels(self) -> None:
-        list_view = self.query_one(ListView)
-        render_width = self._entry_width(list_view)
+        content = self._content_widget()
+        render_width = self._entry_width(content)
         if render_width <= 0 or render_width == self._last_render_width:
             return
-        for item, entry in zip(list_view.children, self._entries, strict=False):
-            self._update_item(item, entry, render_width)
+        content.update(self._render_entries(self._entries, render_width))
         self._last_render_width = render_width
 
-    @classmethod
-    def _update_item(cls, item: ListItem, entry: PaneEntry, render_width: int) -> None:
-        try:
-            item.query_one(Label).update(cls._render_label(entry, render_width))
-        except NoMatches:
-            pass
-
-    @staticmethod
-    def _item_has_label(item: ListItem) -> bool:
-        try:
-            item.query_one(Label)
-        except NoMatches:
-            return False
-        return True
+    def _content_widget(self) -> Static:
+        return self.query_one(f"#{self.list_view_id}", Static)
 
     @classmethod
-    async def _rebuild_items(
-        cls,
-        list_view: ListView,
-        entries: Sequence[PaneEntry],
-        render_width: int,
-    ) -> None:
-        await list_view.clear()
-        items = cls._build_items(entries, render_width)
-        if items:
-            await list_view.extend(items)
-
-    @classmethod
-    def _build_items(cls, entries: Sequence[PaneEntry], render_width: int) -> tuple[ListItem, ...]:
-        return tuple(
-            ListItem(
-                Label(cls._render_label(entry, render_width), classes="pane-entry-label"),
-                classes="pane-entry",
-            )
-            for entry in entries
+    def _render_entries(cls, entries: Sequence[PaneEntry], render_width: int) -> Text:
+        if not entries:
+            return Text()
+        return Text("\n").join(
+            [cls._render_label(entry, render_width) for entry in entries]
         )
 
     @classmethod
@@ -257,8 +205,8 @@ class SidePane(Vertical):
 
         return Text(label)
 
-    def _entry_width(self, list_view: ListView) -> int:
-        return max(0, list_view.size.width - self.ENTRY_HORIZONTAL_PADDING)
+    def _entry_width(self, content: Static) -> int:
+        return max(0, content.size.width - self.ENTRY_HORIZONTAL_PADDING)
 
 
 class MainPane(Vertical):

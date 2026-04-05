@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 from textual.css.query import NoMatches
-from textual.widgets import DataTable, Label, ListView, Static
+from textual.widgets import DataTable, Label, Static
 
 from peneo import create_app
 from peneo.models import (
@@ -279,23 +279,27 @@ async def _wait_for_table_cell(
 async def _wait_for_child_list_label(
     app, expected_substring: str, index: int = 0, timeout: float = 5.0
 ) -> None:
-    from textual.widgets import Label as TextualLabel
-
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
-        child_list = app.query_one("#child-pane-list", ListView)
-        if child_list.children:
-            try:
-                label = child_list.children[index].query_one(TextualLabel)
-                if expected_substring in str(label.renderable):
-                    return
-            except (NoMatches, IndexError):
-                pass
+        child_list = app.query_one("#child-pane-list", Static)
+        child_lines = _side_pane_lines(child_list)
+        try:
+            if expected_substring in child_lines[index]:
+                return
+        except IndexError:
+            pass
         if asyncio.get_running_loop().time() >= deadline:
             raise AssertionError(
                 f"child list label at index {index} did not contain {expected_substring!r}"
             )
         await asyncio.sleep(0.01)
+
+
+def _side_pane_lines(widget: Static) -> list[str]:
+    renderable = widget.renderable
+    if isinstance(renderable, Text):
+        return renderable.plain.splitlines()
+    return str(renderable).splitlines()
 
 
 class FakeConfigSaveService:
@@ -456,17 +460,11 @@ async def _wait_for_list_entries(
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
         try:
-            pane_list = app.query_one(list_selector, ListView)
+            pane_list = app.query_one(list_selector, Static)
         except NoMatches:
             pane_list = None
         if pane_list is not None:
-            actual_names: list[str] = []
-            for item in pane_list.children:
-                try:
-                    actual_names.append(str(item.query_one(Label).renderable))
-                except NoMatches:
-                    actual_names = []
-                    break
+            actual_names = _side_pane_lines(pane_list)
             if actual_names == expected_names:
                 return
         if asyncio.get_running_loop().time() >= deadline:
@@ -801,17 +799,17 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
         await _wait_for_parent_entries(app, ["peneo-app", "sibling"])
         await _wait_for_child_entries(app, ["spec.md"])
 
-        parent_list = app.query_one("#parent-pane-list", ListView)
+        parent_list = app.query_one("#parent-pane-list", Static)
         current_table = app.query_one("#current-pane-table", DataTable)
-        child_list = app.query_one("#child-pane-list", ListView)
+        child_list = app.query_one("#child-pane-list", Static)
         parent_title = app.query_one("#parent-pane .pane-title", Label)
         current_title = app.query_one("#current-pane .pane-title", Label)
         child_title = app.query_one("#child-pane .pane-title", Label)
         current_path_bar = await _wait_for_current_path_bar(app)
         summary_bar = await _wait_for_summary_bar(app)
         status_bar = await _wait_for_status_bar(app)
-        parent_entries = [str(item.query_one(Label).renderable) for item in parent_list.children]
-        child_entries = [str(item.query_one(Label).renderable) for item in child_list.children]
+        parent_entries = _side_pane_lines(parent_list)
+        child_entries = _side_pane_lines(child_list)
         headers = [str(column.label) for column in current_table.ordered_columns]
 
         assert str(parent_title.renderable) == "Parent Directory"
@@ -899,12 +897,12 @@ async def test_app_truncates_long_labels_in_all_panes_when_narrow() -> None:
         await _wait_for_row_count(app, 2)
         await asyncio.sleep(0.05)
 
-        parent_list = app.query_one("#parent-pane-list", ListView)
-        child_list = app.query_one("#child-pane-list", ListView)
+        parent_list = app.query_one("#parent-pane-list", Static)
+        child_list = app.query_one("#child-pane-list", Static)
         current_table = app.query_one("#current-pane-table", DataTable)
 
-        parent_label = str(parent_list.children[0].query_one(Label).renderable)
-        child_label = str(child_list.children[0].query_one(Label).renderable)
+        parent_label = _side_pane_lines(parent_list)[0]
+        child_label = _side_pane_lines(child_list)[0]
         current_name = current_table.get_row_at(0)[1]
 
         assert "~" in parent_label
@@ -940,9 +938,9 @@ async def test_app_tab_keeps_focus_on_current_pane() -> None:
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
 
-        parent_list = app.query_one("#parent-pane-list", ListView)
+        parent_list = app.query_one("#parent-pane-list", Static)
         current_table = app.query_one("#current-pane-table", DataTable)
-        child_list = app.query_one("#child-pane-list", ListView)
+        child_list = app.query_one("#child-pane-list", Static)
 
         assert parent_list.can_focus is False
         assert child_list.can_focus is False
@@ -988,8 +986,8 @@ async def test_app_keyboard_input_updates_selection_and_child_pane() -> None:
         await pilot.press("space")
         await _wait_for_child_entries(app, ["main.py"], timeout=1.0)
 
-        child_list = app.query_one("#child-pane-list", ListView)
-        child_names = [str(item.query_one(Label).renderable) for item in child_list.children]
+        child_list = app.query_one("#child-pane-list", Static)
+        child_names = _side_pane_lines(child_list)
         current_path_bar = await _wait_for_current_path_bar(app)
         summary_bar = await _wait_for_summary_bar(app)
         status_bar = await _wait_for_status_bar(app)
@@ -1049,8 +1047,8 @@ async def test_app_child_pane_debounces_rapid_cursor_moves() -> None:
         await pilot.press("down", "down")
         await _wait_for_cursor_path(app, f"{path}/tests")
 
-        child_list = app.query_one("#child-pane-list", ListView)
-        child_names = [str(item.query_one(Label).renderable) for item in child_list.children]
+        child_list = app.query_one("#child-pane-list", Static)
+        child_names = _side_pane_lines(child_list)
         assert child_names == ["spec.md"]
 
         await _wait_for_child_pane_request_count(loader, 1, timeout=1.0)
@@ -1528,7 +1526,7 @@ async def test_app_refresh_updates_widgets_in_place() -> None:
         summary_bar = app.query_one("#current-pane-summary-bar", SummaryBar)
         status_bar = app.query_one("#status-bar", StatusBar)
         current_table = app.query_one("#current-pane-table", DataTable)
-        child_list = app.query_one("#child-pane-list", ListView)
+        child_list = app.query_one("#child-pane-list", Static)
 
         await pilot.press("down")
         await asyncio.sleep(0.05)
@@ -1538,7 +1536,7 @@ async def test_app_refresh_updates_widgets_in_place() -> None:
         assert app.query_one("#current-pane-summary-bar", SummaryBar) is summary_bar
         assert app.query_one("#status-bar", StatusBar) is status_bar
         assert app.query_one("#current-pane-table", DataTable) is current_table
-        assert app.query_one("#child-pane-list", ListView) is child_list
+        assert app.query_one("#child-pane-list", Static) is child_list
 
 
 @pytest.mark.asyncio
@@ -1628,13 +1626,12 @@ async def test_app_refresh_keeps_parent_pane_items_when_entries_are_unchanged() 
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
 
-        parent_list = app.query_one("#parent-pane-list", ListView)
-        parent_items = tuple(parent_list.children)
+        parent_list = app.query_one("#parent-pane-list", Static)
 
         await pilot.press("down")
         await asyncio.sleep(0.05)
 
-        assert tuple(app.query_one("#parent-pane-list", ListView).children) == parent_items
+        assert app.query_one("#parent-pane-list", Static) is parent_list
 
 
 @pytest.mark.asyncio
@@ -1795,10 +1792,10 @@ async def test_app_file_cursor_clears_child_pane() -> None:
         await pilot.press("down")
         await _wait_for_child_entries(app, [])
 
-        child_list = app.query_one("#child-pane-list", ListView)
+        child_list = app.query_one("#child-pane-list", Static)
 
         assert app.app_state.current_pane.cursor_path == f"{path}/README.md"
-        assert list(child_list.children) == []
+        assert _side_pane_lines(child_list) == []
 
 
 @pytest.mark.asyncio
@@ -1828,12 +1825,12 @@ async def test_app_child_snapshot_failure_shows_error() -> None:
         await _wait_for_child_entries(app, [], timeout=1.0)
         await _wait_for_status_message(app, "error: permission denied", timeout=1.0)
 
-        child_list = app.query_one("#child-pane-list", ListView)
+        child_list = app.query_one("#child-pane-list", Static)
         current_path_bar = await _wait_for_current_path_bar(app)
         summary_bar = await _wait_for_summary_bar(app)
         status_bar = await _wait_for_status_bar(app)
 
-        assert list(child_list.children) == []
+        assert _side_pane_lines(child_list) == []
         assert str(current_path_bar.renderable) == f"Current Path: {path}"
         assert str(summary_bar.renderable) == "2 items | 0 selected | sort: name asc dirs:on"
         assert str(status_bar.renderable) == "error: permission denied"
@@ -3347,19 +3344,19 @@ async def test_app_sort_shortcuts_keep_side_panes_fixed_and_update_status_bar() 
         await pilot.press("s")
         await asyncio.sleep(0.05)
 
-        parent_list = app.query_one("#parent-pane-list", ListView)
-        child_list = app.query_one("#child-pane-list", ListView)
+        parent_list = app.query_one("#parent-pane-list", Static)
+        child_list = app.query_one("#child-pane-list", Static)
         summary_bar = await _wait_for_summary_bar(app)
 
         assert app.app_state.sort.field == "name"
         assert app.app_state.sort.descending is True
         assert app.app_state.sort.directories_first is False
-        assert [str(item.query_one(Label).renderable) for item in parent_list.children] == [
+        assert _side_pane_lines(parent_list) == [
             "alpha",
             "peneo-sort-shortcuts",
             "beta.txt",
         ]
-        assert [str(item.query_one(Label).renderable) for item in child_list.children] == [
+        assert _side_pane_lines(child_list) == [
             "archive",
             "notes.txt",
         ]
@@ -3968,31 +3965,21 @@ async def test_app_cursor_move_updates_large_child_pane_without_clearing(monkeyp
         await _wait_for_row_count(app, 2)
         await _wait_for_child_list_label(app, "child-0999.txt", index=999, timeout=2.0)
 
-        child_list = app.query_one("#child-pane-list", ListView)
-        original_clear = ListView.clear
-        original_extend = ListView.extend
-        clear_calls = 0
-        extend_calls = 0
+        child_list = app.query_one("#child-pane-list", Static)
+        original_update = Static.update
+        update_calls = 0
 
-        async def counting_clear(self, *args, **kwargs):
-            nonlocal clear_calls
+        def counting_update(self, *args, **kwargs):
+            nonlocal update_calls
             if self is child_list:
-                clear_calls += 1
-            return await original_clear(self, *args, **kwargs)
+                update_calls += 1
+            return original_update(self, *args, **kwargs)
 
-        async def counting_extend(self, *args, **kwargs):
-            nonlocal extend_calls
-            if self is child_list:
-                extend_calls += 1
-            return await original_extend(self, *args, **kwargs)
-
-        monkeypatch.setattr(ListView, "clear", counting_clear)
-        monkeypatch.setattr(ListView, "extend", counting_extend)
+        monkeypatch.setattr(Static, "update", counting_update)
 
         await pilot.press("down")
         await _wait_for_child_list_label(app, "module-0999.py", index=999, timeout=2.0)
 
-        assert app.query_one("#child-pane-list", ListView) is child_list
-        assert len(child_list.children) == 1000
-        assert clear_calls == 0
-        assert extend_calls == 0
+        assert app.query_one("#child-pane-list", Static) is child_list
+        assert len(_side_pane_lines(child_list)) == 1000
+        assert update_calls == 1
