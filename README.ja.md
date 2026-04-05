@@ -364,5 +364,6 @@ uv run pytest
 uv tool install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
+  --index-strategy unsafe-best-match \
   peneo
 ```
