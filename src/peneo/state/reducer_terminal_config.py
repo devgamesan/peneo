@@ -1,12 +1,15 @@
-"""Terminal, config, and external launch reducer handlers."""
+"""Terminal, config, external launch, and shell command reducer handlers."""
 
 from dataclasses import replace
+from textwrap import shorten
 
-from peneo.models import BookmarkConfig, ExternalLaunchRequest
+from peneo.models import BookmarkConfig, ExternalLaunchRequest, HelpBarConfig
 
 from .actions import (
     Action,
     AddBookmark,
+    BeginShellCommandInput,
+    CancelShellCommandInput,
     ConfigSaveCompleted,
     ConfigSaveFailed,
     CopyPathsToClipboard,
@@ -21,13 +24,18 @@ from .actions import (
     OpenTerminalAtPath,
     PasteFromClipboardToTerminal,
     RemoveBookmark,
+    ResetHelpBarConfig,
     SaveConfigEditor,
     SendSplitTerminalInput,
+    SetShellCommandValue,
     SetTerminalHeight,
+    ShellCommandCompleted,
+    ShellCommandFailed,
     SplitTerminalExited,
     SplitTerminalOutputReceived,
     SplitTerminalStarted,
     SplitTerminalStartFailed,
+    SubmitShellCommand,
     ToggleSplitTerminal,
 )
 from .effects import (
@@ -35,10 +43,11 @@ from .effects import (
     PasteFromClipboardEffect,
     ReduceResult,
     RunConfigSaveEffect,
+    RunShellCommandEffect,
     StartSplitTerminalEffect,
     WriteSplitTerminalInputEffect,
 )
-from .models import AppState, NotificationState, SplitTerminalState
+from .models import AppState, NotificationState, ShellCommandState, SplitTerminalState
 from .reducer_common import (
     ReducerFn,
     apply_config_to_runtime_state,
@@ -58,6 +67,24 @@ def handle_terminal_config_action(
     action: Action,
     reduce_state: ReducerFn,
 ) -> ReduceResult | None:
+    if isinstance(action, BeginShellCommandInput):
+        return done(
+            replace(
+                state,
+                ui_mode="SHELL",
+                notification=None,
+                pending_input=None,
+                command_palette=None,
+                shell_command=ShellCommandState(cwd=state.current_path),
+                pending_file_search_request_id=None,
+                pending_grep_search_request_id=None,
+                paste_conflict=None,
+                delete_confirmation=None,
+                name_conflict=None,
+                attribute_inspection=None,
+            )
+        )
+
     if isinstance(action, DismissConfigEditor):
         return done(
             replace(
@@ -65,6 +92,26 @@ def handle_terminal_config_action(
                 ui_mode="BROWSING",
                 notification=None,
                 config_editor=None,
+            )
+        )
+
+    if isinstance(action, CancelShellCommandInput):
+        return done(
+            replace(
+                state,
+                ui_mode="BROWSING",
+                notification=None,
+                shell_command=None,
+            )
+        )
+
+    if isinstance(action, SetShellCommandValue):
+        if state.shell_command is None:
+            return done(state)
+        return done(
+            replace(
+                state,
+                shell_command=replace(state.shell_command, command=action.command),
             )
         )
 
@@ -117,6 +164,37 @@ def handle_terminal_config_action(
                 request_id=request_id,
                 path=state.config_editor.path,
                 config=state.config_editor.draft,
+            ),
+        )
+
+    if isinstance(action, SubmitShellCommand):
+        if state.shell_command is None:
+            return done(state)
+        command = state.shell_command.command.strip()
+        if not command:
+            return done(
+                replace(
+                    state,
+                    notification=NotificationState(
+                        level="warning",
+                        message="Shell command cannot be empty",
+                    ),
+                )
+            )
+        request_id = state.next_request_id
+        return done(
+            replace(
+                state,
+                ui_mode="BUSY",
+                notification=NotificationState(level="info", message="Running shell command..."),
+                shell_command=None,
+                pending_shell_command_request_id=request_id,
+                next_request_id=request_id + 1,
+            ),
+            RunShellCommandEffect(
+                request_id=request_id,
+                cwd=state.current_path,
+                command=command,
             ),
         )
 
@@ -184,6 +262,26 @@ def handle_terminal_config_action(
             ),
         )
 
+    if isinstance(action, ResetHelpBarConfig):
+        next_config = replace(
+            state.config,
+            help_bar=HelpBarConfig(),
+        )
+        request_id = state.next_request_id
+        return done(
+            replace(
+                state,
+                notification=None,
+                pending_config_save_request_id=request_id,
+                next_request_id=request_id + 1,
+            ),
+            RunConfigSaveEffect(
+                request_id=request_id,
+                path=state.config_path,
+                config=next_config,
+            ),
+        )
+
     if isinstance(action, OpenPathWithDefaultApp):
         return run_external_launch_request(
             replace(state, notification=None),
@@ -193,7 +291,11 @@ def handle_terminal_config_action(
     if isinstance(action, OpenPathInEditor):
         return run_external_launch_request(
             replace(state, notification=None),
-            ExternalLaunchRequest(kind="open_editor", path=action.path),
+            ExternalLaunchRequest(
+                kind="open_editor",
+                path=action.path,
+                line_number=action.line_number,
+            ),
         )
 
     if isinstance(action, OpenTerminalAtPath):
@@ -297,6 +399,31 @@ def handle_terminal_config_action(
             )
         )
 
+    if isinstance(action, ShellCommandCompleted):
+        if state.pending_shell_command_request_id != action.request_id:
+            return done(state)
+        level, message = _notification_for_shell_command(action.result)
+        return done(
+            replace(
+                state,
+                ui_mode="BROWSING",
+                notification=NotificationState(level=level, message=message),
+                pending_shell_command_request_id=None,
+            )
+        )
+
+    if isinstance(action, ShellCommandFailed):
+        if state.pending_shell_command_request_id != action.request_id:
+            return done(state)
+        return done(
+            replace(
+                state,
+                ui_mode="BROWSING",
+                notification=NotificationState(level="error", message=action.message),
+                pending_shell_command_request_id=None,
+            )
+        )
+
     if isinstance(action, SplitTerminalStarted):
         if state.split_terminal.session_id != action.session_id:
             return done(state)
@@ -387,3 +514,31 @@ def handle_terminal_config_action(
         return done(replace(state, terminal_height=action.height))
 
     return None
+
+
+def _notification_for_shell_command(result) -> tuple[str, str]:
+    if result.exit_code == 0:
+        detail = _first_shell_output_line(result.stdout)
+        if detail is None:
+            return ("info", "Shell command finished successfully")
+        return ("info", _truncate_shell_notification(detail))
+
+    detail = _first_shell_output_line(result.stderr) or _first_shell_output_line(result.stdout)
+    if detail is None:
+        return ("error", f"Shell command failed with exit code {result.exit_code}")
+    return (
+        "error",
+        _truncate_shell_notification(f"Command failed ({result.exit_code}): {detail}"),
+    )
+
+
+def _first_shell_output_line(output: str) -> str | None:
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _truncate_shell_notification(message: str) -> str:
+    return shorten(message, width=120, placeholder="...")

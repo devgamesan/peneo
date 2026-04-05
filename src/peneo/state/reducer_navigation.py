@@ -31,9 +31,17 @@ from .actions import (
     ToggleHiddenFiles,
 )
 from .effects import LoadBrowserSnapshotEffect, ReduceResult, RunDirectorySizeEffect
-from .models import AppState, DirectorySizeCacheEntry, FilterState, NotificationState, PaneState
+from .models import (
+    AppState,
+    DirectorySizeCacheEntry,
+    DirectorySizeDeltaState,
+    FilterState,
+    NotificationState,
+    PaneState,
+)
 from .reducer_common import (
     ReducerFn,
+    browser_snapshot_invalidation_paths,
     build_history_after_snapshot_load,
     current_entry_for_path,
     current_entry_paths,
@@ -48,6 +56,49 @@ from .reducer_common import (
     upsert_directory_size_entries,
 )
 from .selectors import select_visible_current_entry_states
+
+
+def _can_promote_child_pane(
+    state: AppState,
+    entry_path: str,
+) -> bool:
+    return (
+        not state.filter.active
+        and state.pending_child_pane_request_id is None
+        and state.child_pane.directory_path == entry_path
+    )
+
+
+def _promote_child_pane_to_current(
+    state: AppState,
+    path: str,
+) -> AppState:
+    promoted_entries = state.child_pane.entries
+    promoted_cursor_path = normalize_cursor_path(promoted_entries, None)
+    return replace(
+        state,
+        current_path=path,
+        parent_pane=PaneState(
+            directory_path=state.current_path,
+            entries=state.current_pane.entries,
+            cursor_path=path,
+        ),
+        current_pane=PaneState(
+            directory_path=path,
+            entries=promoted_entries,
+            cursor_path=promoted_cursor_path,
+        ),
+        child_pane=PaneState(directory_path=path, entries=()),
+        filter=FilterState(),
+        notification=None,
+        command_palette=None,
+        directory_size_cache=(),
+        pending_browser_snapshot_request_id=None,
+        pending_child_pane_request_id=None,
+        pending_directory_size_request_id=None,
+        ui_mode="BROWSING",
+        history=build_history_after_snapshot_load(state, path),
+    )
 
 
 def handle_navigation_action(
@@ -194,6 +245,9 @@ def handle_navigation_action(
         entry = current_entry_for_path(state, state.current_pane.cursor_path)
         if entry is None or entry.kind != "dir":
             return done(state)
+        if _can_promote_child_pane(state, entry.path):
+            next_state = _promote_child_pane_to_current(state, entry.path)
+            return sync_child_pane(next_state, next_state.current_pane.cursor_path, reduce_state)
         return reduce_state(
             state,
             RequestBrowserSnapshot(entry.path, blocking=True),
@@ -240,6 +294,10 @@ def handle_navigation_action(
                 state.current_path,
                 cursor_path=state.current_pane.cursor_path,
                 blocking=True,
+                invalidate_paths=browser_snapshot_invalidation_paths(
+                    state.current_path,
+                    state.current_pane.cursor_path,
+                ),
             ),
         )
 
@@ -334,6 +392,7 @@ def handle_navigation_action(
             notification=None,
             command_palette=None,
             directory_size_cache=(),
+            directory_size_delta=replace(state.directory_size_delta, changed_paths=()),
             pending_browser_snapshot_request_id=request_id,
             pending_child_pane_request_id=None,
             pending_directory_size_request_id=None,
@@ -347,6 +406,7 @@ def handle_navigation_action(
                 path=action.path,
                 cursor_path=action.cursor_path,
                 blocking=action.blocking,
+                invalidate_paths=action.invalidate_paths,
             ),
         )
 
@@ -473,6 +533,12 @@ def handle_navigation_action(
                 state.directory_size_cache,
                 (*loaded_entries, *failed_entries),
             ),
+            directory_size_delta=DirectorySizeDeltaState(
+                changed_paths=tuple(
+                    dict.fromkeys(path for path, _ in (*action.sizes, *action.failures))
+                ),
+                revision=state.directory_size_delta.revision + 1,
+            ),
             pending_directory_size_request_id=None,
         )
         return done(next_state)
@@ -492,6 +558,10 @@ def handle_navigation_action(
                     )
                     for path in action.paths
                 ),
+            ),
+            directory_size_delta=DirectorySizeDeltaState(
+                changed_paths=tuple(dict.fromkeys(action.paths)),
+                revision=state.directory_size_delta.revision + 1,
             ),
             pending_directory_size_request_id=None,
         )

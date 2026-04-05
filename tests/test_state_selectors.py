@@ -20,10 +20,12 @@ from peneo.state import (
     CommandPaletteState,
     ConfigEditorState,
     ConfirmFilterInput,
+    CurrentPaneDeltaState,
     CutTargets,
     DeleteConfirmationState,
     DirectoryEntryState,
     DirectorySizeCacheEntry,
+    DirectorySizeDeltaState,
     FileSearchResultState,
     GrepSearchResultState,
     HistoryState,
@@ -265,6 +267,33 @@ def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
     ]
 
 
+def test_select_child_entries_keeps_previous_snapshot_visible_while_request_is_pending() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState("/home/tadashi/develop/peneo/src", "src", "dir"),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/src",
+        ),
+        child_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo/docs",
+            entries=(
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/docs/spec.md",
+                    "spec.md",
+                    "file",
+                ),
+            ),
+        ),
+        pending_child_pane_request_id=7,
+    )
+
+    assert [entry.name for entry in select_child_entries(state)] == ["spec.md"]
+
+
 def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
     state = replace(
         build_initial_app_state(
@@ -322,6 +351,138 @@ def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
     assert parent_entries[0].name_detail is None
     assert current_entries[0].size_label == "calculating..."
     assert child_entries[0].name_detail is None
+
+
+def test_select_visible_current_entries_skip_size_overlay_when_not_sorting_by_size() -> None:
+    state = replace(
+        build_initial_app_state(),
+        directory_size_cache=(
+            DirectorySizeCacheEntry(
+                "/home/tadashi/develop/peneo/docs",
+                "ready",
+                size_bytes=4_200,
+            ),
+        ),
+    )
+
+    visible_entries = select_visible_current_entry_states(state)
+
+    assert visible_entries[0].path == "/home/tadashi/develop/peneo/docs"
+    assert visible_entries[0].size_bytes is None
+
+
+def test_select_shell_data_emits_size_delta_updates_for_directory_size_changes() -> None:
+    state = replace(
+        build_initial_app_state(
+            config=AppConfig(
+                display=replace(
+                    AppConfig().display,
+                    show_directory_sizes=True,
+                )
+            )
+        ),
+        directory_size_cache=(
+            DirectorySizeCacheEntry(
+                "/home/tadashi/develop/peneo/docs",
+                "ready",
+                size_bytes=4_200,
+            ),
+        ),
+        directory_size_delta=DirectorySizeDeltaState(
+            changed_paths=("/home/tadashi/develop/peneo/docs",),
+            revision=3,
+        ),
+    )
+
+    shell = select_shell_data(state)
+
+    assert shell.current_entries is None
+    assert shell.current_pane_update.mode == "size_delta"
+    assert shell.current_pane_update.revision == 3
+    assert [
+        (update.path, update.size_label)
+        for update in shell.current_pane_update.size_updates
+    ] == [
+        ("/home/tadashi/develop/peneo/docs", "4.2 KB")
+    ]
+
+
+def test_select_shell_data_emits_row_delta_updates_for_selection_changes() -> None:
+    path = "/home/tadashi/develop/peneo/README.md"
+    state = replace(
+        build_initial_app_state(),
+        current_pane=replace(
+            build_initial_app_state().current_pane,
+            selected_paths=frozenset({path}),
+        ),
+        current_pane_delta=CurrentPaneDeltaState(
+            changed_paths=(path,),
+            revision=2,
+        ),
+    )
+
+    shell = select_shell_data(state)
+
+    assert shell.current_entries is None
+    assert shell.current_pane_update.mode == "row_delta"
+    assert shell.current_pane_update.revision == 2
+    assert [
+        (update.path, update.entry.selected)
+        for update in shell.current_pane_update.row_updates
+    ] == [
+        (path, True)
+    ]
+
+
+def test_select_shell_data_emits_row_delta_updates_for_cut_changes() -> None:
+    path = "/home/tadashi/develop/peneo/docs"
+    state = replace(
+        build_initial_app_state(),
+        clipboard=replace(build_initial_app_state().clipboard, mode="cut", paths=(path,)),
+        current_pane_delta=CurrentPaneDeltaState(
+            changed_paths=(path,),
+            revision=4,
+        ),
+    )
+
+    shell = select_shell_data(state)
+
+    assert shell.current_entries is None
+    assert shell.current_pane_update.mode == "row_delta"
+    assert shell.current_pane_update.revision == 4
+    assert [
+        (update.path, update.entry.cut)
+        for update in shell.current_pane_update.row_updates
+    ] == [
+        (path, True)
+    ]
+
+
+def test_select_shell_data_keeps_full_refresh_when_sorting_by_size() -> None:
+    state = replace(
+        build_initial_app_state(),
+        sort=replace(build_initial_app_state().sort, field="size"),
+        current_pane_delta=CurrentPaneDeltaState(
+            changed_paths=("/home/tadashi/develop/peneo/docs",),
+            revision=7,
+        ),
+        directory_size_cache=(
+            DirectorySizeCacheEntry(
+                "/home/tadashi/develop/peneo/docs",
+                "ready",
+                size_bytes=4_200,
+            ),
+        ),
+        directory_size_delta=DirectorySizeDeltaState(
+            changed_paths=("/home/tadashi/develop/peneo/docs",),
+            revision=2,
+        ),
+    )
+
+    shell = select_shell_data(state)
+
+    assert shell.current_pane_update.mode == "full"
+    assert shell.current_entries is not None
 
 
 def test_select_current_summary_counts_selected_absolute_paths() -> None:
@@ -533,7 +694,7 @@ def test_select_shell_data_reuses_current_entries_when_only_cursor_changes() -> 
 
     assert moved_shell.current_entries is initial_shell.current_entries
     assert moved_shell.current_cursor_index == 2
-    assert moved_shell.child_entries == ()
+    assert moved_shell.child_entries == initial_shell.child_entries
 
 
 def test_select_shell_data_rebuilds_only_current_entries_when_selection_changes() -> None:
@@ -605,12 +766,14 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
     help_state = select_help_bar_state(state)
 
     assert help_state.lines == (
-        "Enter open | e edit | i info | / filter | : palette | ctrl+f find | ctrl+g grep | q quit",
-        "Space select | y copy | x cut | p paste | c path | . hidden | b bookmark | ctrl+t term",
+        "enter open | e edit | i info | space select | y copy | x cut | p paste | c path",
+        "/ filter | s sort | . hidden | b bookmark | ctrl+f find | ctrl+g grep",
+        ": palette | ! shell | ctrl+t term | q quit",
     )
     assert help_state.text == (
-        "Enter open | e edit | i info | / filter | : palette | ctrl+f find | ctrl+g grep | q quit\n"
-        "Space select | y copy | x cut | p paste | c path | . hidden | b bookmark | ctrl+t term"
+        "enter open | e edit | i info | space select | y copy | x cut | p paste | c path\n"
+        "/ filter | s sort | . hidden | b bookmark | ctrl+f find | ctrl+g grep\n"
+        ": palette | ! shell | ctrl+t term | q quit"
     )
 
 
@@ -785,6 +948,30 @@ def test_select_help_bar_state_for_go_to_path_palette_mentions_tab_completion() 
     assert help_bar.lines == (
         "type path | up/down select | tab complete | enter jump | esc cancel",
     )
+
+
+def test_select_help_bar_state_for_file_search_palette() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="file_search"),
+    )
+
+    help_bar = select_help_bar_state(state)
+
+    assert help_bar.lines == ("type filename | enter jump | Ctrl+E edit | esc cancel",)
+
+
+def test_select_help_bar_state_for_grep_search_palette() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="grep_search"),
+    )
+
+    help_bar = select_help_bar_state(state)
+
+    assert help_bar.lines == ("type text / re:pattern | enter jump | Ctrl+E edit | esc cancel",)
 
 
 def test_select_command_palette_state_go_to_path_can_show_candidates_without_selection() -> None:

@@ -16,12 +16,14 @@ from .actions import (
     BeginGrepSearch,
     BeginHistorySearch,
     BeginRenameInput,
+    BeginShellCommandInput,
     CancelArchiveExtractConfirmation,
     CancelCommandPalette,
     CancelDeleteConfirmation,
     CancelFilterInput,
     CancelPasteConflict,
     CancelPendingInput,
+    CancelShellCommandInput,
     CancelZipCompressConfirmation,
     ClearSelection,
     ConfirmArchiveExtract,
@@ -46,12 +48,15 @@ from .actions import (
     MoveConfigEditorCursor,
     MoveCursor,
     MoveCursorAndSelectRange,
+    OpenFindResultInEditor,
+    OpenGrepResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     PasteClipboard,
     PasteFromClipboardToTerminal,
     ReloadDirectory,
     RemoveBookmark,
+    ResetHelpBarConfig,
     ResolvePasteConflict,
     SaveConfigEditor,
     SelectAllVisibleEntries,
@@ -60,10 +65,12 @@ from .actions import (
     SetFilterQuery,
     SetNotification,
     SetPendingInputValue,
+    SetShellCommandValue,
     SetSort,
     ShowAttributes,
     SubmitCommandPalette,
     SubmitPendingInput,
+    SubmitShellCommand,
     ToggleHiddenFiles,
     ToggleSelectionAndAdvance,
     ToggleSplitTerminal,
@@ -97,6 +104,7 @@ BROWSING_KEYMAP = {
     "f5": "reload_directory",
     "q": "exit_current_path",
     "f2": "begin_rename",
+    "!": "begin_shell_command",
     ":": "begin_command_palette",
     "s": "cycle_sort",
     "d": "toggle_directories_first",
@@ -124,6 +132,8 @@ BROWSING_KEYMAP = {
     "ctrl+j": "begin_go_to_path",
     "ctrl+n": "create_file",
     "ctrl+d": "create_dir",
+    "pageup": "cursor_pageup",
+    "pagedown": "cursor_pagedown",
 }
 
 CONFLICT_KEYMAP = {
@@ -204,6 +214,9 @@ def dispatch_key_input(
     if state.ui_mode in {"RENAME", "CREATE", "EXTRACT", "ZIP"}:
         return _dispatch_pending_input(state, key=key, character=character)
 
+    if state.ui_mode == "SHELL":
+        return _dispatch_shell_command_input(state, key=key, character=character)
+
     return _dispatch_browsing_input(state, key)
 
 
@@ -220,7 +233,7 @@ def _normalize_input_character(
     if _terminal_has_focus(state):
         return resolved_character
 
-    if state.ui_mode in {"PALETTE", "RENAME", "CREATE", "EXTRACT", "ZIP"}:
+    if state.ui_mode in {"PALETTE", "RENAME", "CREATE", "EXTRACT", "ZIP", "SHELL"}:
         return resolved_character
 
     if state.ui_mode == "FILTER" and not resolved_character.isspace():
@@ -281,6 +294,14 @@ def _dispatch_browsing_input(state: AppState, key: str) -> DispatchedActions:
     if command == "cursor_end":
         return _supported(JumpCursor(position="end", visible_paths=visible_paths))
 
+    if command == "cursor_pageup":
+        visible = compute_search_visible_window(state.terminal_height)
+        return _supported(MoveCursor(delta=-visible, visible_paths=visible_paths))
+
+    if command == "cursor_pagedown":
+        visible = compute_search_visible_window(state.terminal_height)
+        return _supported(MoveCursor(delta=visible, visible_paths=visible_paths))
+
     if command == "toggle_selection" and state.current_pane.cursor_path is not None:
         return _supported(
             ToggleSelectionAndAdvance(
@@ -338,6 +359,9 @@ def _dispatch_browsing_input(state: AppState, key: str) -> DispatchedActions:
         if len(target_paths) != 1:
             return _warn("Rename requires a single target")
         return _supported(BeginRenameInput(target_paths[0]))
+
+    if command == "begin_shell_command":
+        return _supported(BeginShellCommandInput())
 
     if command == "begin_command_palette":
         return _supported(BeginCommandPalette())
@@ -549,9 +573,19 @@ def _dispatch_command_palette_input(
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(current_query[:-1]))
 
+    if key == "ctrl+e" and state.command_palette is not None:
+        if state.command_palette.source == "grep_search":
+            return _supported(OpenGrepResultInEditor())
+        if state.command_palette.source == "file_search":
+            return _supported(OpenFindResultInEditor())
+
     if character and character.isprintable():
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(f"{current_query}{character}"))
+
+    source = state.command_palette.source if state.command_palette is not None else None
+    if source in ("grep_search", "file_search"):
+        return _warn("Use arrows, type to filter, Enter, Ctrl+E for editor, or Esc")
 
     return _warn("Use arrows, type to filter, Enter to run, or Esc to cancel")
 
@@ -643,6 +677,29 @@ def _dispatch_pending_input(
     return _warn("Use Enter to apply or Esc to cancel")
 
 
+def _dispatch_shell_command_input(
+    state: AppState,
+    *,
+    key: str,
+    character: str | None,
+) -> DispatchedActions:
+    if key == "escape":
+        return _supported(CancelShellCommandInput())
+
+    if key == "enter":
+        return _supported(SubmitShellCommand())
+
+    if key == "backspace":
+        current_command = state.shell_command.command if state.shell_command is not None else ""
+        return _supported(SetShellCommandValue(current_command[:-1]))
+
+    if character and character.isprintable():
+        current_command = state.shell_command.command if state.shell_command is not None else ""
+        return _supported(SetShellCommandValue(f"{current_command}{character}"))
+
+    return _warn("Use Enter to run or Esc to cancel")
+
+
 def _dispatch_detail_input(key: str) -> DispatchedActions:
     if key in {"enter", "escape"}:
         return _supported(DismissAttributeDialog())
@@ -672,7 +729,13 @@ def _dispatch_config_input(state: AppState, key: str) -> DispatchedActions:
     if key == "e":
         return _supported(OpenPathInEditor(state.config_path))
 
-    return _warn("Use arrows to change values, s to save, e to edit the file, or Esc to close")
+    if key == "r":
+        return _supported(ResetHelpBarConfig())
+
+    return _warn(
+        "Use arrows to change values, s to save, e to edit the file, "
+        "r to reset help, or Esc to close"
+    )
 
 
 def _visible_paths(state: AppState) -> tuple[str, ...]:

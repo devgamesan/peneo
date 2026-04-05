@@ -4,6 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from peneo.archive_utils import is_supported_archive_path
+from peneo.models.external_launch import ExternalLaunchRequest
 
 from .actions import (
     Action,
@@ -18,6 +19,7 @@ from .actions import (
     BeginGrepSearch,
     BeginHistorySearch,
     BeginRenameInput,
+    BeginShellCommandInput,
     BeginZipCompressInput,
     CancelCommandPalette,
     CopyPathsToClipboard,
@@ -30,6 +32,8 @@ from .actions import (
     GrepSearchCompleted,
     GrepSearchFailed,
     MoveCommandPaletteCursor,
+    OpenFindResultInEditor,
+    OpenGrepResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     OpenTerminalAtPath,
@@ -59,6 +63,7 @@ from .reducer_common import (
     filter_file_search_results,
     is_regex_file_search_query,
     list_matching_directory_paths,
+    run_external_launch_request,
     single_target_entry,
     single_target_path,
 )
@@ -373,6 +378,50 @@ def _handle_submit_grep_search_palette(
     )
 
 
+def _handle_open_grep_result_in_editor(
+    state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    results = state.command_palette.grep_search_results
+    message = state.command_palette.grep_search_error_message or "No matching lines"
+    if not results:
+        return _notify(state, level="warning", message=message)
+
+    selected_result = results[
+        normalize_command_palette_cursor(state, state.command_palette.cursor_index)
+    ]
+    return run_external_launch_request(
+        replace(state, notification=None),
+        ExternalLaunchRequest(
+            kind="open_editor",
+            path=selected_result.path,
+            line_number=selected_result.line_number,
+        ),
+    )
+
+
+def _handle_open_find_result_in_editor(
+    state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    results = state.command_palette.file_search_results
+    message = state.command_palette.file_search_error_message or "No matching files"
+    if not results:
+        return _notify(state, level="warning", message=message)
+
+    selected_result = results[
+        normalize_command_palette_cursor(state, state.command_palette.cursor_index)
+    ]
+    return run_external_launch_request(
+        replace(state, ui_mode="BROWSING", notification=None),
+        ExternalLaunchRequest(
+            kind="open_editor",
+            path=selected_result.path,
+            line_number=None,  # File search doesn't have line numbers
+        ),
+    )
+
+
 def _handle_submit_history_palette(
     state: AppState,
     reduce_state: ReducerFn,
@@ -511,6 +560,8 @@ def _run_palette_command_item(
         return _run_open_file_manager_command(next_state, reduce_state)
     if item_id == "open_terminal":
         return _run_open_terminal_command(next_state, reduce_state)
+    if item_id == "run_shell_command":
+        return _run_shell_command_command(next_state, reduce_state)
     if item_id == "add_bookmark":
         return _run_add_bookmark_command(next_state, reduce_state)
     if item_id == "remove_bookmark":
@@ -736,6 +787,13 @@ def _run_open_terminal_command(
     reduce_state: ReducerFn,
 ) -> ReduceResult:
     return reduce_state(state, OpenTerminalAtPath(state.current_path))
+
+
+def _run_shell_command_command(
+    state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return reduce_state(state, BeginShellCommandInput())
 
 
 def _run_add_bookmark_command(
@@ -988,5 +1046,11 @@ def handle_palette_action(
 
     if isinstance(action, GrepSearchFailed):
         return _handle_grep_search_failed(state, action)
+
+    if isinstance(action, OpenGrepResultInEditor):
+        return _handle_open_grep_result_in_editor(state, reduce_state)
+
+    if isinstance(action, OpenFindResultInEditor):
+        return _handle_open_find_result_in_editor(state, reduce_state)
 
     return None

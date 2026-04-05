@@ -65,11 +65,13 @@ from peneo.state import (
     ConfirmZipCompress,
     CopyPathsToClipboard,
     CopyTargets,
+    CurrentPaneDeltaState,
     CutTargets,
     CycleConfigEditorValue,
     DeleteConfirmationState,
     DirectoryEntryState,
     DirectorySizeCacheEntry,
+    DirectorySizeDeltaState,
     DirectorySizesFailed,
     DirectorySizesLoaded,
     DismissAttributeDialog,
@@ -101,6 +103,7 @@ from peneo.state import (
     MoveCursorAndSelectRange,
     NameConflictState,
     NotificationState,
+    OpenFindResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     OpenTerminalAtPath,
@@ -130,6 +133,7 @@ from peneo.state import (
     SetCommandPaletteQuery,
     SetCursorPath,
     SetFilterQuery,
+    SetNotification,
     SetPendingInputValue,
     SetSort,
     SetTerminalHeight,
@@ -230,6 +234,10 @@ def test_directory_sizes_loaded_updates_cache_when_request_matches() -> None:
     assert next_state.directory_size_cache == (
         DirectorySizeCacheEntry("/home/tadashi/develop/peneo/docs", "ready", size_bytes=4321),
     )
+    assert next_state.directory_size_delta == DirectorySizeDeltaState(
+        changed_paths=("/home/tadashi/develop/peneo/docs",),
+        revision=1,
+    )
     assert next_state.pending_directory_size_request_id is None
 
 
@@ -260,6 +268,13 @@ def test_directory_sizes_loaded_marks_partial_failures() -> None:
             error_message="Permission denied",
         ),
     )
+    assert next_state.directory_size_delta == DirectorySizeDeltaState(
+        changed_paths=(
+            "/home/tadashi/develop/peneo/docs",
+            "/home/tadashi/develop/peneo/private",
+        ),
+        revision=1,
+    )
     assert next_state.pending_directory_size_request_id is None
 
 
@@ -288,7 +303,97 @@ def test_directory_sizes_failed_marks_requested_paths_failed() -> None:
             error_message="Permission denied",
         ),
     )
+    assert next_state.directory_size_delta == DirectorySizeDeltaState(
+        changed_paths=("/home/tadashi/develop/peneo/docs",),
+        revision=1,
+    )
     assert next_state.pending_directory_size_request_id is None
+
+
+def test_non_directory_size_action_clears_transient_directory_size_delta() -> None:
+    state = replace(
+        build_initial_app_state(),
+        directory_size_delta=DirectorySizeDeltaState(
+            changed_paths=("/home/tadashi/develop/peneo/docs",),
+            revision=4,
+        ),
+    )
+
+    result = reduce_app_state(
+        state,
+        SetNotification(NotificationState(level="info", message="Ready")),
+    )
+
+    assert result.state.notification == NotificationState(level="info", message="Ready")
+    assert result.state.directory_size_delta == DirectorySizeDeltaState(revision=4)
+
+
+def test_toggle_selection_sets_transient_current_pane_delta() -> None:
+    state = build_initial_app_state()
+    path = "/home/tadashi/develop/peneo/README.md"
+
+    next_state = _reduce_state(state, ToggleSelection(path))
+
+    assert next_state.current_pane.selected_paths == frozenset({path})
+    assert next_state.current_pane_delta == CurrentPaneDeltaState(
+        changed_paths=(path,),
+        revision=1,
+    )
+
+
+def test_cut_targets_sets_transient_current_pane_delta() -> None:
+    state = build_initial_app_state()
+    path = "/home/tadashi/develop/peneo/docs"
+
+    next_state = _reduce_state(state, CutTargets((path,)))
+
+    assert next_state.clipboard.mode == "cut"
+    assert next_state.current_pane_delta == CurrentPaneDeltaState(
+        changed_paths=(path,),
+        revision=1,
+    )
+
+
+def test_move_cursor_and_select_range_sets_transient_current_pane_delta() -> None:
+    state = build_initial_app_state()
+    visible_paths = tuple(entry.path for entry in state.current_pane.entries)
+
+    next_state = _reduce_state(
+        state,
+        MoveCursorAndSelectRange(delta=1, visible_paths=visible_paths),
+    )
+
+    assert next_state.current_pane.selected_paths == frozenset(
+        {
+            "/home/tadashi/develop/peneo/docs",
+            "/home/tadashi/develop/peneo/src",
+        }
+    )
+    assert next_state.current_pane_delta == CurrentPaneDeltaState(
+        changed_paths=(
+            "/home/tadashi/develop/peneo/docs",
+            "/home/tadashi/develop/peneo/src",
+        ),
+        revision=1,
+    )
+
+
+def test_non_selection_action_clears_transient_current_pane_delta() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane_delta=CurrentPaneDeltaState(
+            changed_paths=("/home/tadashi/develop/peneo/docs",),
+            revision=4,
+        ),
+    )
+
+    result = reduce_app_state(
+        state,
+        SetNotification(NotificationState(level="info", message="Ready")),
+    )
+
+    assert result.state.notification == NotificationState(level="info", message="Ready")
+    assert result.state.current_pane_delta == CurrentPaneDeltaState(revision=4)
 
 
 def test_toggle_selection_uses_absolute_paths() -> None:
@@ -373,8 +478,14 @@ def test_set_cursor_path_ignores_unknown_path() -> None:
     assert next_state == state
 
 
-def test_enter_cursor_directory_requests_blocking_snapshot() -> None:
-    state = build_initial_app_state()
+def test_enter_cursor_directory_requests_blocking_snapshot_when_child_pane_is_stale() -> None:
+    state = replace(
+        build_initial_app_state(),
+        child_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo/src",
+            entries=(),
+        ),
+    )
 
     result = reduce_app_state(state, EnterCursorDirectory())
 
@@ -384,6 +495,126 @@ def test_enter_cursor_directory_requests_blocking_snapshot() -> None:
         LoadBrowserSnapshotEffect(
             request_id=1,
             path="/home/tadashi/develop/peneo/docs",
+            cursor_path=None,
+            blocking=True,
+        ),
+    )
+
+
+def test_enter_cursor_directory_promotes_matching_child_pane() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_path="/tmp/project",
+        current_pane=PaneState(
+            directory_path="/tmp/project",
+            entries=(
+                DirectoryEntryState("/tmp/project/docs", "docs", "dir"),
+                DirectoryEntryState("/tmp/project/README.md", "README.md", "file"),
+            ),
+            cursor_path="/tmp/project/docs",
+        ),
+        child_pane=PaneState(
+            directory_path="/tmp/project/docs",
+            entries=(
+                DirectoryEntryState("/tmp/project/docs/api", "api", "dir"),
+                DirectoryEntryState("/tmp/project/docs/guide.md", "guide.md", "file"),
+            ),
+        ),
+        directory_size_cache=(
+            DirectorySizeCacheEntry(
+                path="/tmp/project/docs/api",
+                status="ready",
+                size_bytes=128,
+            ),
+        ),
+        pending_directory_size_request_id=99,
+    )
+
+    result = reduce_app_state(state, EnterCursorDirectory())
+
+    assert result.state.current_path == "/tmp/project/docs"
+    assert result.state.parent_pane == PaneState(
+        directory_path="/tmp/project",
+        entries=state.current_pane.entries,
+        cursor_path="/tmp/project/docs",
+    )
+    assert result.state.current_pane == PaneState(
+        directory_path="/tmp/project/docs",
+        entries=state.child_pane.entries,
+        cursor_path="/tmp/project/docs/api",
+    )
+    assert result.state.child_pane == PaneState(
+        directory_path="/tmp/project/docs",
+        entries=(),
+    )
+    assert result.state.directory_size_cache == ()
+    assert result.state.pending_browser_snapshot_request_id is None
+    assert result.state.pending_child_pane_request_id == 1
+    assert result.state.pending_directory_size_request_id is None
+    assert result.state.history.back == ("/tmp/project",)
+    assert result.state.history.forward == ()
+    assert result.effects == (
+        LoadChildPaneSnapshotEffect(
+            request_id=1,
+            current_path="/tmp/project/docs",
+            cursor_path="/tmp/project/docs/api",
+        ),
+    )
+
+
+def test_enter_cursor_directory_with_active_filter_falls_back_to_snapshot() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_path="/tmp/project",
+        current_pane=PaneState(
+            directory_path="/tmp/project",
+            entries=(DirectoryEntryState("/tmp/project/docs", "docs", "dir"),),
+            cursor_path="/tmp/project/docs",
+        ),
+        child_pane=PaneState(
+            directory_path="/tmp/project/docs",
+            entries=(DirectoryEntryState("/tmp/project/docs/api", "api", "dir"),),
+        ),
+        filter=replace(build_initial_app_state().filter, query="do", active=True),
+    )
+
+    result = reduce_app_state(state, EnterCursorDirectory())
+
+    assert result.state.pending_browser_snapshot_request_id == 1
+    assert result.state.ui_mode == "BUSY"
+    assert result.effects == (
+        LoadBrowserSnapshotEffect(
+            request_id=1,
+            path="/tmp/project/docs",
+            cursor_path=None,
+            blocking=True,
+        ),
+    )
+
+
+def test_enter_cursor_directory_with_stale_child_pane_falls_back_to_snapshot() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_path="/tmp/project",
+        current_pane=PaneState(
+            directory_path="/tmp/project",
+            entries=(DirectoryEntryState("/tmp/project/docs", "docs", "dir"),),
+            cursor_path="/tmp/project/docs",
+        ),
+        child_pane=PaneState(
+            directory_path="/tmp/project/src",
+            entries=(DirectoryEntryState("/tmp/project/src/main.py", "main.py", "file"),),
+        ),
+    )
+
+    result = reduce_app_state(state, EnterCursorDirectory())
+
+    assert result.state.pending_browser_snapshot_request_id == 1
+    assert result.state.ui_mode == "BUSY"
+    assert result.effects == (
+        LoadBrowserSnapshotEffect(
+            request_id=1,
+            path="/tmp/project/docs",
             cursor_path=None,
             blocking=True,
         ),
@@ -464,6 +695,11 @@ def test_reload_directory_requests_snapshot_with_current_cursor() -> None:
     assert result.effects[0].path == "/home/tadashi/develop/peneo"
     assert result.effects[0].cursor_path == "/home/tadashi/develop/peneo/src"
     assert result.effects[0].blocking is True
+    assert result.effects[0].invalidate_paths == (
+        "/home/tadashi/develop/peneo",
+        "/home/tadashi/develop",
+        "/home/tadashi/develop/peneo/src",
+    )
 
 
 def test_open_path_with_default_app_emits_external_launch_effect() -> None:
@@ -515,6 +751,68 @@ def test_open_path_in_editor_emits_external_launch_effect() -> None:
             request=ExternalLaunchRequest(
                 kind="open_editor",
                 path="/home/tadashi/develop/peneo/README.md",
+            ),
+        ),
+    )
+
+
+def test_open_path_in_editor_with_line_number_emits_external_launch_effect() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=replace(
+            build_initial_app_state().current_pane,
+            cursor_path="/home/tadashi/develop/peneo/README.md",
+        ),
+    )
+
+    result = reduce_app_state(
+        state,
+        OpenPathInEditor("/home/tadashi/develop/peneo/README.md", line_number=42),
+    )
+
+    assert result.state.ui_mode == "BROWSING"
+    assert result.state.next_request_id == 2
+    assert result.effects == (
+        RunExternalLaunchEffect(
+            request_id=1,
+            request=ExternalLaunchRequest(
+                kind="open_editor",
+                path="/home/tadashi/develop/peneo/README.md",
+                line_number=42,
+            ),
+        ),
+    )
+
+
+def test_open_find_result_in_editor_emits_external_launch_effect() -> None:
+    from peneo.state import FileSearchResultState
+    state = _reduce_state(build_initial_app_state(), BeginFileSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            query="readme",
+            file_search_results=(
+                FileSearchResultState(
+                    path="/home/tadashi/develop/peneo/README.md",
+                    display_path="README.md",
+                ),
+            ),
+            cursor_index=0,
+        ),
+    )
+
+    result = reduce_app_state(state, OpenFindResultInEditor())
+
+    assert result.state.ui_mode == "BROWSING"
+    assert result.state.next_request_id == 2
+    assert result.effects == (
+        RunExternalLaunchEffect(
+            request_id=1,
+            request=ExternalLaunchRequest(
+                kind="open_editor",
+                path="/home/tadashi/develop/peneo/README.md",
+                line_number=None,
             ),
         ),
     )
@@ -2813,6 +3111,7 @@ def test_archive_extract_completed_requests_snapshot_for_destination_parent() ->
             path="/tmp/output",
             cursor_path="/tmp/output/archive",
             blocking=True,
+            invalidate_paths=("/tmp/output", "/tmp", "/tmp/output/archive"),
         ),
     )
 
@@ -2852,6 +3151,7 @@ def test_zip_compress_completed_requests_snapshot_for_destination_parent() -> No
             path="/tmp",
             cursor_path="/tmp/output.zip",
             blocking=True,
+            invalidate_paths=("/tmp", "/", "/tmp/output.zip"),
         ),
     )
 
@@ -3319,6 +3619,19 @@ def test_clipboard_paste_completed_for_cut_clears_clipboard_and_requests_reload(
 
     assert result.state.clipboard.mode == "none"
     assert result.state.pending_browser_snapshot_request_id == 1
+    assert result.effects == (
+        LoadBrowserSnapshotEffect(
+            request_id=1,
+            path="/home/tadashi/develop/peneo",
+            cursor_path="/home/tadashi/develop/peneo/docs",
+            blocking=False,
+            invalidate_paths=(
+                "/home/tadashi/develop/peneo",
+                "/home/tadashi/develop",
+                "/home/tadashi/develop/peneo/docs",
+            ),
+        ),
+    )
 
 
 def test_file_mutation_completed_requests_reload_with_result_cursor() -> None:
@@ -3353,6 +3666,11 @@ def test_file_mutation_completed_requests_reload_with_result_cursor() -> None:
             path="/home/tadashi/develop/peneo",
             cursor_path="/home/tadashi/develop/peneo/notes.txt",
             blocking=False,
+            invalidate_paths=(
+                "/home/tadashi/develop/peneo",
+                "/home/tadashi/develop",
+                "/home/tadashi/develop/peneo/notes.txt",
+            ),
         ),
     )
 
@@ -3387,6 +3705,11 @@ def test_delete_file_mutation_completed_requests_reload_without_deleted_cursor()
             path="/home/tadashi/develop/peneo",
             cursor_path="/home/tadashi/develop/peneo/src",
             blocking=False,
+            invalidate_paths=(
+                "/home/tadashi/develop/peneo",
+                "/home/tadashi/develop",
+                "/home/tadashi/develop/peneo/src",
+            ),
         ),
     )
 
@@ -3851,6 +4174,7 @@ def test_move_cursor_emits_child_snapshot_effect_only_when_target_changes() -> N
     moved = reduce_app_state(state, SetCursorPath("/home/tadashi/develop/peneo/src"))
 
     assert moved.state.pending_child_pane_request_id == 1
+    assert moved.state.child_pane == state.child_pane
     assert moved.effects == (
         LoadChildPaneSnapshotEffect(
             request_id=1,

@@ -19,6 +19,7 @@ class PaneEntry:
     selected: bool = False
     cut: bool = False
     executable: bool = False
+    path: str = ""
 
     @property
     def kind_label(self) -> str:
@@ -31,6 +32,32 @@ class PaneEntry:
         """Return the marker shown for selected rows in the center table."""
 
         return "*" if self.selected else " "
+
+
+@dataclass(frozen=True)
+class CurrentPaneSizeUpdate:
+    """A targeted size-cell update for a single current-pane row."""
+
+    path: str
+    size_label: str
+
+
+@dataclass(frozen=True)
+class CurrentPaneRowUpdate:
+    """A targeted full-row update for a single current-pane row."""
+
+    path: str
+    entry: PaneEntry
+
+
+@dataclass(frozen=True)
+class CurrentPaneUpdateHint:
+    """Describe how the current pane should be refreshed."""
+
+    mode: Literal["full", "size_delta", "row_delta"]
+    revision: int = 0
+    size_updates: tuple[CurrentPaneSizeUpdate, ...] = ()
+    row_updates: tuple[CurrentPaneRowUpdate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -132,15 +159,27 @@ class ConfigDialogState:
 
 
 @dataclass(frozen=True)
+class ShellCommandDialogState:
+    """Display data for the shell command input dialog."""
+
+    title: str
+    cwd: str
+    prompt: str
+    command: str
+    options: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ThreePaneShellData:
     """Complete display state for the shell UI."""
 
     current_path: str
     parent_entries: tuple[PaneEntry, ...]
-    current_entries: tuple[PaneEntry, ...]
+    current_entries: tuple[PaneEntry, ...] | None
     child_entries: tuple[PaneEntry, ...]
     current_cursor_index: int | None
     current_cursor_visible: bool
+    current_pane_update: CurrentPaneUpdateHint
     current_summary: CurrentSummaryState
     current_context_input: InputBarState | None
     split_terminal: SplitTerminalViewState
@@ -150,17 +189,48 @@ class ThreePaneShellData:
     conflict_dialog: ConflictDialogState | None = None
     attribute_dialog: AttributeDialogState | None = None
     config_dialog: ConfigDialogState | None = None
+    shell_command_dialog: ShellCommandDialogState | None = None
 
 
 def build_dummy_shell_data() -> ThreePaneShellData:
     """Return static data for the initial three-pane shell."""
 
     current_entries = (
-        PaneEntry("docs", "dir", "-", "2026-03-21 09:10"),
-        PaneEntry("src", "dir", "-", "2026-03-20 19:42"),
-        PaneEntry("tests", "dir", "-", "2026-03-20 19:42"),
-        PaneEntry("README.md", "file", "2.1 KB", "2026-03-21 08:55"),
-        PaneEntry("pyproject.toml", "file", "712 B", "2026-03-20 18:11"),
+        PaneEntry(
+            "docs",
+            "dir",
+            "-",
+            "2026-03-21 09:10",
+            path="/home/tadashi/develop/peneo/docs",
+        ),
+        PaneEntry(
+            "src",
+            "dir",
+            "-",
+            "2026-03-20 19:42",
+            path="/home/tadashi/develop/peneo/src",
+        ),
+        PaneEntry(
+            "tests",
+            "dir",
+            "-",
+            "2026-03-20 19:42",
+            path="/home/tadashi/develop/peneo/tests",
+        ),
+        PaneEntry(
+            "README.md",
+            "file",
+            "2.1 KB",
+            "2026-03-21 08:55",
+            path="/home/tadashi/develop/peneo/README.md",
+        ),
+        PaneEntry(
+            "pyproject.toml",
+            "file",
+            "712 B",
+            "2026-03-20 18:11",
+            path="/home/tadashi/develop/peneo/pyproject.toml",
+        ),
     )
 
     return ThreePaneShellData(
@@ -178,6 +248,7 @@ def build_dummy_shell_data() -> ThreePaneShellData:
         ),
         current_cursor_index=0,
         current_cursor_visible=True,
+        current_pane_update=CurrentPaneUpdateHint(mode="full"),
         current_summary=CurrentSummaryState(
             item_count=len(current_entries),
             selected_count=0,
@@ -201,4 +272,5 @@ def build_dummy_shell_data() -> ThreePaneShellData:
         status=StatusBarState(message=None, message_level=None),
         attribute_dialog=None,
         config_dialog=None,
+        shell_command_dialog=None,
     )

@@ -27,6 +27,7 @@ UiMode = Literal[
     "PALETTE",
     "CONFIRM",
     "CONFIG",
+    "SHELL",
     "BUSY",
 ]
 SortField = Literal["name", "modified", "size"]
@@ -190,6 +191,14 @@ class ConfigEditorState:
 
 
 @dataclass(frozen=True)
+class ShellCommandState:
+    """Transient shell command dialog state."""
+
+    cwd: str
+    command: str = ""
+
+
+@dataclass(frozen=True)
 class HistoryState:
     """Back/forward navigation history."""
 
@@ -225,6 +234,22 @@ class DirectorySizeCacheEntry:
     status: DirectorySizeStatus
     size_bytes: int | None = None
     error_message: str | None = None
+
+
+@dataclass(frozen=True)
+class DirectorySizeDeltaState:
+    """Transient changed-path metadata for the latest directory-size update."""
+
+    changed_paths: tuple[str, ...] = ()
+    revision: int = 0
+
+
+@dataclass(frozen=True)
+class CurrentPaneDeltaState:
+    """Transient changed-path metadata for the latest current-pane row update."""
+
+    changed_paths: tuple[str, ...] = ()
+    revision: int = 0
 
 
 @dataclass(frozen=True)
@@ -324,8 +349,11 @@ class AppState:
     zip_compress_progress: ZipCompressProgressState | None = None
     attribute_inspection: AttributeInspectionState | None = None
     config_editor: ConfigEditorState | None = None
+    shell_command: ShellCommandState | None = None
     post_reload_notification: NotificationState | None = None
     directory_size_cache: tuple[DirectorySizeCacheEntry, ...] = ()
+    directory_size_delta: DirectorySizeDeltaState = DirectorySizeDeltaState()
+    current_pane_delta: CurrentPaneDeltaState = CurrentPaneDeltaState()
     pending_browser_snapshot_request_id: int | None = None
     pending_child_pane_request_id: int | None = None
     pending_paste_request_id: int | None = None
@@ -338,6 +366,7 @@ class AppState:
     pending_grep_search_request_id: int | None = None
     pending_directory_size_request_id: int | None = None
     pending_config_save_request_id: int | None = None
+    pending_shell_command_request_id: int | None = None
     terminal_height: int = 24
     next_request_id: int = 1
 

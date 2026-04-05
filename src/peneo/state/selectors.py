@@ -13,10 +13,14 @@ from peneo.models import (
     CommandPaletteViewState,
     ConfigDialogState,
     ConflictDialogState,
+    CurrentPaneRowUpdate,
+    CurrentPaneSizeUpdate,
+    CurrentPaneUpdateHint,
     CurrentSummaryState,
     HelpBarState,
     InputBarState,
     PaneEntry,
+    ShellCommandDialogState,
     SplitTerminalViewState,
     StatusBarState,
     ThreePaneShellData,
@@ -61,19 +65,39 @@ def select_shell_data(state: AppState) -> ThreePaneShellData:
     """Build the display shell data consumed by the UI layer."""
 
     current_pane = _select_current_pane_projection(state)
+    display_directory_sizes = (
+        state.config.display.show_directory_sizes or state.sort.field == "size"
+    )
+    current_pane_update = _select_current_pane_update_hint(
+        current_pane.visible_entries,
+        state.directory_size_cache,
+        display_directory_sizes,
+        state.sort,
+        state.current_pane.selected_paths,
+        _select_cut_paths(state),
+        state.current_pane_delta.changed_paths,
+        state.current_pane_delta.revision,
+        state.directory_size_delta.changed_paths,
+        state.directory_size_delta.revision,
+    )
     return ThreePaneShellData(
         current_path=state.current_path,
         parent_entries=select_parent_entries(state),
-        current_entries=_select_current_pane_entries(
-            current_pane.visible_entries,
-            state.directory_size_cache,
-            state.config.display.show_directory_sizes or state.sort.field == "size",
-            state.current_pane.selected_paths,
-            _select_cut_paths(state),
+        current_entries=(
+            _select_current_pane_entries(
+                current_pane.visible_entries,
+                state.directory_size_cache,
+                display_directory_sizes,
+                state.current_pane.selected_paths,
+                _select_cut_paths(state),
+            )
+            if current_pane_update.mode == "full"
+            else None
         ),
         child_entries=_select_child_entries_for_cursor(state, current_pane.cursor_entry),
         current_cursor_index=current_pane.cursor_index,
         current_cursor_visible=state.ui_mode != "FILTER",
+        current_pane_update=current_pane_update,
         current_summary=current_pane.summary,
         current_context_input=select_input_bar_state(state),
         split_terminal=select_split_terminal_state(state),
@@ -83,6 +107,7 @@ def select_shell_data(state: AppState) -> ThreePaneShellData:
         conflict_dialog=select_conflict_dialog_state(state),
         attribute_dialog=select_attribute_dialog_state(state),
         config_dialog=select_config_dialog_state(state),
+        shell_command_dialog=select_shell_command_dialog_state(state),
     )
 
 
@@ -127,7 +152,10 @@ def _select_child_entries_for_cursor(
     is_archive = cursor_entry.kind == "file" and is_supported_archive_path(cursor_entry.path)
     if cursor_entry.kind != "dir" and not is_archive:
         return ()
-    if cursor_entry.path != state.child_pane.directory_path:
+    if (
+        cursor_entry.path != state.child_pane.directory_path
+        and state.pending_child_pane_request_id is None
+    ):
         return ()
     visible_entries = _select_side_pane_entry_states(state.child_pane.entries, state.show_hidden)
     return _select_side_pane_entries(
@@ -162,9 +190,13 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
     """Return the help content for the active mode."""
 
     if state.split_terminal.visible:
+        if state.config.help_bar.split_terminal:
+            return HelpBarState(state.config.help_bar.split_terminal)
         return HelpBarState(("type in terminal | ctrl+t close | ctrl+v paste",))
     if state.ui_mode == "CONFIRM":
         if state.delete_confirmation is not None:
+            if state.config.help_bar.confirm_delete:
+                return HelpBarState(state.config.help_bar.confirm_delete)
             return HelpBarState(("enter confirm delete | esc cancel",))
         if state.archive_extract_confirmation is not None:
             return HelpBarState(("enter continue extraction | esc return to input",))
@@ -174,43 +206,79 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             return HelpBarState(("enter return to input | esc return to input",))
         return HelpBarState(("resolve conflict in dialog",))
     if state.ui_mode == "DETAIL":
+        if state.config.help_bar.detail:
+            return HelpBarState(state.config.help_bar.detail)
         return HelpBarState(("enter close | esc close",))
     if state.ui_mode == "CONFIG":
+        if state.config.help_bar.config:
+            return HelpBarState(state.config.help_bar.config)
         return HelpBarState(
-            ("up/down choose | left/right/enter change | s save | e edit file | esc close",)
+            (
+                "up/down choose | left/right/enter change | s save | e edit file | r reset help",
+                "esc close",
+            )
         )
+    if state.ui_mode == "SHELL":
+        if state.config.help_bar.shell:
+            return HelpBarState(state.config.help_bar.shell)
+        return HelpBarState(("type command | enter run | esc cancel",))
     if state.ui_mode == "FILTER":
+        if state.config.help_bar.filter:
+            return HelpBarState(state.config.help_bar.filter)
         return HelpBarState(("type filter | enter/down apply | esc clear",))
     if state.ui_mode == "RENAME":
+        if state.config.help_bar.rename:
+            return HelpBarState(state.config.help_bar.rename)
         return HelpBarState(("type name | enter apply | esc cancel",))
     if state.ui_mode == "CREATE":
+        if state.config.help_bar.create:
+            return HelpBarState(state.config.help_bar.create)
         return HelpBarState(("type name | enter apply | esc cancel",))
     if state.ui_mode == "EXTRACT":
+        if state.config.help_bar.extract:
+            return HelpBarState(state.config.help_bar.extract)
         return HelpBarState(("type destination path | enter extract | esc cancel",))
     if state.ui_mode == "ZIP":
+        if state.config.help_bar.zip:
+            return HelpBarState(state.config.help_bar.zip)
         return HelpBarState(("type zip path | enter compress | esc cancel",))
     if state.ui_mode == "PALETTE":
         if state.command_palette is not None and state.command_palette.source == "file_search":
-            return HelpBarState(("type filename | enter jump | esc cancel",))
+            if state.config.help_bar.palette_file_search:
+                return HelpBarState(state.config.help_bar.palette_file_search)
+            return HelpBarState(("type filename | enter jump | Ctrl+E edit | esc cancel",))
         if state.command_palette is not None and state.command_palette.source == "grep_search":
-            return HelpBarState(("type text / re:pattern | enter jump | esc cancel",))
+            if state.config.help_bar.palette_grep_search:
+                return HelpBarState(state.config.help_bar.palette_grep_search)
+            return HelpBarState(("type text / re:pattern | enter jump | Ctrl+E edit | esc cancel",))
         if state.command_palette is not None and state.command_palette.source == "history":
+            if state.config.help_bar.palette_history:
+                return HelpBarState(state.config.help_bar.palette_history)
             return HelpBarState(("type path | enter jump | esc cancel",))
         if state.command_palette is not None and state.command_palette.source == "bookmarks":
+            if state.config.help_bar.palette_bookmarks:
+                return HelpBarState(state.config.help_bar.palette_bookmarks)
             return HelpBarState(("type path | enter jump | esc cancel",))
         if state.command_palette is not None and state.command_palette.source == "go_to_path":
+            if state.config.help_bar.palette_go_to_path:
+                return HelpBarState(state.config.help_bar.palette_go_to_path)
             return HelpBarState(
                 ("type path | up/down select | tab complete | enter jump | esc cancel",)
             )
+        if state.config.help_bar.palette:
+            return HelpBarState(state.config.help_bar.palette)
         return HelpBarState(("type command | enter run | esc cancel",))
     if state.ui_mode == "BUSY":
+        if state.config.help_bar.busy:
+            return HelpBarState(state.config.help_bar.busy)
         return HelpBarState(("processing...",))
+    if state.config.help_bar.browsing:
+        return HelpBarState(state.config.help_bar.browsing)
     return HelpBarState(
         (
-            "Enter open | e edit | i info | / filter | : palette | ctrl+f find | "
-            "ctrl+g grep | q quit",
-            "Space select | y copy | x cut | p paste | c path | . hidden | "
-            "b bookmark | ctrl+t term",
+            "enter open | e edit | i info | space select | y copy | x cut | p paste | c path",
+            "/ filter | s sort | . hidden | b bookmark | ctrl+f find | ctrl+g grep",
+            ": palette | ! shell | ctrl+t term | q quit",
         )
     )
 
@@ -583,6 +651,21 @@ def select_config_dialog_state(state: AppState) -> ConfigDialogState | None:
     )
 
 
+def select_shell_command_dialog_state(state: AppState) -> ShellCommandDialogState | None:
+    """Return dialog content when the app is collecting a shell command."""
+
+    if state.ui_mode != "SHELL" or state.shell_command is None:
+        return None
+
+    return ShellCommandDialogState(
+        title="Run Shell Command",
+        cwd=state.shell_command.cwd,
+        prompt="Command: ",
+        command=state.shell_command.command,
+        options=("enter run", "esc cancel"),
+    )
+
+
 def select_target_paths(state: AppState) -> tuple[str, ...]:
     """Return selected paths, or the cursor path when nothing is selected."""
 
@@ -640,8 +723,106 @@ def _select_visible_current_entry_states(
 ) -> tuple[DirectoryEntryState, ...]:
     visible_entries = _filter_hidden_entries(entries, show_hidden)
     visible_entries = _filter_entries(visible_entries, query, active)
-    visible_entries = _overlay_directory_sizes(visible_entries, directory_size_cache)
+    if sort.field == "size":
+        visible_entries = _overlay_directory_sizes(visible_entries, directory_size_cache)
     return _sort_entries(visible_entries, sort)
+
+
+@lru_cache(maxsize=256)
+def _select_current_pane_update_hint(
+    visible_entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    display_directory_sizes: bool,
+    sort: SortState,
+    selected_paths: frozenset[str],
+    cut_paths: frozenset[str],
+    row_changed_paths: tuple[str, ...],
+    row_revision: int,
+    size_changed_paths: tuple[str, ...],
+    size_revision: int,
+) -> CurrentPaneUpdateHint:
+    if sort.field == "size":
+        return CurrentPaneUpdateHint(mode="full", revision=max(row_revision, size_revision))
+    if row_changed_paths:
+        row_updates = _select_current_pane_row_updates(
+            visible_entries,
+            directory_size_cache,
+            display_directory_sizes,
+            selected_paths,
+            cut_paths,
+            row_changed_paths,
+        )
+        if len(row_updates) != len(frozenset(row_changed_paths)):
+            return CurrentPaneUpdateHint(mode="full", revision=row_revision)
+        return CurrentPaneUpdateHint(
+            mode="row_delta",
+            revision=row_revision,
+            row_updates=row_updates,
+        )
+    if not size_changed_paths:
+        return CurrentPaneUpdateHint(mode="full", revision=size_revision)
+    return CurrentPaneUpdateHint(
+        mode="size_delta",
+        revision=size_revision,
+        size_updates=_select_current_pane_size_updates(
+            visible_entries,
+            directory_size_cache,
+            display_directory_sizes,
+            size_changed_paths,
+        ),
+    )
+
+
+@lru_cache(maxsize=256)
+def _select_current_pane_row_updates(
+    visible_entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    display_directory_sizes: bool,
+    selected_paths: frozenset[str],
+    cut_paths: frozenset[str],
+    changed_paths: tuple[str, ...],
+) -> tuple[CurrentPaneRowUpdate, ...]:
+    changed_path_set = frozenset(changed_paths)
+    return tuple(
+        CurrentPaneRowUpdate(
+            path=entry.path,
+            entry=_to_pane_entry(
+                entry,
+                name_detail=_format_current_entry_name_detail(entry),
+                size_label_override=_format_entry_size_label(
+                    entry,
+                    directory_size_cache,
+                    display_directory_sizes=display_directory_sizes,
+                ),
+                selected=entry.path in selected_paths,
+                cut=entry.path in cut_paths,
+            ),
+        )
+        for entry in visible_entries
+        if entry.path in changed_path_set
+    )
+
+
+@lru_cache(maxsize=256)
+def _select_current_pane_size_updates(
+    visible_entries: tuple[DirectoryEntryState, ...],
+    directory_size_cache: tuple[DirectorySizeCacheEntry, ...],
+    display_directory_sizes: bool,
+    changed_paths: tuple[str, ...],
+) -> tuple[CurrentPaneSizeUpdate, ...]:
+    changed_path_set = frozenset(changed_paths)
+    return tuple(
+        CurrentPaneSizeUpdate(
+            path=entry.path,
+            size_label=_format_entry_size_label(
+                entry,
+                directory_size_cache,
+                display_directory_sizes=display_directory_sizes,
+            ),
+        )
+        for entry in visible_entries
+        if entry.path in changed_path_set
+    )
 
 
 @lru_cache(maxsize=256)
@@ -945,6 +1126,7 @@ def _to_pane_entry(
         selected=selected,
         cut=cut,
         executable=_has_execute_permission(entry),
+        path=entry.path,
     )
 
 

@@ -20,6 +20,7 @@ from peneo.models import (
     FileMutationResult,
     PasteConflictPrompt,
     PasteExecutionResult,
+    ShellCommandResult,
 )
 from peneo.services import InvalidFileSearchQueryError, InvalidGrepSearchQueryError
 from peneo.state import (
@@ -62,9 +63,12 @@ from peneo.state import (
     RunFileMutationEffect,
     RunFileSearchEffect,
     RunGrepSearchEffect,
+    RunShellCommandEffect,
     RunZipCompressEffect,
     RunZipCompressPreparationEffect,
     SetNotification,
+    ShellCommandCompleted,
+    ShellCommandFailed,
     SplitTerminalStarted,
     SplitTerminalStartFailed,
     StartSplitTerminalEffect,
@@ -76,6 +80,7 @@ from peneo.state import (
     ZipCompressProgress,
 )
 
+CHILD_PANE_DEBOUNCE_SECONDS = 0.2
 FILE_SEARCH_DEBOUNCE_SECONDS = 0.2
 GREP_SEARCH_DEBOUNCE_SECONDS = 0.2
 
@@ -141,7 +146,14 @@ _DIRECTORY_SIZE_TRACKING = _TrackingConfig(
     request_id_attr="_active_directory_size_request_id",
 )
 
+_CHILD_PANE_TRACKING = _TrackingConfig(
+    effect_type=LoadChildPaneSnapshotEffect,
+    cancel_event_attr="_active_child_pane_cancel_event",
+    request_id_attr="_active_child_pane_request_id",
+)
+
 _TRACKING_CONFIGS = (
+    _CHILD_PANE_TRACKING,
     _FILE_SEARCH_RUNTIME.tracking,
     _GREP_SEARCH_RUNTIME.tracking,
     _DIRECTORY_SIZE_TRACKING,
@@ -149,6 +161,8 @@ _TRACKING_CONFIGS = (
 
 
 def sync_runtime_state(app: Any, previous_state: Any, next_state: Any) -> None:
+    if previous_state.pending_child_pane_request_id != next_state.pending_child_pane_request_id:
+        cancel_pending_child_pane(app)
     if previous_state.pending_file_search_request_id != next_state.pending_file_search_request_id:
         cancel_pending_file_search(app)
     if previous_state.pending_grep_search_request_id != next_state.pending_grep_search_request_id:
@@ -161,6 +175,7 @@ def sync_runtime_state(app: Any, previous_state: Any, next_state: Any) -> None:
 
 
 def cancel_pending_runtime_work(app: Any) -> None:
+    cancel_pending_child_pane(app)
     cancel_pending_file_search(app)
     cancel_pending_grep_search(app)
     cancel_pending_directory_size(app)
@@ -233,6 +248,8 @@ def _clear_tracking_for_request(app: Any, tracking: _TrackingConfig, request_id:
 
 
 def schedule_browser_snapshot(app: Any, effect: LoadBrowserSnapshotEffect) -> None:
+    if effect.invalidate_paths:
+        app._snapshot_loader.invalidate_directory_listing_cache(effect.invalidate_paths)
     _run_worker(
         app,
         effect,
@@ -251,6 +268,21 @@ def schedule_browser_snapshot(app: Any, effect: LoadBrowserSnapshotEffect) -> No
 
 
 def schedule_child_pane_snapshot(app: Any, effect: LoadChildPaneSnapshotEffect) -> None:
+    _cancel_timer(app, "_child_pane_timer")
+    timer = app.set_timer(
+        CHILD_PANE_DEBOUNCE_SECONDS,
+        partial(start_child_pane_snapshot, app, effect),
+        name=f"child-pane-snapshot-debounce:{effect.request_id}",
+    )
+    setattr(app, "_child_pane_timer", timer)
+
+
+def start_child_pane_snapshot(app: Any, effect: LoadChildPaneSnapshotEffect) -> None:
+    setattr(app, "_child_pane_timer", None)
+    if app._app_state.pending_child_pane_request_id != effect.request_id:
+        return
+    cancel_event = threading.Event()
+    _set_active_tracking(app, _CHILD_PANE_TRACKING, effect.request_id, cancel_event)
     _run_worker(
         app,
         effect,
@@ -295,6 +327,24 @@ def schedule_config_save(app: Any, effect: RunConfigSaveEffect) -> None:
             name=f"config-save:{effect.request_id}",
             group="config-save",
             description=effect.path,
+            exclusive=True,
+        ),
+    )
+
+
+def schedule_shell_command(app: Any, effect: RunShellCommandEffect) -> None:
+    _run_worker(
+        app,
+        effect,
+        partial(
+            app._shell_command_service.execute,
+            cwd=effect.cwd,
+            command=effect.command,
+        ),
+        _WorkerSpec(
+            name=f"shell-command:{effect.request_id}",
+            group="shell-command",
+            description=effect.cwd,
             exclusive=True,
         ),
     )
@@ -497,6 +547,11 @@ def cancel_active_grep_search(app: Any) -> None:
 
 def cancel_pending_directory_size(app: Any) -> None:
     _cancel_active_tracking(app, _DIRECTORY_SIZE_TRACKING)
+
+
+def cancel_pending_child_pane(app: Any) -> None:
+    _cancel_timer(app, "_child_pane_timer")
+    _cancel_active_tracking(app, _CHILD_PANE_TRACKING)
 
 
 def _cancel_pending_search(app: Any, config: _SearchRuntimeConfig) -> None:
@@ -745,6 +800,7 @@ _EFFECT_SCHEDULERS = (
     (RunDirectorySizeEffect, schedule_directory_sizes),
     (RunFileMutationEffect, schedule_file_mutation),
     (RunExternalLaunchEffect, _schedule_external_launch_effect),
+    (RunShellCommandEffect, schedule_shell_command),
     (RunFileSearchEffect, schedule_file_search),
     (RunGrepSearchEffect, schedule_grep_search),
     (StartSplitTerminalEffect, start_split_terminal),
@@ -901,6 +957,18 @@ def _complete_external_launch(
         ExternalLaunchCompleted(
             request_id=effect.request_id,
             request=effect.request,
+        ),
+    )
+
+
+def _complete_shell_command(
+    effect: RunShellCommandEffect,
+    result: ShellCommandResult,
+) -> tuple[Any, ...]:
+    return (
+        ShellCommandCompleted(
+            request_id=effect.request_id,
+            result=result,
         ),
     )
 
@@ -1071,6 +1139,19 @@ def _failed_external_launch(
     )
 
 
+def _failed_shell_command(
+    effect: RunShellCommandEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        ShellCommandFailed(
+            request_id=effect.request_id,
+            message=message,
+        ),
+    )
+
+
 def _failed_file_search(
     effect: RunFileSearchEffect,
     error: BaseException | None,
@@ -1117,6 +1198,7 @@ _COMPLETE_ACTION_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] =
     (RunConfigSaveEffect, _complete_config_save),
     (RunDirectorySizeEffect, _complete_directory_sizes),
     (RunExternalLaunchEffect, _complete_external_launch),
+    (RunShellCommandEffect, _complete_shell_command),
     (RunFileSearchEffect, _complete_file_search),
     (RunGrepSearchEffect, _complete_grep_search),
 )
@@ -1133,6 +1215,7 @@ _FAILED_ACTION_HANDLERS: tuple[tuple[type[Any], FailureActionHandler], ...] = (
     (RunConfigSaveEffect, _failed_config_save),
     (RunDirectorySizeEffect, _failed_directory_sizes),
     (RunExternalLaunchEffect, _failed_external_launch),
+    (RunShellCommandEffect, _failed_shell_command),
     (RunFileSearchEffect, _failed_file_search),
     (RunGrepSearchEffect, _failed_grep_search),
 )

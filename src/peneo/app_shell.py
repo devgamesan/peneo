@@ -16,6 +16,7 @@ from peneo.ui import (
     CurrentPathBar,
     HelpBar,
     MainPane,
+    ShellCommandDialog,
     SidePane,
     SplitTerminalPane,
     StatusBar,
@@ -33,7 +34,7 @@ def build_body(shell: ThreePaneShellData) -> Vertical:
             ),
             MainPane(
                 "Current Directory",
-                shell.current_entries,
+                shell.current_entries or (),
                 summary=shell.current_summary,
                 cursor_index=shell.current_cursor_index,
                 cursor_visible=shell.current_cursor_visible,
@@ -72,6 +73,7 @@ async def refresh_shell(
         conflict_dialog = app.query_one("#conflict-dialog", ConflictDialog)
         attribute_dialog = app.query_one("#attribute-dialog", AttributeDialog)
         config_dialog = app.query_one("#config-dialog", ConfigDialog)
+        shell_command_dialog = app.query_one("#shell-command-dialog", ShellCommandDialog)
     except NoMatches:
         selectors = (
             "#current-path-bar",
@@ -83,6 +85,7 @@ async def refresh_shell(
             "#conflict-dialog",
             "#attribute-dialog",
             "#config-dialog",
+            "#shell-command-dialog",
         )
         for selector in selectors:
             try:
@@ -97,11 +100,16 @@ async def refresh_shell(
         await app.mount(ConflictDialog(shell.conflict_dialog, id="conflict-dialog"))
         await app.mount(AttributeDialog(shell.attribute_dialog, id="attribute-dialog"))
         await app.mount(ConfigDialog(shell.config_dialog, id="config-dialog"))
+        await app.mount(ShellCommandDialog(shell.shell_command_dialog, id="shell-command-dialog"))
         return
 
     current_path_bar.set_path(shell.current_path)
-    await parent_pane.set_entries(shell.parent_entries)
-    current_pane.set_entries(shell.current_entries, shell.current_cursor_index)
+    if shell.current_pane_update.mode == "size_delta":
+        current_pane.apply_size_updates(shell.current_pane_update.size_updates)
+    elif shell.current_pane_update.mode == "row_delta":
+        current_pane.apply_row_updates(shell.current_pane_update.row_updates)
+    else:
+        current_pane.set_entries(shell.current_entries or (), shell.current_cursor_index)
     current_pane.set_cursor_state(
         shell.current_cursor_index,
         shell.current_cursor_visible,
@@ -109,6 +117,7 @@ async def refresh_shell(
     )
     current_pane.set_summary(shell.current_summary)
     current_pane.set_context_input(shell.current_context_input)
+    await parent_pane.set_entries(shell.parent_entries)
     await child_pane.set_entries(shell.child_entries)
     split_terminal.set_state(shell.split_terminal)
     resize_split_terminal_session(app, app_state, split_terminal_session)
@@ -118,6 +127,7 @@ async def refresh_shell(
     conflict_dialog.set_state(shell.conflict_dialog)
     attribute_dialog.set_state(shell.attribute_dialog)
     config_dialog.set_state(shell.config_dialog)
+    shell_command_dialog.set_state(shell.shell_command_dialog)
 
     if app_state.ui_mode == "BROWSING":
         if app_state.split_terminal.visible and app_state.split_terminal.focus_target == "terminal":

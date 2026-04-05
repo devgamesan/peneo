@@ -24,6 +24,7 @@ class LoadBrowserSnapshotEffect:
     path: str
     cursor_path: str | None = None
     blocking: bool = False
+    invalidate_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -158,6 +159,15 @@ class RunConfigSaveEffect:
     config: AppConfig
 
 
+@dataclass(frozen=True)
+class RunShellCommandEffect:
+    """Execute a shell command in the supplied directory."""
+
+    request_id: int
+    cwd: str
+    command: str
+
+
 Effect = (
     LoadBrowserSnapshotEffect
     | LoadChildPaneSnapshotEffect
@@ -176,6 +186,7 @@ Effect = (
     | PasteFromClipboardEffect
     | CloseSplitTerminalEffect
     | RunConfigSaveEffect
+    | RunShellCommandEffect
 )
 
 

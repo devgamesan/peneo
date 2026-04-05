@@ -1,16 +1,22 @@
 """Reusable widgets for the initial three-pane shell."""
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from rich.cells import cell_len
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.css.query import NoMatches
-from textual.widgets import DataTable, Label, ListItem, ListView
+from textual.widgets import DataTable, Label, Static
 
-from peneo.models.shell_data import CurrentSummaryState, InputBarState, PaneEntry
+from peneo.models.shell_data import (
+    CurrentPaneRowUpdate,
+    CurrentPaneSizeUpdate,
+    CurrentSummaryState,
+    InputBarState,
+    PaneEntry,
+)
 
 from .input_bar import InputBar
 from .summary_bar import SummaryBar
@@ -121,13 +127,13 @@ class SidePane(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Label(self._title, classes="pane-title")
-        list_view = ListView(
-            *self._build_items(self._entries, 0),
+        content = Static(
+            self._render_entries(self._entries, 0),
             id=self.list_view_id,
             classes="pane-list",
         )
-        list_view.can_focus = False
-        yield list_view
+        content.can_focus = False
+        yield content
 
     def on_mount(self) -> None:
         self.call_after_refresh(self._refresh_rendered_labels)
@@ -142,34 +148,29 @@ class SidePane(Vertical):
         if next_entries == self._entries:
             return
 
+        content = self._content_widget()
+        render_width = self._entry_width(content)
+        content.update(self._render_entries(next_entries, render_width))
         self._entries = next_entries
-        list_view = self.query_one(ListView)
-        await list_view.clear()
-        items = self._build_items(self._entries, self._entry_width(list_view))
-        if items:
-            await list_view.extend(items)
-        self._last_render_width = self._entry_width(list_view)
-
-    def _refresh_rendered_labels(self) -> None:
-        list_view = self.query_one(ListView)
-        render_width = self._entry_width(list_view)
-        if render_width <= 0 or render_width == self._last_render_width:
-            return
-        for item, entry in zip(list_view.children, self._entries, strict=False):
-            try:
-                item.query_one(Label).update(self._render_label(entry, render_width))
-            except NoMatches:
-                continue
         self._last_render_width = render_width
 
+    def _refresh_rendered_labels(self) -> None:
+        content = self._content_widget()
+        render_width = self._entry_width(content)
+        if render_width <= 0 or render_width == self._last_render_width:
+            return
+        content.update(self._render_entries(self._entries, render_width))
+        self._last_render_width = render_width
+
+    def _content_widget(self) -> Static:
+        return self.query_one(f"#{self.list_view_id}", Static)
+
     @classmethod
-    def _build_items(cls, entries: Sequence[PaneEntry], render_width: int) -> tuple[ListItem, ...]:
-        return tuple(
-            ListItem(
-                Label(cls._render_label(entry, render_width), classes="pane-entry-label"),
-                classes="pane-entry",
-            )
-            for entry in entries
+    def _render_entries(cls, entries: Sequence[PaneEntry], render_width: int) -> Text:
+        if not entries:
+            return Text()
+        return Text("\n").join(
+            [cls._render_label(entry, render_width) for entry in entries]
         )
 
     @classmethod
@@ -204,8 +205,8 @@ class SidePane(Vertical):
 
         return Text(label)
 
-    def _entry_width(self, list_view: ListView) -> int:
-        return max(0, list_view.size.width - self.ENTRY_HORIZONTAL_PADDING)
+    def _entry_width(self, content: Static) -> int:
+        return max(0, content.size.width - self.ENTRY_HORIZONTAL_PADDING)
 
 
 class MainPane(Vertical):
@@ -305,11 +306,15 @@ class MainPane(Vertical):
         if not entries_changed and not cursor_changed:
             return
 
+        previous_entries = self._entries
         self._entries = next_entries
         self._cursor_index = cursor_index
         table = self.query_one(DataTable)
         if entries_changed:
-            self._rebuild_table(table)
+            if self._should_rebuild_rows(table, previous_entries, next_entries):
+                self._rebuild_table(table)
+            else:
+                self._update_changed_rows(table, previous_entries, next_entries)
         if entries_changed or cursor_changed:
             self._apply_cursor_state(table)
 
@@ -351,6 +356,80 @@ class MainPane(Vertical):
         self._summary = state
         self.query_one(SummaryBar).set_state(state)
 
+    def apply_size_updates(self, updates: Sequence[CurrentPaneSizeUpdate]) -> None:
+        """Update only the size cells for the supplied paths."""
+
+        if not updates:
+            return
+
+        update_by_path = {update.path: update.size_label for update in updates}
+        changed_rows: list[tuple[str, PaneEntry]] = []
+        next_entries: list[PaneEntry] = []
+        for entry in self._entries:
+            next_size_label = update_by_path.get(entry.path)
+            if next_size_label is None or next_size_label == entry.size_label:
+                next_entries.append(entry)
+                continue
+            next_entry = replace(entry, size_label=next_size_label)
+            next_entries.append(next_entry)
+            changed_rows.append((entry.path, next_entry))
+
+        if not changed_rows:
+            return
+
+        self._entries = tuple(next_entries)
+        table = self.query_one(DataTable)
+        for row_key, entry in changed_rows:
+            try:
+                table.update_cell(
+                    row_key,
+                    "size",
+                    self._render_cell(
+                        entry.size_label,
+                        entry.selected,
+                        entry.cut,
+                        entry.executable,
+                        entry.kind,
+                    ),
+                )
+            except KeyError:
+                continue
+
+    def apply_row_updates(self, updates: Sequence[CurrentPaneRowUpdate]) -> None:
+        """Update only the supplied rows without rebuilding the table."""
+
+        if not updates:
+            return
+
+        update_by_path = {update.path: update.entry for update in updates}
+        changed_rows: list[tuple[str, PaneEntry]] = []
+        next_entries: list[PaneEntry] = []
+        for entry in self._entries:
+            next_entry = update_by_path.get(entry.path)
+            if next_entry is None or next_entry == entry:
+                next_entries.append(entry)
+                continue
+            next_entries.append(next_entry)
+            changed_rows.append((entry.path, next_entry))
+
+        if not changed_rows:
+            return
+
+        self._entries = tuple(next_entries)
+        table = self.query_one(DataTable)
+        column_widths = self._allocate_column_widths(table)
+        for row_key, entry in changed_rows:
+            next_cells = self._build_row_cells(entry, column_widths)
+            for column_key, next_cell in zip(
+                self.COLUMN_KEYS,
+                next_cells,
+                strict=False,
+            ):
+                try:
+                    table.update_cell(row_key, column_key, next_cell)
+                except KeyError:
+                    continue
+
     def _sync_cursor(self, table: DataTable) -> None:
         if not self._entries or self._cursor_index is None:
             return
@@ -371,6 +450,39 @@ class MainPane(Vertical):
             return
         self._rebuild_table(table)
 
+    def _should_rebuild_rows(
+        self,
+        table: DataTable,
+        previous_entries: Sequence[PaneEntry],
+        next_entries: Sequence[PaneEntry],
+    ) -> bool:
+        if table.size.width != self._last_table_width:
+            return True
+        if len(previous_entries) != len(next_entries):
+            return True
+        return self._entry_row_keys(previous_entries) != self._entry_row_keys(next_entries)
+
+    def _update_changed_rows(
+        self,
+        table: DataTable,
+        previous_entries: Sequence[PaneEntry],
+        next_entries: Sequence[PaneEntry],
+    ) -> None:
+        column_widths = self._allocate_column_widths(table)
+        for index, (previous_entry, next_entry) in enumerate(
+            zip(previous_entries, next_entries, strict=False)
+        ):
+            if previous_entry == next_entry:
+                continue
+            next_cells = self._build_row_cells(next_entry, column_widths)
+            row_key = self._row_key(next_entry, index)
+            for column_key, next_cell in zip(
+                self.COLUMN_KEYS,
+                next_cells,
+                strict=False,
+            ):
+                table.update_cell(row_key, column_key, next_cell)
+
     def _rebuild_table(self, table: DataTable) -> None:
         column_widths = self._allocate_column_widths(table)
         table.clear(columns=True)
@@ -388,38 +500,57 @@ class MainPane(Vertical):
             width=column_widths["modified"],
             key=self.COLUMN_KEYS[3],
         )
-        for entry in self._entries:
+        for index, entry in enumerate(self._entries):
             table.add_row(
-                self._render_cell(
-                    entry.selection_marker,
-                    entry.selected,
-                    entry.cut,
-                    entry.executable,
-                    entry.kind,
-                ),
-                self._render_cell(
-                    truncate_middle(build_entry_label(entry), column_widths["name"]),
-                    entry.selected,
-                    entry.cut,
-                    entry.executable,
-                    entry.kind,
-                ),
-                self._render_cell(
-                    entry.size_label,
-                    entry.selected,
-                    entry.cut,
-                    entry.executable,
-                    entry.kind,
-                ),
-                self._render_cell(
-                    entry.modified_label,
-                    entry.selected,
-                    entry.cut,
-                    entry.executable,
-                    entry.kind,
-                ),
+                *self._build_row_cells(entry, column_widths),
+                key=self._row_key(entry, index),
             )
         self._last_table_width = table.size.width
+
+    @classmethod
+    def _entry_row_keys(cls, entries: Sequence[PaneEntry]) -> tuple[str, ...]:
+        return tuple(cls._row_key(entry, index) for index, entry in enumerate(entries))
+
+    @staticmethod
+    def _row_key(entry: PaneEntry, index: int) -> str:
+        return entry.path or f"__row__:{index}"
+
+    @classmethod
+    def _build_row_cells(
+        cls,
+        entry: PaneEntry,
+        column_widths: dict[str, int],
+    ) -> tuple[Text, Text, Text, Text]:
+        return (
+            cls._render_cell(
+                entry.selection_marker,
+                entry.selected,
+                entry.cut,
+                entry.executable,
+                entry.kind,
+            ),
+            cls._render_cell(
+                truncate_middle(build_entry_label(entry), column_widths["name"]),
+                entry.selected,
+                entry.cut,
+                entry.executable,
+                entry.kind,
+            ),
+            cls._render_cell(
+                entry.size_label,
+                entry.selected,
+                entry.cut,
+                entry.executable,
+                entry.kind,
+            ),
+            cls._render_cell(
+                entry.modified_label,
+                entry.selected,
+                entry.cut,
+                entry.executable,
+                entry.kind,
+            ),
+        )
 
     @classmethod
     def _allocate_column_widths(cls, table: DataTable) -> dict[str, int]:

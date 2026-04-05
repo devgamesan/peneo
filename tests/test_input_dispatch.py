@@ -44,6 +44,8 @@ from peneo.state import (
     MoveCursorAndSelectRange,
     NameConflictState,
     NotificationState,
+    OpenFindResultInEditor,
+    OpenGrepResultInEditor,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     PasteClipboard,
@@ -632,6 +634,55 @@ def test_palette_down_moves_cursor() -> None:
     assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=1))
 
 
+def test_palette_ctrl_e_opens_grep_result_in_editor() -> None:
+    from peneo.state.models import CommandPaletteState
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            query="test",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="ctrl+e")
+
+    assert actions == (SetNotification(None), OpenGrepResultInEditor())
+
+
+def test_palette_ctrl_e_opens_find_result_in_editor() -> None:
+    from peneo.state.models import CommandPaletteState
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="file_search",
+            query="test",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="ctrl+e")
+
+    assert actions == (SetNotification(None), OpenFindResultInEditor())
+
+
+def test_palette_e_key_does_not_open_editor_for_other_sources() -> None:
+    from peneo.state.models import CommandPaletteState
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="commands",
+            query="test",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="e", character="e")
+
+    # e キーは commands では OpenFindResultInEditor を生成せず、文字として扱われる
+    assert actions == (SetNotification(None), SetCommandPaletteQuery("teste"))
+
+
 def test_palette_printable_key_updates_query() -> None:
     state = replace(build_initial_app_state(), ui_mode="PALETTE")
 
@@ -1083,8 +1134,8 @@ def test_config_unbound_key_shows_guidance() -> None:
             NotificationState(
                 level="warning",
                 message=(
-                    "Use arrows to change values, s to save, "
-                    "e to edit the file, or Esc to close"
+                    "Use arrows to change values, s to save, e to edit the file, "
+                    "r to reset help, or Esc to close"
                 ),
             )
         ),
