@@ -1014,7 +1014,7 @@ async def test_app_keyboard_input_updates_selection_and_child_pane() -> None:
 
 
 @pytest.mark.asyncio
-async def test_app_child_pane_debounces_rapid_cursor_moves() -> None:
+async def test_app_child_pane_updates_immediately_on_rapid_cursor_moves() -> None:
     path = "/tmp/peneo-child-pane-debounce"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
@@ -1050,14 +1050,12 @@ async def test_app_child_pane_debounces_rapid_cursor_moves() -> None:
         await _wait_for_row_count(app, 3)
         await pilot.press("down", "down")
         await _wait_for_cursor_path(app, f"{path}/tests")
-
-        child_list = app.query_one("#child-pane-list", Static)
-        child_names = _side_pane_lines(child_list)
-        assert child_names == ["spec.md"]
-
-        await _wait_for_child_pane_request_count(loader, 1, timeout=1.0)
-        assert loader.executed_child_pane_requests == [(path, f"{path}/tests")]
         await _wait_for_child_entries(app, ["test_main.py"], timeout=1.0)
+        await _wait_for_child_pane_request_count(loader, 2, timeout=1.0)
+        assert loader.executed_child_pane_requests == [
+            (path, f"{path}/src"),
+            (path, f"{path}/tests"),
+        ]
         await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
 
 
