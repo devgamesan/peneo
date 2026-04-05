@@ -3,6 +3,7 @@
 import threading
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Literal
 
 from textual import events
 from textual.app import App, ComposeResult
@@ -368,6 +369,7 @@ class PeneoApp(App[None]):
         config_path: str | None = None,
         startup_notification: NotificationState | None = None,
         initial_path: str | Path | None = None,
+        current_pane_projection_mode: Literal["full", "viewport"] = "viewport",
     ) -> None:
         super().__init__()
         self._app_config = app_config or AppConfig()
@@ -382,6 +384,7 @@ class PeneoApp(App[None]):
             confirm_delete=self._app_config.behavior.confirm_delete,
             paste_conflict_action=self._app_config.behavior.paste_conflict_action,
             post_reload_notification=startup_notification,
+            current_pane_projection_mode=current_pane_projection_mode,
         )
         self._snapshot_loader = snapshot_loader or LiveBrowserSnapshotLoader()
         self._clipboard_service = clipboard_service or LiveClipboardOperationService()
@@ -601,8 +604,13 @@ def create_app(
     config_path: str | None = None,
     startup_notification: NotificationState | None = None,
     initial_path: str | Path | None = None,
+    current_pane_projection_mode: Literal["full", "viewport"] = "viewport",
 ) -> PeneoApp:
-    """Create the application instance."""
+    """Create the application instance.
+
+    The projection mode override is retained for tests and manual benchmarks.
+    Normal runtime uses viewport projection by default.
+    """
 
     return PeneoApp(
         snapshot_loader=snapshot_loader,
@@ -621,6 +629,7 @@ def create_app(
         config_path=config_path,
         startup_notification=startup_notification,
         initial_path=initial_path,
+        current_pane_projection_mode=current_pane_projection_mode,
     )
 
 
