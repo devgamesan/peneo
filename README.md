@@ -97,6 +97,8 @@ Peneo is a TUI file manager you can use without memorizing keybindings. Common a
 | `t` | Toggle split terminal |
 | `:` | Open command palette |
 | `q` | Quit |
+| `[` | Go back in history |
+| `]` | Go forward in history |
 
 ### Split Terminal Mode
 
