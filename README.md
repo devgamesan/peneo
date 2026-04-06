@@ -276,7 +276,7 @@ The main keys are listed below.
 | Filter input | `Backspace` | Delete one character |
 | Filter input | `Enter` / `↓` | Apply the filter and return to list navigation |
 | Filter input | `Esc` | Clear the filter |
-| Command palette | Text input / `↑` / `↓` / `k` / `j` / `Enter` / `Esc` | Filter, select, run, or cancel commands |
+| Command palette | Text input / `↑` / `↓` / `k` / `j` / `Enter` / `Esc` | Filter, select, run, or cancel commands. In `Find files` and `Grep search`, `j` / `k` are treated as text input and result navigation uses `↑` / `↓`. |
 | Split terminal focus | Text input / arrows / `Enter` / `Backspace` / `Tab` | Send input directly to the embedded shell |
 | Split terminal focus | `Esc` | Close the embedded split terminal |
 | Split terminal focus | `Ctrl+T` | Close the embedded split terminal |

@@ -1125,7 +1125,9 @@ def test_select_help_bar_state_for_file_search_palette() -> None:
 
     help_bar = select_help_bar_state(state)
 
-    assert help_bar.lines == ("type filename | enter jump | Ctrl+E edit | esc cancel",)
+    assert help_bar.lines == (
+        "type filename | up/down select | enter jump | Ctrl+E edit | esc cancel",
+    )
 
 
 def test_select_help_bar_state_for_grep_search_palette() -> None:
@@ -1137,7 +1139,9 @@ def test_select_help_bar_state_for_grep_search_palette() -> None:
 
     help_bar = select_help_bar_state(state)
 
-    assert help_bar.lines == ("type text / re:pattern | enter jump | Ctrl+E edit | esc cancel",)
+    assert help_bar.lines == (
+        "type text / re:pattern | up/down select | enter jump | Ctrl+E edit | esc cancel",
+    )
 
 
 def test_select_command_palette_state_go_to_path_can_show_candidates_without_selection() -> None:
