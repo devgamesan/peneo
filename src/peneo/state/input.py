@@ -501,6 +501,9 @@ def _dispatch_command_palette_input(
     key: str,
     character: str | None,
 ) -> DispatchedActions:
+    palette_source = state.command_palette.source if state.command_palette is not None else None
+    search_palette = palette_source in {"file_search", "grep_search"}
+
     if (
         key == "tab"
         and state.command_palette is not None
@@ -526,10 +529,10 @@ def _dispatch_command_palette_input(
     if key == "escape":
         return _supported(CancelCommandPalette())
 
-    if key in {"up", "k"}:
+    if key == "up" or (key == "k" and not search_palette):
         return _supported(MoveCommandPaletteCursor(delta=-1))
 
-    if key in {"down", "j"}:
+    if key == "down" or (key == "j" and not search_palette):
         return _supported(MoveCommandPaletteCursor(delta=1))
 
     if key == "pageup":
@@ -563,8 +566,7 @@ def _dispatch_command_palette_input(
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(f"{current_query}{character}"))
 
-    source = state.command_palette.source if state.command_palette is not None else None
-    if source in ("grep_search", "file_search"):
+    if search_palette:
         return _warn("Use arrows, type to filter, Enter, Ctrl+E for editor, or Esc")
 
     return _warn("Use arrows, type to filter, Enter to run, or Esc to cancel")

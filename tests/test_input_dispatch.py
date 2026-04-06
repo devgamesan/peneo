@@ -634,6 +634,54 @@ def test_palette_down_moves_cursor() -> None:
     assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=1))
 
 
+def test_search_palette_j_key_updates_query() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="file_search", query="ab"),
+    )
+
+    actions = dispatch_key_input(state, key="j", character="j")
+
+    assert actions == (SetNotification(None), SetCommandPaletteQuery("abj"))
+
+
+def test_search_palette_k_key_updates_query() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="grep_search", query="ab"),
+    )
+
+    actions = dispatch_key_input(state, key="k", character="k")
+
+    assert actions == (SetNotification(None), SetCommandPaletteQuery("abk"))
+
+
+def test_commands_palette_j_key_moves_cursor() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="commands", query=""),
+    )
+
+    actions = dispatch_key_input(state, key="j", character="j")
+
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=1))
+
+
+def test_search_palette_down_moves_cursor() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="file_search", query=""),
+    )
+
+    actions = dispatch_key_input(state, key="down")
+
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=1))
+
+
 def test_palette_ctrl_e_opens_grep_result_in_editor() -> None:
     from peneo.state.models import CommandPaletteState
     state = replace(
