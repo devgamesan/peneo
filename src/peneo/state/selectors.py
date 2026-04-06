@@ -373,71 +373,34 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
             empty_message=_grep_search_empty_message(state),
         )
     if state.command_palette.source == "history":
-        items = get_command_palette_items(state)
-        visible_window = compute_search_visible_window(state.terminal_height)
-        visible_items, _palette_title = _select_command_palette_window(
-            items, cursor_index, visible_window=visible_window
-        )
-        return CommandPaletteViewState(
+        return _build_command_palette_items_view(
+            state,
+            cursor_index,
             title="Directory History",
-            query=state.command_palette.query,
-            items=tuple(
-                CommandPaletteItemViewState(
-                    label=item.label,
-                    shortcut=item.shortcut,
-                    enabled=item.enabled,
-                    selected=index == cursor_index,
-                )
-                for index, item in visible_items
-            ),
             empty_message="No directory history",
         )
 
     if state.command_palette.source == "bookmarks":
-        items = get_command_palette_items(state)
-        visible_window = compute_search_visible_window(state.terminal_height)
-        visible_items, _palette_title = _select_command_palette_window(
-            items, cursor_index, visible_window=visible_window
-        )
-        return CommandPaletteViewState(
+        return _build_command_palette_items_view(
+            state,
+            cursor_index,
             title="Bookmarks",
-            query=state.command_palette.query,
-            items=tuple(
-                CommandPaletteItemViewState(
-                    label=item.label,
-                    shortcut=item.shortcut,
-                    enabled=item.enabled,
-                    selected=index == cursor_index,
-                )
-                for index, item in visible_items
-            ),
             empty_message="No bookmarks",
         )
 
     if state.command_palette.source == "go_to_path":
-        items = get_command_palette_items(state)
-        visible_window = compute_search_visible_window(state.terminal_height)
-        visible_items, _palette_title = _select_command_palette_window(
-            items, cursor_index, visible_window=visible_window
-        )
         selection_active = state.command_palette.go_to_path_selection_active
-        return CommandPaletteViewState(
+        empty_message = (
+            "Type a path to jump to"
+            if not state.command_palette.query.strip()
+            else "No matching directories"
+        )
+        return _build_command_palette_items_view(
+            state,
+            cursor_index,
             title="Go to path",
-            query=state.command_palette.query,
-            items=tuple(
-                CommandPaletteItemViewState(
-                    label=item.label,
-                    shortcut=item.shortcut,
-                    enabled=item.enabled,
-                    selected=selection_active and index == cursor_index,
-                )
-                for index, item in visible_items
-            ),
-            empty_message=(
-                "Type a path to jump to"
-                if not state.command_palette.query.strip()
-                else "No matching directories"
-            ),
+            empty_message=empty_message,
+            selected_override=selection_active or False,
         )
 
     items = get_command_palette_items(state)
@@ -1044,6 +1007,52 @@ def compute_search_visible_window(terminal_height: int) -> int:
     """Calculate visible search items based on terminal height."""
     palette_rows = max(1, terminal_height // 2)
     return max(MIN_SEARCH_VISIBLE_WINDOW, palette_rows - _SEARCH_OVERHEAD_ROWS)
+
+
+def _build_command_palette_items_view(
+    state: AppState,
+    cursor_index: int,
+    title: str,
+    empty_message: str | None = None,
+    *,
+    selected_override: bool | None = None,
+) -> CommandPaletteViewState:
+    """コマンドパレットのアイテムビューを構築する共通関数。
+
+    Args:
+        state: アプリケーション状態
+        cursor_index: カーソル位置
+        title: パレットタイトル
+        empty_message: 空メッセージ（Noneの場合はデフォルト値を使用）
+        selected_override: 選択状態の上書き（go_to_path用）
+
+    Returns:
+        CommandPaletteViewState: コマンドパレットの表示状態
+    """
+    items = get_command_palette_items(state)
+    visible_window = compute_search_visible_window(state.terminal_height)
+    visible_items, _palette_title = _select_command_palette_window(
+        items, cursor_index, visible_window=visible_window
+    )
+
+    return CommandPaletteViewState(
+        title=title,
+        query=state.command_palette.query,
+        items=tuple(
+            CommandPaletteItemViewState(
+                label=item.label,
+                shortcut=item.shortcut,
+                enabled=item.enabled,
+                selected=(
+                    (
+                        selected_override if selected_override is not None else True
+                    ) and index == cursor_index
+                ),
+            )
+            for index, item in visible_items
+        ),
+        empty_message=empty_message or "No items",
+    )
 
 
 def compute_current_pane_visible_window(terminal_height: int) -> int:
