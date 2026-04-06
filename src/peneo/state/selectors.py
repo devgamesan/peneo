@@ -375,7 +375,9 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
     if state.command_palette.source == "history":
         items = get_command_palette_items(state)
         visible_window = compute_search_visible_window(state.terminal_height)
-        visible_items, _palette_title = _select_command_palette_window(items, cursor_index, visible_window=visible_window)
+        visible_items, _palette_title = _select_command_palette_window(
+            items, cursor_index, visible_window=visible_window
+        )
         return CommandPaletteViewState(
             title="Directory History",
             query=state.command_palette.query,
@@ -394,7 +396,9 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
     if state.command_palette.source == "bookmarks":
         items = get_command_palette_items(state)
         visible_window = compute_search_visible_window(state.terminal_height)
-        visible_items, _palette_title = _select_command_palette_window(items, cursor_index, visible_window=visible_window)
+        visible_items, _palette_title = _select_command_palette_window(
+            items, cursor_index, visible_window=visible_window
+        )
         return CommandPaletteViewState(
             title="Bookmarks",
             query=state.command_palette.query,
@@ -413,7 +417,9 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
     if state.command_palette.source == "go_to_path":
         items = get_command_palette_items(state)
         visible_window = compute_search_visible_window(state.terminal_height)
-        visible_items, _palette_title = _select_command_palette_window(items, cursor_index, visible_window=visible_window)
+        visible_items, _palette_title = _select_command_palette_window(
+            items, cursor_index, visible_window=visible_window
+        )
         selection_active = state.command_palette.go_to_path_selection_active
         return CommandPaletteViewState(
             title="Go to path",
