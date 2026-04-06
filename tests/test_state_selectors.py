@@ -271,6 +271,26 @@ def test_select_parent_and_child_entries_hide_hidden_unless_enabled() -> None:
     ]
 
 
+def test_select_parent_entries_marks_current_directory_selected() -> None:
+    state = replace(
+        build_initial_app_state(),
+        parent_pane=PaneState(
+            directory_path="/tmp",
+            entries=(
+                DirectoryEntryState("/tmp/alpha", "alpha", "dir"),
+                DirectoryEntryState("/tmp/peneo", "peneo", "dir"),
+            ),
+            cursor_path="/tmp/peneo",
+        ),
+    )
+
+    entries = select_parent_entries(state)
+
+    assert [entry.name for entry in entries] == ["alpha", "peneo"]
+    assert entries[0].selected is False
+    assert entries[1].selected is True
+
+
 def test_select_child_entries_keeps_previous_snapshot_visible_while_request_is_pending() -> None:
     state = replace(
         build_initial_app_state(),

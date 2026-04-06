@@ -778,6 +778,25 @@ async def test_app_uses_cwd_for_default_initial_path(tmp_path, monkeypatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_app_live_snapshot_highlights_current_directory_in_parent_pane(tmp_path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "README.md").write_text("readme\n", encoding="utf-8")
+    app = create_app(initial_path=tmp_path)
+
+    async with app.run_test():
+        await _wait_for_snapshot_loaded(app, str(tmp_path))
+        await _wait_for_row_count(app, 2)
+
+        parent_list = app.query_one("#parent-pane-list", Static)
+        parent_renderable = parent_list.renderable
+
+        assert app.app_state.parent_pane.cursor_path == str(tmp_path)
+        assert isinstance(parent_renderable, Text)
+        assert tmp_path.name in parent_renderable.plain.splitlines()
+        assert any(span.style == "bold white on blue" for span in parent_renderable.spans)
+
+
+@pytest.mark.asyncio
 async def test_app_renders_loaded_three_pane_shell() -> None:
     path = "/tmp/peneo-app"
     current_entries = (
@@ -820,6 +839,9 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
         assert str(current_title.renderable) == "Current Directory"
         assert str(child_title.renderable) == "Child Directory"
         assert parent_entries == ["peneo-app", "sibling"]
+        parent_renderable = parent_list.renderable
+        assert isinstance(parent_renderable, Text)
+        assert any(span.style == "bold white on blue" for span in parent_renderable.spans)
         assert headers == ["Sel", "Name", "Size", "Modified"]
         assert current_table.row_count == 2
         assert child_entries == ["spec.md"]
