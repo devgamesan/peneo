@@ -15,6 +15,7 @@ from .actions import (
     ArchivePreparationFailed,
     BeginCreateInput,
     BeginDeleteTargets,
+    BeginEmptyTrash,
     BeginExtractArchiveInput,
     BeginRenameInput,
     BeginZipCompressInput,
@@ -33,6 +34,8 @@ from .actions import (
     CopyTargets,
     CutTargets,
     DismissNameConflict,
+    EmptyTrashCompleted,
+    EmptyTrashFailed,
     FileMutationCompleted,
     FileMutationFailed,
     PasteClipboard,
@@ -49,7 +52,7 @@ from .actions import (
     ZipCompressPreparationFailed,
     ZipCompressProgress,
 )
-from .effects import ReduceResult
+from .effects import ReduceResult, RunEmptyTrashEffect
 from .models import (
     AppState,
     ArchiveExtractConfirmationState,
@@ -216,6 +219,30 @@ def handle_mutation_action(
                 attribute_inspection=None,
             ),
             DeleteRequest(paths=action.paths, mode=action.mode),
+        )
+
+    if isinstance(action, BeginEmptyTrash):
+        return done(
+            replace(
+                state,
+                ui_mode="CONFIRM",
+                notification=None,
+                pending_input=None,
+                command_palette=None,
+                pending_file_search_request_id=None,
+                pending_grep_search_request_id=None,
+                paste_conflict=None,
+                delete_confirmation=DeleteConfirmationState(
+                    paths=(),
+                    mode="empty_trash",
+                ),
+                archive_extract_confirmation=None,
+                archive_extract_progress=None,
+                zip_compress_confirmation=None,
+                zip_compress_progress=None,
+                name_conflict=None,
+                attribute_inspection=None,
+            )
         )
 
     if isinstance(action, BeginCreateInput):
@@ -493,6 +520,22 @@ def handle_mutation_action(
     if isinstance(action, ConfirmDeleteTargets):
         if state.delete_confirmation is None:
             return done(state)
+
+        if state.delete_confirmation.mode == "empty_trash":
+            request_id = state.next_request_id
+            next_state = replace(
+                state,
+                delete_confirmation=None,
+                notification=None,
+                pending_empty_trash_request_id=request_id,
+                next_request_id=request_id + 1,
+                ui_mode="BUSY",
+            )
+            return ReduceResult(
+                state=next_state,
+                effects=(RunEmptyTrashEffect(request_id=request_id),),
+            )
+
         return run_file_mutation_request(
             replace(
                 state,
@@ -940,6 +983,30 @@ def handle_mutation_action(
                 state,
                 notification=None,
                 name_conflict=None,
+                ui_mode=restore_ui_mode_after_pending_input(state),
+            )
+        )
+
+    if isinstance(action, EmptyTrashCompleted):
+        if action.request_id != state.pending_empty_trash_request_id:
+            return done(state)
+        return done(
+            replace(
+                state,
+                notification=NotificationState(level=action.level, message=action.message),
+                pending_empty_trash_request_id=None,
+                ui_mode=restore_ui_mode_after_pending_input(state),
+            )
+        )
+
+    if isinstance(action, EmptyTrashFailed):
+        if action.request_id != state.pending_empty_trash_request_id:
+            return done(state)
+        return done(
+            replace(
+                state,
+                notification=NotificationState(level="error", message=action.message),
+                pending_empty_trash_request_id=None,
                 ui_mode=restore_ui_mode_after_pending_input(state),
             )
         )

@@ -13,6 +13,7 @@ from .actions import (
     BeginCommandPalette,
     BeginCreateInput,
     BeginDeleteTargets,
+    BeginEmptyTrash,
     BeginExtractArchiveInput,
     BeginFileSearch,
     BeginGoToPath,
@@ -574,6 +575,8 @@ def _run_palette_command_item(
         return _run_create_file_command(next_state, reduce_state)
     if item_id == "create_dir":
         return _run_create_dir_command(next_state, reduce_state)
+    if item_id == "empty_trash":
+        return _run_empty_trash_command(next_state, reduce_state)
     return done(next_state)
 
 
@@ -847,6 +850,13 @@ def _run_create_dir_command(
     reduce_state: ReducerFn,
 ) -> ReduceResult:
     return reduce_state(state, BeginCreateInput("dir"))
+
+
+def _run_empty_trash_command(
+    state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return reduce_state(state, BeginEmptyTrash())
 
 
 def _matches_search_completion(

@@ -32,6 +32,7 @@ from peneo.services import (
     ClipboardOperationService,
     ConfigSaveService,
     DirectorySizeService,
+    EmptyTrashService,
     ExternalLaunchService,
     FileMutationService,
     FileSearchService,
@@ -41,6 +42,7 @@ from peneo.services import (
     LiveClipboardOperationService,
     LiveConfigSaveService,
     LiveDirectorySizeService,
+    LiveEmptyTrashService,
     LiveExternalLaunchService,
     LiveFileMutationService,
     LiveFileSearchService,
@@ -357,6 +359,7 @@ class PeneoApp(App[None]):
         config_save_service: ConfigSaveService | None = None,
         directory_size_service: DirectorySizeService | None = None,
         file_mutation_service: FileMutationService | None = None,
+        empty_trash_service: EmptyTrashService | None = None,
         archive_extract_service: ArchiveExtractService | None = None,
         zip_compress_service: ZipCompressService | None = None,
         external_launch_service: ExternalLaunchService | None = None,
@@ -391,6 +394,7 @@ class PeneoApp(App[None]):
         self._config_save_service = config_save_service or LiveConfigSaveService()
         self._directory_size_service = directory_size_service or LiveDirectorySizeService()
         self._file_mutation_service = file_mutation_service or LiveFileMutationService()
+        self._empty_trash_service = empty_trash_service or LiveEmptyTrashService()
         self._archive_extract_service = archive_extract_service or LiveArchiveExtractService()
         self._zip_compress_service = zip_compress_service or LiveZipCompressService()
         self._uses_live_external_launch_service = external_launch_service is None
@@ -436,10 +440,12 @@ class PeneoApp(App[None]):
     async def on_mount(self) -> None:
         """Load the initial directory snapshot after the UI mounts."""
 
-        await self.dispatch_actions((
-            SetTerminalHeight(height=self.size.height),
-            RequestBrowserSnapshot(self._initial_path, blocking=True),
-        ))
+        await self.dispatch_actions(
+            (
+                SetTerminalHeight(height=self.size.height),
+                RequestBrowserSnapshot(self._initial_path, blocking=True),
+            )
+        )
 
     def on_unmount(self) -> None:
         """Ensure the embedded terminal session is stopped when the app exits."""

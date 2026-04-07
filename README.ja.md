@@ -99,15 +99,30 @@ Peneo 本体の起動は `uv` だけで行えますが、一部の機能は `PAT
 
 #### Ubuntu / Debian
 
-- grep 検索 (`g`) を使う場合: `ripgrep` (`rg`)
-- パスコピーを使う場合:
-  - X11 環境: `xclip`
-  - Wayland 環境: `wl-copy`
+- grep 検索 (`g`) を使う場合：`ripgrep` (`rg`)
+- パスコピーを使う場合：
+  - X11 環境：`xclip`
+  - Wayland 環境：`wl-copy`
+- ゴミ箱空化（コマンドパレット）を使う場合：
+  - `gio`（GNOME/FS と一緒に標準搭載されていることが多い）
+  - または `trash-cli`（オプションのフォールバック）
 
 インストール例:
 
 ```bash
 sudo apt install ripgrep xclip
+```
+
+Wayland 環境の例:
+
+```bash
+sudo apt install ripgrep wl-clipboard
+```
+
+ゴミ箱空化のオプションフォールバック:
+
+```bash
+sudo apt install trash-cli
 ```
 
 Wayland 環境の例:
@@ -326,6 +341,7 @@ paths = ["/home/user/src", "/home/user/docs"]
 | `Edit config` | 常に表示 | 起動時設定を編集するオーバーレイを開きます。優先ターミナルエディタ、隠しファイル表示、ディレクトリサイズ表示、テーマ、ソート、貼り付け競合時の既定動作、削除確認の有無などを編集できます。`↑` / `↓` で項目移動、`←` / `→` / `Enter` で値変更、`s` で `config.toml` 保存、`e` で生の設定ファイルをターミナルエディタで開けます。 |
 | `Create file` | 常に表示 | 現在ディレクトリで新規ファイル作成の入力を開始します。 |
 | `Create directory` | 常に表示 | 現在ディレクトリで新規ディレクトリ作成の入力を開始します。 |
+| `Empty trash` | 常に表示 | システムのゴミ箱を空にします。`gio` または `trash-cli` のインストールが必要です。実行前に常に変化ダイアログを表示します。 |
 
 ## 注意事項
 

@@ -172,6 +172,9 @@ Peneo itself can be installed and started with `uv`, but some features depend on
 - For copy path (`C`):
   - X11: `xclip`
   - Wayland: `wl-copy`
+- For empty trash (command palette):
+  - `gio` (usually pre-installed with GNOME/FS)
+  - OR `trash-cli` (optional fallback)
 
 Install example:
 
@@ -183,6 +186,12 @@ Wayland example:
 
 ```bash
 sudo apt install ripgrep wl-clipboard
+```
+
+Optional fallback for empty trash:
+
+```bash
+sudo apt install trash-cli
 ```
 
 #### Ubuntu (WSL)
@@ -397,6 +406,7 @@ Less frequent actions are grouped in the command palette opened with `:`.
 | `Edit config` | Always | Opens the settings overlay for startup defaults. You can edit the preferred terminal editor, hidden-file visibility, directory-size visibility, theme, sorting, default paste-conflict behavior, and delete confirmation. Use `↑` / `↓` to move, `←` / `→` / `Enter` to change values, `s` to save `config.toml`, and `e` to open the raw config file in a terminal editor. |
 | `Create file` | Always | Starts the inline create-file flow in the current directory. |
 | `Create directory` | Always | Starts the inline create-directory flow in the current directory. |
+| `Empty trash` | Always | Empties the system trash. Requires `gio` or `trash-cli` to be installed. Always shows a confirmation dialog before proceeding. |
 
 ## Notes
 

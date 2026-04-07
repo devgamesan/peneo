@@ -290,9 +290,7 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
             CommandPaletteItem(
                 id="remove_bookmark" if current_path_is_bookmarked else "add_bookmark",
                 label=(
-                    "Remove bookmark"
-                    if current_path_is_bookmarked
-                    else "Bookmark this directory"
+                    "Remove bookmark" if current_path_is_bookmarked else "Bookmark this directory"
                 ),
                 shortcut="B",
                 enabled=True,
@@ -320,7 +318,13 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 label="Create directory",
                 shortcut="N",
                 enabled=True,
-            )
+            ),
+            CommandPaletteItem(
+                id="empty_trash",
+                label="Empty trash",
+                shortcut=None,
+                enabled=True,
+            ),
         ]
     )
 
@@ -338,7 +342,7 @@ def _display_path(path: str) -> str:
     """Replace home directory prefix with ~ for display."""
     home = os.path.expanduser("~")
     if path.startswith(home + "/"):
-        return "~" + path[len(home):]
+        return "~" + path[len(home) :]
     if path == home:
         return "~"
     return path

@@ -81,6 +81,11 @@ from .split_terminal import (
     SplitTerminalService,
     SplitTerminalSession,
 )
+from .trash_empty import (
+    EmptyTrashResult,
+    EmptyTrashService,
+    LiveEmptyTrashService,
+)
 from .zip_compress import (
     FakeZipCompressService,
     LiveZipCompressService,
@@ -96,6 +101,8 @@ __all__ = [
     "ConfigSaveService",
     "default_zip_destination",
     "DirectorySizeService",
+    "EmptyTrashResult",
+    "EmptyTrashService",
     "ExternalLaunchService",
     "FakeZipCompressService",
     "FileSearchService",
@@ -116,6 +123,7 @@ __all__ = [
     "LoggingSetupResult",
     "LiveArchiveExtractService",
     "LiveArchiveListService",
+    "LiveEmptyTrashService",
     "LiveExternalLaunchService",
     "LiveFileSearchService",
     "LiveGrepSearchService",

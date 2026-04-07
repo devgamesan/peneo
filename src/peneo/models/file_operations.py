@@ -6,7 +6,7 @@ from typing import Literal
 ClipboardOperationMode = Literal["copy", "cut"]
 ConflictResolution = Literal["overwrite", "skip", "rename"]
 CreateKind = Literal["file", "dir"]
-DeleteMode = Literal["trash", "permanent"]
+DeleteMode = Literal["trash", "permanent", "empty_trash"]
 MutationResultLevel = Literal["info", "warning", "error"]
 ArchiveFormat = Literal["zip", "tar", "tar.gz", "tar.bz2"]
 

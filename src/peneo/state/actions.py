@@ -14,6 +14,7 @@ from peneo.models import (
     ExtractArchiveRequest,
     ExtractArchiveResult,
     FileMutationResult,
+    MutationResultLevel,
     PasteConflict,
     PasteRequest,
     PasteSummary,
@@ -75,6 +76,28 @@ class BeginDeleteTargets:
 
     paths: tuple[str, ...]
     mode: DeleteMode = "trash"
+
+
+@dataclass(frozen=True)
+class BeginEmptyTrash:
+    """Begin emptying the trash."""
+
+
+@dataclass(frozen=True)
+class EmptyTrashCompleted:
+    """Empty trash operation completed."""
+
+    request_id: int
+    message: str
+    level: MutationResultLevel = "info"
+
+
+@dataclass(frozen=True)
+class EmptyTrashFailed:
+    """Empty trash operation failed."""
+
+    request_id: int
+    message: str
 
 
 @dataclass(frozen=True)

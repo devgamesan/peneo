@@ -61,6 +61,13 @@ class RunFileMutationEffect:
 
 
 @dataclass(frozen=True)
+class RunEmptyTrashEffect:
+    """Execute trash emptying outside the reducer."""
+
+    request_id: int
+
+
+@dataclass(frozen=True)
 class RunArchivePreparationEffect:
     """Inspect an archive before extraction begins."""
 
@@ -174,6 +181,7 @@ Effect = (
     | RunDirectorySizeEffect
     | RunClipboardPasteEffect
     | RunFileMutationEffect
+    | RunEmptyTrashEffect
     | RunArchivePreparationEffect
     | RunArchiveExtractEffect
     | RunZipCompressPreparationEffect

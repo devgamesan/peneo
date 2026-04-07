@@ -23,6 +23,7 @@ from peneo.models import (
     ShellCommandResult,
 )
 from peneo.services import InvalidFileSearchQueryError, InvalidGrepSearchQueryError
+from peneo.services.trash_empty import EmptyTrashResult
 from peneo.state import (
     ArchiveExtractCompleted,
     ArchiveExtractFailed,
@@ -42,6 +43,8 @@ from peneo.state import (
     DirectorySizesFailed,
     DirectorySizesLoaded,
     Effect,
+    EmptyTrashCompleted,
+    EmptyTrashFailed,
     ExternalLaunchCompleted,
     ExternalLaunchFailed,
     FileMutationCompleted,
@@ -59,6 +62,7 @@ from peneo.state import (
     RunClipboardPasteEffect,
     RunConfigSaveEffect,
     RunDirectorySizeEffect,
+    RunEmptyTrashEffect,
     RunExternalLaunchEffect,
     RunFileMutationEffect,
     RunFileSearchEffect,
@@ -387,6 +391,20 @@ def schedule_file_mutation(app: Any, effect: RunFileMutationEffect) -> None:
     )
 
 
+def schedule_empty_trash(app: Any, effect: RunEmptyTrashEffect) -> None:
+    _run_worker(
+        app,
+        effect,
+        partial(app._empty_trash_service.execute),
+        _WorkerSpec(
+            name=f"empty-trash:{effect.request_id}",
+            group="empty-trash",
+            description="Empty trash",
+            exclusive=True,
+        ),
+    )
+
+
 def schedule_archive_preparation(app: Any, effect: RunArchivePreparationEffect) -> None:
     _run_worker(
         app,
@@ -584,9 +602,7 @@ def start_split_terminal(app: Any, effect: StartSplitTerminalEffect) -> None:
     app._split_terminal_session = session
     app.call_next(
         app.dispatch_actions,
-        (
-            SplitTerminalStarted(session_id=effect.session_id, cwd=effect.cwd),
-        ),
+        (SplitTerminalStarted(session_id=effect.session_id, cwd=effect.cwd),),
     )
 
 
@@ -802,6 +818,7 @@ _EFFECT_SCHEDULERS = (
     (RunConfigSaveEffect, schedule_config_save),
     (RunDirectorySizeEffect, schedule_directory_sizes),
     (RunFileMutationEffect, schedule_file_mutation),
+    (RunEmptyTrashEffect, schedule_empty_trash),
     (RunExternalLaunchEffect, _schedule_external_launch_effect),
     (RunShellCommandEffect, schedule_shell_command),
     (RunFileSearchEffect, schedule_file_search),
@@ -868,6 +885,19 @@ def _complete_file_mutation(effect: Effect, result: FileMutationResult) -> tuple
         FileMutationCompleted(
             request_id=effect.request_id,
             result=result,
+        ),
+    )
+
+
+def _complete_empty_trash(
+    effect: RunEmptyTrashEffect,
+    result: EmptyTrashResult,
+) -> tuple[Any, ...]:
+    return (
+        EmptyTrashCompleted(
+            request_id=effect.request_id,
+            message=result.message,
+            level=result.level,
         ),
     )
 
@@ -1049,6 +1079,19 @@ def _failed_file_mutation(
     )
 
 
+def _failed_empty_trash(
+    effect: RunEmptyTrashEffect,
+    error: BaseException | None,
+    message: str,
+) -> tuple[Any, ...]:
+    return (
+        EmptyTrashFailed(
+            request_id=effect.request_id,
+            message=message,
+        ),
+    )
+
+
 def _failed_archive_preparation(
     effect: RunArchivePreparationEffect,
     error: BaseException | None,
@@ -1193,6 +1236,7 @@ _RESULT_COMPLETE_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] =
     (CreateZipArchivePreparationResult, _complete_zip_compress_preparation),
     (CreateZipArchiveResult, _complete_zip_compress),
     (FileMutationResult, _complete_file_mutation),
+    (EmptyTrashResult, _complete_empty_trash),
 )
 
 _COMPLETE_ACTION_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] = (
@@ -1215,6 +1259,7 @@ _FAILED_ACTION_HANDLERS: tuple[tuple[type[Any], FailureActionHandler], ...] = (
     (RunZipCompressEffect, _failed_zip_compress),
     (RunClipboardPasteEffect, _failed_clipboard_paste),
     (RunFileMutationEffect, _failed_file_mutation),
+    (RunEmptyTrashEffect, _failed_empty_trash),
     (RunConfigSaveEffect, _failed_config_save),
     (RunDirectorySizeEffect, _failed_directory_sizes),
     (RunExternalLaunchEffect, _failed_external_launch),
