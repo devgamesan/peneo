@@ -4232,3 +4232,80 @@ async def test_app_cursor_move_updates_large_child_pane_without_clearing(monkeyp
         assert app.query_one("#child-pane-list", Static) is child_list
         assert len(_side_pane_lines(child_list)) == 1000
         assert update_calls == 1
+
+
+# --- Pane visibility on narrow terminals (Issue #390) ---
+
+
+def _pane_visibility_app(path: str = "/tmp/peneo-pane-vis"):
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (DirectoryEntryState(f"{path}/docs", "docs", "dir"),),
+                child_path=f"{path}/docs",
+            )
+        }
+    )
+    return create_app(snapshot_loader=loader, initial_path=path)
+
+
+@pytest.mark.asyncio
+async def test_app_hides_both_side_panes_at_narrow_width() -> None:
+    app = _pane_visibility_app()
+
+    async with app.run_test(size=(60, 20)):
+        await _wait_for_snapshot_loaded(app, "/tmp/peneo-pane-vis")
+        parent = app.query_one("#parent-pane")
+        child = app.query_one("#child-pane")
+        assert not parent.display
+        assert not child.display
+
+
+@pytest.mark.asyncio
+async def test_app_hides_parent_pane_at_medium_width() -> None:
+    app = _pane_visibility_app()
+
+    async with app.run_test(size=(80, 20)):
+        await _wait_for_snapshot_loaded(app, "/tmp/peneo-pane-vis")
+        parent = app.query_one("#parent-pane")
+        child = app.query_one("#child-pane")
+        assert not parent.display
+        assert child.display
+
+
+@pytest.mark.asyncio
+async def test_app_shows_all_panes_at_wide_width() -> None:
+    app = _pane_visibility_app()
+
+    async with app.run_test(size=(120, 20)):
+        await _wait_for_snapshot_loaded(app, "/tmp/peneo-pane-vis")
+        parent = app.query_one("#parent-pane")
+        child = app.query_one("#child-pane")
+        assert parent.display
+        assert child.display
+
+
+@pytest.mark.asyncio
+async def test_app_toggles_pane_visibility_on_resize() -> None:
+    app = _pane_visibility_app()
+
+    async with app.run_test(size=(120, 20)):
+        await _wait_for_snapshot_loaded(app, "/tmp/peneo-pane-vis")
+
+        parent = app.query_one("#parent-pane")
+        child = app.query_one("#child-pane")
+        assert parent.display
+        assert child.display
+
+        app._update_pane_visibility(60)
+        assert not parent.display
+        assert not child.display
+
+        app._update_pane_visibility(80)
+        assert not parent.display
+        assert child.display
+
+        app._update_pane_visibility(120)
+        assert parent.display
+        assert child.display
