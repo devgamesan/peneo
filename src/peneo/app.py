@@ -437,6 +437,27 @@ class PeneoApp(App[None]):
         yield HelpBar(shell.help, id="help-bar")
         yield StatusBar(shell.status, id="status-bar")
 
+    _PANE_VISIBILITY_NARROW_THRESHOLD = 66
+    _PANE_VISIBILITY_MEDIUM_THRESHOLD = 100
+
+    def _update_pane_visibility(self, width: int) -> None:
+        """Show or hide side panes based on terminal width."""
+        try:
+            parent_pane = self.query_one("#parent-pane")
+            child_pane = self.query_one("#child-pane")
+        except NoMatches:
+            return
+
+        if width >= self._PANE_VISIBILITY_MEDIUM_THRESHOLD:
+            parent_pane.display = True
+            child_pane.display = True
+        elif width >= self._PANE_VISIBILITY_NARROW_THRESHOLD:
+            parent_pane.display = False
+            child_pane.display = True
+        else:
+            parent_pane.display = False
+            child_pane.display = False
+
     async def on_mount(self) -> None:
         """Load the initial directory snapshot after the UI mounts."""
 
@@ -444,6 +465,7 @@ class PeneoApp(App[None]):
             SetTerminalHeight(height=self.size.height),
             RequestBrowserSnapshot(self._initial_path, blocking=True),
         ))
+        self.call_after_refresh(lambda: self._update_pane_visibility(self.size.width))
 
     def on_unmount(self) -> None:
         """Ensure the embedded terminal session is stopped when the app exits."""
@@ -569,6 +591,7 @@ class PeneoApp(App[None]):
         """Keep the split-terminal PTY dimensions roughly aligned with the viewport."""
 
         await self.dispatch_actions((SetTerminalHeight(height=event.size.height),))
+        self._update_pane_visibility(event.size.width)
 
         if self._split_terminal_session is None or not self._app_state.split_terminal.visible:
             return
@@ -581,6 +604,7 @@ class PeneoApp(App[None]):
             select_shell_data(self._app_state),
             self._split_terminal_session,
         )
+        self._update_pane_visibility(self.size.width)
 
     def _resize_split_terminal_session(self) -> None:
         resize_split_terminal_session(
