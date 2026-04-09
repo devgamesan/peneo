@@ -1097,6 +1097,7 @@ def test_begin_history_search_enters_history_mode() -> None:
         history=HistoryState(
             back=("/tmp/a", "/tmp/b"),
             forward=("/tmp/c",),
+            visited_all=("/home/tadashi/develop/peneo", "/tmp/a", "/tmp/b", "/tmp/c"),
         ),
     )
     next_state = _reduce_state(state, BeginHistorySearch())
@@ -1104,8 +1105,12 @@ def test_begin_history_search_enters_history_mode() -> None:
     assert next_state.ui_mode == "PALETTE"
     assert next_state.command_palette is not None
     assert next_state.command_palette.source == "history"
-    # back is reversed (most recent first) + forward in order
-    assert next_state.command_palette.history_results == ("/tmp/b", "/tmp/a", "/tmp/c")
+    assert next_state.command_palette.history_results == (
+        "/home/tadashi/develop/peneo",
+        "/tmp/a",
+        "/tmp/b",
+        "/tmp/c",
+    )
 
 
 def test_begin_history_search_with_empty_history() -> None:
@@ -4793,6 +4798,7 @@ def test_browser_snapshot_loaded_records_history_on_path_change() -> None:
     assert next_state.current_path == "/tmp/example"
     assert next_state.history.back == (initial_path,)
     assert next_state.history.forward == ()
+    assert next_state.history.visited_all == (initial_path, "/tmp/example")
 
 
 def test_browser_snapshot_loaded_clears_forward_on_new_navigation() -> None:
@@ -4857,7 +4863,11 @@ def test_go_back_then_snapshot_loaded_updates_history_correctly() -> None:
     state = replace(
         build_initial_app_state(),
         current_path=second_path,
-        history=HistoryState(back=(initial_path,), forward=()),
+        history=HistoryState(
+            back=(initial_path,),
+            forward=(),
+            visited_all=(initial_path, second_path),
+        ),
     )
 
     result = reduce_app_state(state, GoBack())
@@ -4890,7 +4900,11 @@ def test_go_forward_then_snapshot_loaded_updates_history_correctly() -> None:
     state = replace(
         build_initial_app_state(),
         current_path=initial_path,
-        history=HistoryState(back=(), forward=(forward_path,)),
+        history=HistoryState(
+            back=(),
+            forward=(forward_path,),
+            visited_all=(initial_path, forward_path),
+        ),
     )
 
     result = reduce_app_state(state, GoForward())
@@ -4914,6 +4928,116 @@ def test_go_forward_then_snapshot_loaded_updates_history_correctly() -> None:
     assert loaded_result.current_path == forward_path
     assert loaded_result.history.back == (initial_path,)
     assert loaded_result.history.forward == ()
+
+
+def test_all_visited_directories_enumerable() -> None:
+    state = build_initial_app_state()
+    initial_path = state.current_path
+
+    state = _reduce_state(state, RequestBrowserSnapshot("/tmp/first"))
+    snapshot1 = BrowserSnapshot(
+        current_path="/tmp/first",
+        parent_pane=state.parent_pane,
+        current_pane=state.current_pane,
+        child_pane=state.child_pane,
+    )
+    state = _reduce_state(
+        state,
+        BrowserSnapshotLoaded(
+            request_id=state.pending_browser_snapshot_request_id,
+            snapshot=snapshot1,
+            blocking=True,
+        ),
+    )
+
+    state = _reduce_state(state, RequestBrowserSnapshot("/tmp/second"))
+    snapshot2 = BrowserSnapshot(
+        current_path="/tmp/second",
+        parent_pane=state.parent_pane,
+        current_pane=state.current_pane,
+        child_pane=state.child_pane,
+    )
+    state = _reduce_state(
+        state,
+        BrowserSnapshotLoaded(
+            request_id=state.pending_browser_snapshot_request_id,
+            snapshot=snapshot2,
+            blocking=True,
+        ),
+    )
+
+    next_state = _reduce_state(state, BeginHistorySearch())
+
+    assert next_state.command_palette is not None
+    assert next_state.command_palette.source == "history"
+    assert next_state.command_palette.history_results == (
+        initial_path,
+        "/tmp/first",
+        "/tmp/second",
+    )
+
+
+def test_history_search_deduplicates_duplicates() -> None:
+    state = build_initial_app_state()
+    initial_path = state.current_path
+
+    state = _reduce_state(state, RequestBrowserSnapshot("/tmp/first"))
+    snapshot1 = BrowserSnapshot(
+        current_path="/tmp/first",
+        parent_pane=state.parent_pane,
+        current_pane=state.current_pane,
+        child_pane=state.child_pane,
+    )
+    state = _reduce_state(
+        state,
+        BrowserSnapshotLoaded(
+            request_id=state.pending_browser_snapshot_request_id,
+            snapshot=snapshot1,
+            blocking=True,
+        ),
+    )
+
+    state = _reduce_state(state, RequestBrowserSnapshot(initial_path))
+    snapshot2 = BrowserSnapshot(
+        current_path=initial_path,
+        parent_pane=state.parent_pane,
+        current_pane=state.current_pane,
+        child_pane=state.child_pane,
+    )
+    state = _reduce_state(
+        state,
+        BrowserSnapshotLoaded(
+            request_id=state.pending_browser_snapshot_request_id,
+            snapshot=snapshot2,
+            blocking=True,
+        ),
+    )
+
+    state = _reduce_state(state, RequestBrowserSnapshot("/tmp/second"))
+    snapshot3 = BrowserSnapshot(
+        current_path="/tmp/second",
+        parent_pane=state.parent_pane,
+        current_pane=state.current_pane,
+        child_pane=state.child_pane,
+    )
+    state = _reduce_state(
+        state,
+        BrowserSnapshotLoaded(
+            request_id=state.pending_browser_snapshot_request_id,
+            snapshot=snapshot3,
+            blocking=True,
+        ),
+    )
+
+    next_state = _reduce_state(state, BeginHistorySearch())
+
+    assert next_state.command_palette is not None
+    assert next_state.command_palette.source == "history"
+    assert next_state.command_palette.history_results == (
+        initial_path,
+        "/tmp/first",
+        "/tmp/second",
+    )
 
 
 def test_browser_snapshot_loaded_clears_filter_when_directory_changes() -> None:
