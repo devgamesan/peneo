@@ -1097,6 +1097,7 @@ def test_begin_history_search_enters_history_mode() -> None:
         history=HistoryState(
             back=("/tmp/a", "/tmp/b"),
             forward=("/tmp/c",),
+            visited_all=("/home/tadashi/develop/peneo", "/tmp/a", "/tmp/b", "/tmp/c"),
         ),
     )
     next_state = _reduce_state(state, BeginHistorySearch())
@@ -1104,9 +1105,12 @@ def test_begin_history_search_enters_history_mode() -> None:
     assert next_state.ui_mode == "PALETTE"
     assert next_state.command_palette is not None
     assert next_state.command_palette.source == "history"
-    # current_path + back reversed (most recent first) + forward in order
-    expected_results = ("/home/tadashi/develop/peneo", "/tmp/b", "/tmp/a", "/tmp/c")
-    assert next_state.command_palette.history_results == expected_results
+    assert next_state.command_palette.history_results == (
+        "/home/tadashi/develop/peneo",
+        "/tmp/a",
+        "/tmp/b",
+        "/tmp/c",
+    )
 
 
 def test_begin_history_search_with_empty_history() -> None:
@@ -1115,7 +1119,7 @@ def test_begin_history_search_with_empty_history() -> None:
     assert next_state.ui_mode == "PALETTE"
     assert next_state.command_palette is not None
     assert next_state.command_palette.source == "history"
-    assert next_state.command_palette.history_results == ("/home/tadashi/develop/peneo",)
+    assert next_state.command_palette.history_results == ()
 
 
 def test_begin_bookmark_search_enters_bookmarks_mode() -> None:
@@ -4794,6 +4798,7 @@ def test_browser_snapshot_loaded_records_history_on_path_change() -> None:
     assert next_state.current_path == "/tmp/example"
     assert next_state.history.back == (initial_path,)
     assert next_state.history.forward == ()
+    assert next_state.history.visited_all == (initial_path, "/tmp/example")
 
 
 def test_browser_snapshot_loaded_clears_forward_on_new_navigation() -> None:
@@ -4858,7 +4863,11 @@ def test_go_back_then_snapshot_loaded_updates_history_correctly() -> None:
     state = replace(
         build_initial_app_state(),
         current_path=second_path,
-        history=HistoryState(back=(initial_path,), forward=()),
+        history=HistoryState(
+            back=(initial_path,),
+            forward=(),
+            visited_all=(initial_path, second_path),
+        ),
     )
 
     result = reduce_app_state(state, GoBack())
@@ -4891,7 +4900,11 @@ def test_go_forward_then_snapshot_loaded_updates_history_correctly() -> None:
     state = replace(
         build_initial_app_state(),
         current_path=initial_path,
-        history=HistoryState(back=(), forward=(forward_path,)),
+        history=HistoryState(
+            back=(),
+            forward=(forward_path,),
+            visited_all=(initial_path, forward_path),
+        ),
     )
 
     result = reduce_app_state(state, GoForward())
@@ -4958,9 +4971,9 @@ def test_all_visited_directories_enumerable() -> None:
     assert next_state.command_palette is not None
     assert next_state.command_palette.source == "history"
     assert next_state.command_palette.history_results == (
-        "/tmp/second",
-        "/tmp/first",
         initial_path,
+        "/tmp/first",
+        "/tmp/second",
     )
 
 

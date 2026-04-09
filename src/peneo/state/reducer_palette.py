@@ -141,8 +141,7 @@ def _request_palette_snapshot(
 
 
 def _handle_begin_history_search(state: AppState) -> ReduceResult:
-    history_items = (state.current_path,) + tuple(reversed(state.history.back))
-    history_items = history_items + state.history.forward
+    history_items = state.history.visited_all
     return done(_enter_palette(state, source="history", history_results=history_items))
 
 

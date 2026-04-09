@@ -1018,6 +1018,7 @@ def build_history_after_snapshot_load(
             new_history = HistoryState(
                 back=(previous_path,),
                 forward=(),
+                visited_all=(previous_path, next_path),
             )
         return new_history
 
@@ -1027,15 +1028,27 @@ def build_history_after_snapshot_load(
             new_history = HistoryState(
                 back=(*history.back, previous_path),
                 forward=history.forward[1:],
+                visited_all=history.visited_all,
             )
         elif history.back and next_path == history.back[-1]:
             new_history = HistoryState(
                 back=history.back[:-1],
                 forward=(previous_path, *history.forward),
+                visited_all=history.visited_all,
             )
         else:
+            visited_all = history.visited_all
+            if not visited_all or visited_all[-1] != next_path:
+                visited_all = (*visited_all, next_path)
             new_history = HistoryState(
                 back=(*history.back, previous_path),
                 forward=(),
+                visited_all=visited_all,
             )
+    else:
+        new_history = HistoryState(
+            back=state.history.back,
+            forward=state.history.forward,
+            visited_all=state.history.visited_all,
+        )
     return new_history

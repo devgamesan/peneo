@@ -219,6 +219,7 @@ class HistoryState:
 
     back: tuple[str, ...] = ()
     forward: tuple[str, ...] = ()
+    visited_all: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
