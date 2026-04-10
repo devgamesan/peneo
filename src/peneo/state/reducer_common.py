@@ -461,22 +461,15 @@ def maybe_request_directory_sizes(
 
 
 def directory_size_target_paths(state: AppState) -> tuple[str, ...]:
-    display_directory_sizes = state.config.display.show_directory_sizes
-    target_paths: list[str] = []
-    if display_directory_sizes:
-        target_paths.extend(visible_directory_paths(state.parent_pane.entries, state.show_hidden))
-    target_paths.extend(
-        visible_directory_paths(select_visible_current_entry_states(state), show_hidden=True)
-    )
-    if display_directory_sizes:
-        target_paths.extend(visible_directory_paths(state.child_pane.entries, state.show_hidden))
-    if not display_directory_sizes and state.sort.field != "size":
+    if not state.config.display.show_directory_sizes and state.sort.field != "size":
         return ()
-    if display_directory_sizes:
-        return tuple(dict.fromkeys(target_paths))
+
     return tuple(
         dict.fromkeys(
-            visible_directory_paths(select_visible_current_entry_states(state), show_hidden=True)
+            visible_directory_paths(
+                select_visible_current_entry_states(state),
+                show_hidden=True,
+            )
         )
     )
 

@@ -272,6 +272,7 @@ class ChildPane(Vertical):
         preview_widget.display = state.is_preview
         self._last_render_width = 0
         self._refresh_rendered_content()
+        self.call_after_refresh(self._refresh_rendered_content)
 
     def _refresh_rendered_content(self) -> None:
         if self._state.is_preview:
@@ -298,6 +299,9 @@ class ChildPane(Vertical):
 
     @staticmethod
     def _render_preview(state: ChildPaneViewState, render_width: int):
+        if state.preview_message is not None:
+            return Text(state.preview_message, style="italic dim")
+
         if state.preview_content is None:
             return Text()
 

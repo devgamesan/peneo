@@ -162,24 +162,33 @@ def _select_child_pane_for_cursor(
         return _build_child_entries_view((), syntax_theme)
 
     is_archive = cursor_entry.kind == "file" and is_supported_archive_path(cursor_entry.path)
-    if state.pending_child_pane_request_id is None:
-        if cursor_entry.kind == "dir" or is_archive:
-            if (
-                state.child_pane.mode != "entries"
-                or cursor_entry.path != state.child_pane.directory_path
-            ):
-                return _build_child_entries_view((), syntax_theme)
-        elif (
-            state.child_pane.mode != "preview"
-            or cursor_entry.path != state.child_pane.preview_path
+    if cursor_entry.kind == "dir" or is_archive:
+        if (
+            state.child_pane.mode != "entries"
+            or cursor_entry.path != state.child_pane.directory_path
         ):
             return _build_child_entries_view((), syntax_theme)
+    elif (
+        state.child_pane.mode != "preview"
+        or cursor_entry.path != state.child_pane.preview_path
+    ):
+        return _build_child_entries_view((), syntax_theme)
 
     if state.child_pane.mode == "preview" and state.child_pane.preview_content is not None:
         preview_path = state.child_pane.preview_path or cursor_entry.path
         return _build_child_preview_view(
             preview_path,
             state.child_pane.preview_content,
+            state.child_pane.preview_message,
+            state.child_pane.preview_truncated,
+            syntax_theme,
+        )
+    if state.child_pane.mode == "preview" and state.child_pane.preview_message is not None:
+        preview_path = state.child_pane.preview_path or cursor_entry.path
+        return _build_child_preview_view(
+            preview_path,
+            state.child_pane.preview_content,
+            state.child_pane.preview_message,
             state.child_pane.preview_truncated,
             syntax_theme,
         )
@@ -319,10 +328,9 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
         return HelpBarState(state.config.help_bar.browsing)
     return HelpBarState(
         (
-            "enter open | e edit | i info | space select | c copy | x cut | p paste | C path",
-            "/ filter | s sort | d dir-first | . hidden | a select-all | ~ home",
-            "f find | g grep | G go-to | H history | b bookmarks | B toggle-bookmark",
-            "n new-file | N new-dir | r rename | R reload | t term | : palette | q quit",
+            "enter open | e edit | i info | space select | c copy | x cut | p paste | r rename",
+            "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to",
+            "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit",
         )
     )
 
@@ -987,7 +995,8 @@ def _build_child_entries_view(
 @lru_cache(maxsize=256)
 def _build_child_preview_view(
     preview_path: str,
-    preview_content: str,
+    preview_content: str | None,
+    preview_message: str | None,
     preview_truncated: bool,
     syntax_theme: str,
 ) -> ChildPaneViewState:
@@ -995,6 +1004,7 @@ def _build_child_preview_view(
         title=_format_child_preview_title(preview_path, preview_truncated),
         preview_path=preview_path,
         preview_content=preview_content,
+        preview_message=preview_message,
         preview_truncated=preview_truncated,
         syntax_theme=syntax_theme,
     )
@@ -1334,15 +1344,15 @@ def _build_entry_index(entries: tuple[DirectoryEntryState, ...]) -> dict[str, in
 def _format_size_label(size_bytes: int | None) -> str:
     if size_bytes is None:
         return "-"
-    if size_bytes < 1_000:
+    if size_bytes < 1024:
         return f"{size_bytes} B"
-    units = ("KB", "MB", "GB", "TB")
+    units = ("KiB", "MiB", "GiB", "TiB")
     size = float(size_bytes)
     for unit in units:
-        size /= 1_000
-        if size < 1_000 or unit == units[-1]:
-            return f"{size:.1f} {unit}"
-    return f"{size:.1f} TB"
+        size /= 1024
+        if size < 1024 or unit == units[-1]:
+            return f"{size:.1f}{unit}"
+    return f"{size:.1f}TiB"
 
 
 def _format_modified_label(entry: DirectoryEntryState) -> str:

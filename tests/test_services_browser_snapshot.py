@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import pytest
 
@@ -84,6 +85,38 @@ def test_live_browser_snapshot_loader_returns_empty_child_pane_for_file_cursor(t
     assert snapshot.child_pane.preview_truncated is False
 
 
+@pytest.mark.parametrize(
+    ("filename", "content"),
+    [
+        ("app.log", "log line\n"),
+        ("settings.conf", "key=value\n"),
+        (".env", "DEBUG=true\n"),
+        (".gitignore", "*.pyc\n"),
+        ("component.vue", "<template></template>\n"),
+        ("build.dockerfile", "FROM python:3.12\n"),
+    ],
+)
+def test_live_browser_snapshot_loader_previews_added_text_targets(
+    tmp_path,
+    filename: str,
+    content: str,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / filename
+    target.write_text(content, encoding="utf-8")
+
+    loader = LiveBrowserSnapshotLoader()
+
+    snapshot = loader.load_browser_snapshot(str(project), cursor_path=str(target))
+
+    assert snapshot.current_pane.cursor_path == str(target)
+    assert snapshot.child_pane.mode == "preview"
+    assert snapshot.child_pane.preview_path == str(target)
+    assert snapshot.child_pane.preview_content == content
+    assert snapshot.child_pane.preview_truncated is False
+
+
 def test_live_browser_snapshot_loader_returns_empty_child_pane_for_binary_file_cursor(
     tmp_path,
 ) -> None:
@@ -99,8 +132,37 @@ def test_live_browser_snapshot_loader_returns_empty_child_pane_for_binary_file_c
     assert snapshot.current_pane.cursor_path == str(binary)
     assert snapshot.child_pane.directory_path == str(project)
     assert snapshot.child_pane.entries == ()
-    assert snapshot.child_pane.mode == "entries"
+    assert snapshot.child_pane.mode == "preview"
+    assert snapshot.child_pane.preview_path == str(binary)
     assert snapshot.child_pane.preview_content is None
+    assert snapshot.child_pane.preview_message == "Preview unavailable for this file type"
+
+
+def test_live_browser_snapshot_loader_marks_permission_denied_preview_candidate(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    readme = project / "README.md"
+    readme.write_text("secret\n", encoding="utf-8")
+
+    original_open = Path.open
+
+    def _blocked_open(self: Path, *args, **kwargs):
+        if self == readme:
+            raise PermissionError("blocked")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", _blocked_open)
+    loader = LiveBrowserSnapshotLoader()
+
+    snapshot = loader.load_browser_snapshot(str(project), cursor_path=str(readme))
+
+    assert snapshot.child_pane.mode == "preview"
+    assert snapshot.child_pane.preview_path == str(readme)
+    assert snapshot.child_pane.preview_content is None
+    assert snapshot.child_pane.preview_message == "Preview unavailable: permission denied"
 
 
 def test_live_browser_snapshot_loader_truncates_large_text_preview(tmp_path) -> None:

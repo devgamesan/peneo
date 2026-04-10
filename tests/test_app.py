@@ -505,10 +505,10 @@ async def _wait_for_child_preview(
             preview = None
         if child_title is not None and preview is not None and preview.display:
             code = getattr(preview.renderable, "code", None)
+            rendered_text = code if code is not None else str(preview.renderable)
             if (
                 str(child_title.renderable) == expected_title
-                and code is not None
-                and expected_snippet in code
+                and expected_snippet in rendered_text
             ):
                 return
         if asyncio.get_running_loop().time() >= deadline:
@@ -635,11 +635,8 @@ async def test_app_loads_directory_sizes_when_enabled() -> None:
     )
     directory_size_service = FakeDirectorySizeService(
         results_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
-                (path, 10_000),
-                ("/tmp/sibling", 2_000),
+            (f"{path}/docs",): (
                 (f"{path}/docs", 4_200),
-                (f"{path}/docs/api", 88_000),
             )
         }
     )
@@ -655,11 +652,11 @@ async def test_app_loads_directory_sizes_when_enabled() -> None:
     async with app.run_test(size=(120, 20)):
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
-        await _wait_for_table_cell(app, "4.2 KB", 0, 2)
+        await _wait_for_table_cell(app, "4.1KiB", 0, 2)
 
         table = app.query_one("#current-pane-table", DataTable)
 
-        assert str(table.get_cell_at((0, 2))) == "4.2 KB"
+        assert str(table.get_cell_at((0, 2))) == "4.1KiB"
 
 
 @pytest.mark.asyncio
@@ -686,9 +683,7 @@ async def test_app_applies_directory_size_updates_without_full_current_pane_refr
 
     directory_size_service = SlowDirectorySizeService(
         results_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs"): (
-                (path, 10_000),
-                ("/tmp/sibling", 2_000),
+            (f"{path}/docs",): (
                 (f"{path}/docs", 4_200),
             )
         }
@@ -725,7 +720,7 @@ async def test_app_applies_directory_size_updates_without_full_current_pane_refr
         await _wait_for_row_count(app, 2)
         await _wait_for_table_cell(app, "-", 0, 2)
         full_refresh_calls_before_ready = set_entries_calls
-        await _wait_for_table_cell(app, "4.2 KB", 0, 2)
+        await _wait_for_table_cell(app, "4.1KiB", 0, 2)
 
         assert set_entries_calls == full_refresh_calls_before_ready
         assert apply_size_updates_calls == 1
@@ -740,6 +735,7 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
                 path,
                 (
                     DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                    DirectoryEntryState(f"{path}/private", "private", "dir"),
                     DirectoryEntryState(f"{path}/README.md", "README.md", "file", size_bytes=120),
                 ),
                 child_path=f"{path}/docs",
@@ -749,15 +745,13 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
     )
     directory_size_service = FakeDirectorySizeService(
         results_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
-                (path, 10_000),
+            (f"{path}/docs", f"{path}/private"): (
                 (f"{path}/docs", 4_200),
-                (f"{path}/docs/api", 88_000),
             )
         },
         failures_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
-                ("/tmp/sibling", "permission denied"),
+            (f"{path}/docs", f"{path}/private"): (
+                (f"{path}/private", "permission denied"),
             )
         },
     )
@@ -772,12 +766,12 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
 
     async with app.run_test():
         await _wait_for_snapshot_loaded(app, path)
-        await _wait_for_row_count(app, 2)
-        await _wait_for_table_cell(app, "4.2 KB", 0, 2)
+        await _wait_for_row_count(app, 3)
+        await _wait_for_table_cell(app, "4.1KiB", 0, 2)
 
         table = app.query_one("#current-pane-table", DataTable)
 
-        assert str(table.get_cell_at((0, 2))) == "4.2 KB"
+        assert str(table.get_cell_at((0, 2))) == "4.1KiB"
 
 
 @pytest.mark.asyncio
@@ -999,6 +993,160 @@ async def test_app_hides_text_preview_in_child_pane_when_preview_disabled() -> N
 
 
 @pytest.mark.asyncio
+async def test_app_updates_child_preview_when_cursor_moves_between_files() -> None:
+    path = "/tmp/peneo-preview-switch"
+    readme = f"{path}/README.md"
+    config = f"{path}/config.toml"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: BrowserSnapshot(
+                current_path=path,
+                parent_pane=PaneState(
+                    directory_path="/tmp",
+                    entries=(
+                        DirectoryEntryState(path, "peneo-preview-switch", "dir"),
+                        DirectoryEntryState("/tmp/sibling", "sibling", "dir"),
+                    ),
+                    cursor_path=path,
+                ),
+                current_pane=PaneState(
+                    directory_path=path,
+                    entries=(
+                        DirectoryEntryState(readme, "README.md", "file"),
+                        DirectoryEntryState(config, "config.toml", "file"),
+                    ),
+                    cursor_path=readme,
+                ),
+                child_pane=PaneState(
+                    directory_path=path,
+                    entries=(),
+                    mode="preview",
+                    preview_path=readme,
+                    preview_content="# Title\npreview body\n",
+                ),
+            )
+        },
+        child_panes={
+            (path, config): PaneState(
+                directory_path=path,
+                entries=(),
+                mode="preview",
+                preview_path=config,
+                preview_content="[display]\nshow_preview = true\n",
+            ),
+        },
+        child_delay_seconds={
+            (path, config): 0.2,
+        },
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test(size=(120, 20)):
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 2)
+        await _wait_for_child_preview(app, "Preview: README.md", "# Title")
+
+        await app.dispatch_actions(
+            (
+                MoveCursor(
+                    delta=1,
+                    visible_paths=(readme, config),
+                ),
+            )
+        )
+        await _wait_for_cursor_path(app, config)
+        await _wait_for_child_entries(app, [], timeout=1.0)
+        await _wait_for_child_preview(app, "Preview: config.toml", "show_preview = true")
+        await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_app_renders_preview_message_for_unsupported_file_cursor() -> None:
+    path = "/tmp/peneo-preview-unsupported"
+    binary = f"{path}/archive.bin"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: BrowserSnapshot(
+                current_path=path,
+                parent_pane=PaneState(
+                    directory_path="/tmp",
+                    entries=(
+                        DirectoryEntryState(path, "peneo-preview-unsupported", "dir"),
+                        DirectoryEntryState("/tmp/sibling", "sibling", "dir"),
+                    ),
+                    cursor_path=path,
+                ),
+                current_pane=PaneState(
+                    directory_path=path,
+                    entries=(DirectoryEntryState(binary, "archive.bin", "file"),),
+                    cursor_path=binary,
+                ),
+                child_pane=PaneState(
+                    directory_path=path,
+                    entries=(),
+                    mode="preview",
+                    preview_path=binary,
+                    preview_message="Preview unavailable for this file type",
+                ),
+            )
+        }
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test():
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 1)
+        await _wait_for_child_preview(
+            app,
+            "Preview: archive.bin",
+            "Preview unavailable for this file type",
+        )
+
+
+@pytest.mark.asyncio
+async def test_app_renders_preview_message_for_permission_denied_file_cursor() -> None:
+    path = "/tmp/peneo-preview-permission-denied"
+    readme = f"{path}/README.md"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: BrowserSnapshot(
+                current_path=path,
+                parent_pane=PaneState(
+                    directory_path="/tmp",
+                    entries=(
+                        DirectoryEntryState(path, "peneo-preview-permission-denied", "dir"),
+                        DirectoryEntryState("/tmp/sibling", "sibling", "dir"),
+                    ),
+                    cursor_path=path,
+                ),
+                current_pane=PaneState(
+                    directory_path=path,
+                    entries=(DirectoryEntryState(readme, "README.md", "file"),),
+                    cursor_path=readme,
+                ),
+                child_pane=PaneState(
+                    directory_path=path,
+                    entries=(),
+                    mode="preview",
+                    preview_path=readme,
+                    preview_message="Preview unavailable: permission denied",
+                ),
+            )
+        }
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test():
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 1)
+        await _wait_for_child_preview(
+            app,
+            "Preview: README.md",
+            "Preview unavailable: permission denied",
+        )
+
+
+@pytest.mark.asyncio
 async def test_app_truncates_long_labels_in_all_panes_when_narrow() -> None:
     path = "/tmp/peneo-narrow-truncate"
     current_entries = (
@@ -1206,6 +1354,47 @@ async def test_app_child_pane_updates_immediately_on_rapid_cursor_moves() -> Non
             (path, f"{path}/src"),
             (path, f"{path}/tests"),
         ]
+        await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_app_hides_stale_child_entries_while_new_child_snapshot_is_pending() -> None:
+    path = "/tmp/peneo-child-pane-pending"
+    current_entries = (
+        DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+        DirectoryEntryState(f"{path}/src", "src", "dir"),
+    )
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                current_entries,
+                child_path=f"{path}/docs",
+                child_entries=(DirectoryEntryState(f"{path}/docs/spec.md", "spec.md", "file"),),
+            )
+        },
+        child_panes={
+            (path, f"{path}/src"): PaneState(
+                directory_path=f"{path}/src",
+                entries=(DirectoryEntryState(f"{path}/src/main.py", "main.py", "file"),),
+            ),
+        },
+        child_delay_seconds={
+            (path, f"{path}/src"): 0.2,
+        },
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test(size=(120, 20)) as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 2)
+        await _wait_for_child_entries(app, ["spec.md"])
+
+        await pilot.press("down")
+        await _wait_for_cursor_path(app, f"{path}/src")
+        await _wait_for_child_pane_request_count(loader, 1, timeout=1.0)
+        await _wait_for_child_entries(app, [], timeout=1.0)
+        await _wait_for_child_entries(app, ["main.py"], timeout=1.0)
         await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
 
 
@@ -1915,7 +2104,7 @@ async def test_app_directory_size_update_avoids_rebuilding_large_current_pane(mo
 
         directory_size_service.release()
         await _wait_for_directory_sizes(app, timeout=2.0)
-        await _wait_for_table_cell(app, "3.0 KB", 0, 2, timeout=2.0)
+        await _wait_for_table_cell(app, "1000 B", 0, 2, timeout=2.0)
 
         assert clear_calls == 0
         assert add_row_calls == 0
@@ -2172,10 +2361,9 @@ async def test_app_displays_browsing_help_bar() -> None:
     )
     app = create_app(snapshot_loader=loader, initial_path=path)
     expected_help = (
-        "enter open | e edit | i info | space select | c copy | x cut | p paste | C path\n"
-        "/ filter | s sort | d dir-first | . hidden | a select-all | ~ home\n"
-        "f find | g grep | G go-to | H history | b bookmarks | B toggle-bookmark\n"
-        "n new-file | N new-dir | r rename | R reload | t term | : palette | q quit"
+        "enter open | e edit | i info | space select | c copy | x cut | p paste | r rename\n"
+        "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to\n"
+        "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit"
     )
 
     async with app.run_test():
@@ -4428,7 +4616,9 @@ async def test_app_large_directory_smoke_with_1000_entries(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_app_cursor_move_updates_large_child_pane_without_clearing(monkeypatch) -> None:
+async def test_app_cursor_move_refreshes_large_child_pane_without_remount(
+    monkeypatch,
+) -> None:
     path = "/tmp/peneo-large-child-pane"
     current_entries = (
         DirectoryEntryState(f"{path}/docs", "docs", "dir"),
@@ -4490,7 +4680,7 @@ async def test_app_cursor_move_updates_large_child_pane_without_clearing(monkeyp
 
         assert app.query_one("#child-pane-list", Static) is child_list
         assert len(_side_pane_lines(child_list)) == 1000
-        assert update_calls == 1
+        assert update_calls == 2
 
 
 # --- Pane visibility on narrow terminals (Issue #390) ---

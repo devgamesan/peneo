@@ -5,7 +5,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from time import sleep
-from typing import Mapping, Protocol
+from typing import Literal, Mapping, Protocol
 
 from peneo.adapters import DirectoryReader, LocalFilesystemAdapter
 from peneo.archive_utils import is_supported_archive_path
@@ -23,33 +23,166 @@ DEFAULT_DIRECTORY_CACHE_CAPACITY = 64
 TEXT_PREVIEW_MAX_BYTES = 64 * 1024
 TEXT_PREVIEW_EXTENSIONS = frozenset(
     {
+        ".adoc",
+        ".ada",
+        ".adb",
+        ".ads",
+        ".asm",
+        ".avsc",
+        ".bat",
+        ".bib",
         ".c",
+        ".capnp",
+        ".cbl",
         ".cc",
+        ".cfg",
+        ".cljs",
+        ".clj",
+        ".cmd",
+        ".cob",
+        ".conf",
+        ".config",
+        ".containerfile",
+        ".compose",
         ".cpp",
+        ".cr",
+        ".cql",
         ".css",
+        ".css.map",
         ".csv",
+        ".cypher",
+        ".d",
+        ".dart",
+        ".diff",
+        ".dockerfile",
+        ".edn",
+        ".elm",
+        ".erl",
+        ".ex",
+        ".exs",
+        ".f",
+        ".f90",
+        ".fish",
+        ".geojson",
+        ".go",
+        ".gql",
+        ".gradle",
+        ".groovy",
         ".h",
+        ".har",
+        ".hcl",
+        ".hrl",
         ".hpp",
         ".html",
+        ".htmx",
+        ".ics",
+        ".ini",
         ".java",
+        ".js.map",
         ".js",
+        ".jl",
         ".json",
+        ".jsonl",
         ".jsx",
+        ".jsx.map",
+        ".hs",
+        ".ksh",
+        ".kt",
+        ".kts",
+        ".kube",
+        ".latex",
+        ".less",
+        ".log",
+        ".lua",
+        ".m",
         ".md",
+        ".mjs.map",
+        ".make",
+        ".mk",
+        ".ml",
+        ".mli",
+        ".mm",
+        ".mysql",
+        ".ndjson",
+        ".nim",
+        ".nomad",
+        ".opts",
+        ".org",
+        ".pas",
+        ".pcss",
+        ".postcss",
+        ".pp",
+        ".prop",
+        ".properties",
+        ".proto",
+        ".ps1",
+        ".psql",
+        ".psv",
         ".py",
+        ".patch",
+        ".rej",
         ".rb",
+        ".ron",
+        ".rst",
         ".rs",
+        ".s",
+        ".sass",
+        ".scala",
+        ".scss",
         ".sh",
+        ".srt",
+        ".sv",
+        ".svh",
+        ".swift",
+        ".svelte",
         ".sql",
+        ".tcl",
+        ".tex",
+        ".text",
+        ".tf",
+        ".tfvars",
+        ".thrift",
         ".toml",
+        ".topojson",
         ".ts",
+        ".ts.map",
         ".tsx",
+        ".tsx.map",
+        ".tsv",
         ".txt",
+        ".v",
+        ".vh",
+        ".vue",
+        ".vtt",
+        ".wxml",
+        ".wxss",
         ".xml",
         ".yaml",
         ".yml",
+        ".zig",
+        ".zsh",
     }
 )
+TEXT_PREVIEW_FILENAMES = frozenset(
+    {
+        ".babelrc",
+        ".editorconfig",
+        ".env",
+        ".eslintrc",
+        ".gitattributes",
+        ".gitignore",
+        ".gitmodules",
+        ".npmrc",
+        ".prettierrc",
+        ".stylelintrc",
+        ".yarnrc",
+        "containerfile",
+        "dockerfile",
+    }
+)
+PREVIEW_PERMISSION_DENIED_MESSAGE = "Preview unavailable: permission denied"
+PREVIEW_UNSUPPORTED_MESSAGE = "Preview unavailable for this file type"
+PREVIEW_ERROR_MESSAGE = "Preview unavailable"
 
 
 class BrowserSnapshotLoader(Protocol):
@@ -149,15 +282,15 @@ class LiveBrowserSnapshotLoader:
                 return PaneState(directory_path=current_path, entries=())
 
         preview = _load_text_preview(child_path)
-        if preview is not None:
-            preview_content, preview_truncated = preview
+        if preview.kind != "unavailable":
             return PaneState(
                 directory_path=current_path,
                 entries=(),
                 mode="preview",
                 preview_path=str(child_path),
-                preview_content=preview_content,
-                preview_truncated=preview_truncated,
+                preview_content=preview.content,
+                preview_message=preview.message,
+                preview_truncated=preview.truncated,
             )
 
         return PaneState(directory_path=current_path, entries=())
@@ -355,30 +488,56 @@ def _normalize_directory_cache_path(path: str) -> str:
     return str(Path(path).expanduser().resolve())
 
 
-def _load_text_preview(path: Path) -> tuple[str, bool] | None:
+def _load_text_preview(path: Path) -> "FilePreviewState":
     if not _is_preview_candidate(path):
-        return None
+        return FilePreviewState.unsupported()
 
     try:
         with path.open("rb") as handle:
             chunk = handle.read(TEXT_PREVIEW_MAX_BYTES + 1)
+    except PermissionError:
+        return FilePreviewState.permission_denied()
     except OSError:
-        return None
+        return FilePreviewState.error()
 
     if b"\x00" in chunk[:TEXT_PREVIEW_MAX_BYTES]:
-        return None
+        return FilePreviewState.unsupported()
 
     truncated = len(chunk) > TEXT_PREVIEW_MAX_BYTES
     preview_bytes = chunk[:TEXT_PREVIEW_MAX_BYTES]
     try:
         preview_text = preview_bytes.decode("utf-8")
     except UnicodeDecodeError:
-        return None
+        return FilePreviewState.unsupported()
 
-    return preview_text, truncated
+    return FilePreviewState.with_content(preview_text, truncated)
 
 
+@dataclass(frozen=True)
+class FilePreviewState:
+    kind: Literal["content", "message", "unavailable"]
+    content: str | None = None
+    message: str | None = None
+    truncated: bool = False
+
+    @classmethod
+    def with_content(cls, content: str, truncated: bool) -> "FilePreviewState":
+        return cls(kind="content", content=content, truncated=truncated)
+
+    @classmethod
+    def permission_denied(cls) -> "FilePreviewState":
+        return cls(kind="message", message=PREVIEW_PERMISSION_DENIED_MESSAGE)
+
+    @classmethod
+    def unsupported(cls) -> "FilePreviewState":
+        return cls(kind="message", message=PREVIEW_UNSUPPORTED_MESSAGE)
+
+    @classmethod
+    def error(cls) -> "FilePreviewState":
+        return cls(kind="message", message=PREVIEW_ERROR_MESSAGE)
 def _is_preview_candidate(path: Path) -> bool:
+    if path.name.casefold() in TEXT_PREVIEW_FILENAMES:
+        return True
     suffix = path.suffix.casefold()
     if suffix in TEXT_PREVIEW_EXTENSIONS:
         return True

@@ -60,6 +60,7 @@ from peneo.state import (
 )
 from peneo.state import command_palette as command_palette_module
 from peneo.state.command_palette import CommandPaletteItem
+from peneo.state.reducer_common import directory_size_target_paths
 from peneo.state.selectors import (
     _has_execute_permission,
     _select_command_palette_window,
@@ -301,7 +302,7 @@ def test_select_parent_entries_marks_current_directory_selected() -> None:
     assert entries[1].selected is True
 
 
-def test_select_child_entries_keeps_previous_snapshot_visible_while_request_is_pending() -> None:
+def test_select_child_entries_clears_stale_snapshot_while_request_is_pending() -> None:
     state = replace(
         build_initial_app_state(),
         current_pane=PaneState(
@@ -325,7 +326,37 @@ def test_select_child_entries_keeps_previous_snapshot_visible_while_request_is_p
         pending_child_pane_request_id=7,
     )
 
-    assert [entry.name for entry in select_child_entries(state)] == ["spec.md"]
+    assert select_child_entries(state) == ()
+
+
+def test_select_shell_data_hides_stale_preview_while_request_is_pending() -> None:
+    current_path = "/home/tadashi/develop/peneo"
+    previous_preview_path = f"{current_path}/README.md"
+    requested_preview_path = f"{current_path}/pyproject.toml"
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path=current_path,
+            entries=(
+                DirectoryEntryState(previous_preview_path, "README.md", "file"),
+                DirectoryEntryState(requested_preview_path, "pyproject.toml", "file"),
+            ),
+            cursor_path=requested_preview_path,
+        ),
+        child_pane=PaneState(
+            directory_path=current_path,
+            entries=(),
+            mode="preview",
+            preview_path=previous_preview_path,
+            preview_content="# Preview\n",
+        ),
+        pending_child_pane_request_id=7,
+    )
+
+    shell = select_shell_data(state)
+
+    assert shell.child_pane.is_preview is False
+    assert shell.child_pane.entries == ()
 
 
 def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
@@ -387,6 +418,118 @@ def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
     assert child_entries[0].name_detail is None
 
 
+def test_directory_size_target_paths_only_uses_current_pane_directories() -> None:
+    state = replace(
+        build_initial_app_state(
+            config=AppConfig(
+                display=replace(
+                    AppConfig().display,
+                    show_directory_sizes=True,
+                )
+            )
+        ),
+        parent_pane=PaneState(
+            directory_path="/tmp",
+            entries=(DirectoryEntryState("/tmp/peneo", "peneo", "dir"),),
+            cursor_path="/tmp/peneo",
+        ),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/.cache",
+                    ".cache",
+                    "dir",
+                    hidden=True,
+                ),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/README.md",
+                    "README.md",
+                    "file",
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+        child_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo/docs",
+            entries=(DirectoryEntryState("/home/tadashi/develop/peneo/docs/api", "api", "dir"),),
+        ),
+    )
+
+    assert directory_size_target_paths(state) == ("/home/tadashi/develop/peneo/docs",)
+
+
+def test_directory_size_target_paths_respects_current_hidden_visibility() -> None:
+    state = replace(
+        build_initial_app_state(
+            config=AppConfig(
+                display=replace(
+                    AppConfig().display,
+                    show_directory_sizes=True,
+                )
+            )
+        ),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/.cache",
+                    ".cache",
+                    "dir",
+                    hidden=True,
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+    )
+
+    assert directory_size_target_paths(state) == ("/home/tadashi/develop/peneo/docs",)
+    assert directory_size_target_paths(replace(state, show_hidden=True)) == (
+        "/home/tadashi/develop/peneo/.cache",
+        "/home/tadashi/develop/peneo/docs",
+    )
+
+
+def test_directory_size_target_paths_returns_empty_when_directory_sizes_are_disabled() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+    )
+
+    assert directory_size_target_paths(state) == ()
+
+
+def test_directory_size_target_paths_uses_current_pane_for_size_sort() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState("/home/tadashi/develop/peneo/src", "src", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/README.md",
+                    "README.md",
+                    "file",
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+        sort=replace(build_initial_app_state().sort, field="size"),
+    )
+
+    assert directory_size_target_paths(state) == (
+        "/home/tadashi/develop/peneo/docs",
+        "/home/tadashi/develop/peneo/src",
+    )
+
+
 def test_select_visible_current_entries_skip_size_overlay_when_not_sorting_by_size() -> None:
     state = replace(
         build_initial_app_state(),
@@ -437,7 +580,7 @@ def test_select_shell_data_emits_size_delta_updates_for_directory_size_changes()
         (update.path, update.size_label)
         for update in shell.current_pane_update.size_updates
     ] == [
-        ("/home/tadashi/develop/peneo/docs", "4.2 KB")
+        ("/home/tadashi/develop/peneo/docs", "4.1KiB")
     ]
 
 
@@ -629,6 +772,36 @@ def test_select_shell_data_builds_child_preview_for_text_file() -> None:
     assert shell.child_pane.title == "Preview: README.md (truncated)"
     assert shell.child_pane.preview_path == path
     assert shell.child_pane.preview_content == "# Preview\n"
+    assert shell.child_pane.preview_message is None
+
+
+def test_select_shell_data_builds_child_preview_message_for_unavailable_file() -> None:
+    initial_state = build_initial_app_state()
+    path = "/home/tadashi/develop/peneo/archive.bin"
+    state = replace(
+        initial_state,
+        current_pane=replace(
+            initial_state.current_pane,
+            entries=initial_state.current_pane.entries
+            + (DirectoryEntryState(path, "archive.bin", "file"),),
+            cursor_path=path,
+        ),
+        child_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(),
+            mode="preview",
+            preview_path=path,
+            preview_message="Preview unavailable for this file type",
+        ),
+    )
+
+    shell = select_shell_data(state)
+
+    assert shell.child_pane.is_preview is True
+    assert shell.child_pane.title == "Preview: archive.bin"
+    assert shell.child_pane.preview_path == path
+    assert shell.child_pane.preview_content is None
+    assert shell.child_pane.preview_message == "Preview unavailable for this file type"
 
 
 def test_select_parent_and_child_entries_keep_fixed_name_sort() -> None:
@@ -752,7 +925,7 @@ def test_select_shell_data_reuses_current_entries_when_only_cursor_changes() -> 
 
     assert moved_shell.current_entries is initial_shell.current_entries
     assert moved_shell.current_cursor_index == 2
-    assert moved_shell.child_pane.entries == initial_shell.child_pane.entries
+    assert moved_shell.child_pane.entries == ()
 
 
 def test_select_shell_data_viewport_projection_limits_rendered_entries() -> None:
@@ -957,16 +1130,14 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
     help_state = select_help_bar_state(state)
 
     assert help_state.lines == (
-        "enter open | e edit | i info | space select | c copy | x cut | p paste | C path",
-        "/ filter | s sort | d dir-first | . hidden | a select-all | ~ home",
-        "f find | g grep | G go-to | H history | b bookmarks | B toggle-bookmark",
-        "n new-file | N new-dir | r rename | R reload | t term | : palette | q quit",
+        "enter open | e edit | i info | space select | c copy | x cut | p paste | r rename",
+        "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to",
+        "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit",
     )
     assert help_state.text == (
-        "enter open | e edit | i info | space select | c copy | x cut | p paste | C path\n"
-        "/ filter | s sort | d dir-first | . hidden | a select-all | ~ home\n"
-        "f find | g grep | G go-to | H history | b bookmarks | B toggle-bookmark\n"
-        "n new-file | N new-dir | r rename | R reload | t term | : palette | q quit"
+        "enter open | e edit | i info | space select | c copy | x cut | p paste | r rename\n"
+        "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to\n"
+        "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit"
     )
 
 
@@ -1436,7 +1607,7 @@ def test_select_attribute_dialog_state_formats_selected_entry() -> None:
     assert "Name: README.md" in dialog.lines
     assert "Type: File" in dialog.lines
     assert "Path: /home/tadashi/develop/peneo/README.md" in dialog.lines
-    assert "Size: 2.1 KB" in dialog.lines
+    assert "Size: 2.1KiB" in dialog.lines
     assert "Hidden: No" in dialog.lines
     assert "Permissions: -rw-r--r-- (644)" in dialog.lines
     assert dialog.options == ("enter close", "esc close")
