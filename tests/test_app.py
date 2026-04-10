@@ -999,6 +999,74 @@ async def test_app_hides_text_preview_in_child_pane_when_preview_disabled() -> N
 
 
 @pytest.mark.asyncio
+async def test_app_updates_child_preview_when_cursor_moves_between_files() -> None:
+    path = "/tmp/peneo-preview-switch"
+    readme = f"{path}/README.md"
+    config = f"{path}/config.toml"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: BrowserSnapshot(
+                current_path=path,
+                parent_pane=PaneState(
+                    directory_path="/tmp",
+                    entries=(
+                        DirectoryEntryState(path, "peneo-preview-switch", "dir"),
+                        DirectoryEntryState("/tmp/sibling", "sibling", "dir"),
+                    ),
+                    cursor_path=path,
+                ),
+                current_pane=PaneState(
+                    directory_path=path,
+                    entries=(
+                        DirectoryEntryState(readme, "README.md", "file"),
+                        DirectoryEntryState(config, "config.toml", "file"),
+                    ),
+                    cursor_path=readme,
+                ),
+                child_pane=PaneState(
+                    directory_path=path,
+                    entries=(),
+                    mode="preview",
+                    preview_path=readme,
+                    preview_content="# Title\npreview body\n",
+                ),
+            )
+        },
+        child_panes={
+            (path, config): PaneState(
+                directory_path=path,
+                entries=(),
+                mode="preview",
+                preview_path=config,
+                preview_content="[display]\nshow_preview = true\n",
+            ),
+        },
+        child_delay_seconds={
+            (path, config): 0.2,
+        },
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test(size=(120, 20)):
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 2)
+        await _wait_for_child_preview(app, "Preview: README.md", "# Title")
+
+        await app.dispatch_actions(
+            (
+                MoveCursor(
+                    delta=1,
+                    visible_paths=(readme, config),
+                ),
+            )
+        )
+        await _wait_for_cursor_path(app, config)
+        await _wait_for_child_entries(app, [], timeout=1.0)
+        await _wait_for_child_preview(app, "Preview: config.toml", "show_preview = true")
+        await _wait_for_child_pane_runtime_idle(app, timeout=1.0)
+
+
+@pytest.mark.asyncio
 async def test_app_truncates_long_labels_in_all_panes_when_narrow() -> None:
     path = "/tmp/peneo-narrow-truncate"
     current_entries = (
