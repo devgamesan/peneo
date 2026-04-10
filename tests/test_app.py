@@ -635,11 +635,8 @@ async def test_app_loads_directory_sizes_when_enabled() -> None:
     )
     directory_size_service = FakeDirectorySizeService(
         results_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
-                (path, 10_000),
-                ("/tmp/sibling", 2_000),
+            (f"{path}/docs",): (
                 (f"{path}/docs", 4_200),
-                (f"{path}/docs/api", 88_000),
             )
         }
     )
@@ -686,9 +683,7 @@ async def test_app_applies_directory_size_updates_without_full_current_pane_refr
 
     directory_size_service = SlowDirectorySizeService(
         results_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs"): (
-                (path, 10_000),
-                ("/tmp/sibling", 2_000),
+            (f"{path}/docs",): (
                 (f"{path}/docs", 4_200),
             )
         }
@@ -740,6 +735,7 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
                 path,
                 (
                     DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                    DirectoryEntryState(f"{path}/private", "private", "dir"),
                     DirectoryEntryState(f"{path}/README.md", "README.md", "file", size_bytes=120),
                 ),
                 child_path=f"{path}/docs",
@@ -749,15 +745,13 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
     )
     directory_size_service = FakeDirectorySizeService(
         results_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
-                (path, 10_000),
+            (f"{path}/docs", f"{path}/private"): (
                 (f"{path}/docs", 4_200),
-                (f"{path}/docs/api", 88_000),
             )
         },
         failures_by_paths={
-            (path, "/tmp/sibling", f"{path}/docs", f"{path}/docs/api"): (
-                ("/tmp/sibling", "permission denied"),
+            (f"{path}/docs", f"{path}/private"): (
+                (f"{path}/private", "permission denied"),
             )
         },
     )
@@ -772,7 +766,7 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
 
     async with app.run_test():
         await _wait_for_snapshot_loaded(app, path)
-        await _wait_for_row_count(app, 2)
+        await _wait_for_row_count(app, 3)
         await _wait_for_table_cell(app, "4.2 KB", 0, 2)
 
         table = app.query_one("#current-pane-table", DataTable)
@@ -2110,7 +2104,7 @@ async def test_app_directory_size_update_avoids_rebuilding_large_current_pane(mo
 
         directory_size_service.release()
         await _wait_for_directory_sizes(app, timeout=2.0)
-        await _wait_for_table_cell(app, "3.0 KB", 0, 2, timeout=2.0)
+        await _wait_for_table_cell(app, "1.0 KB", 0, 2, timeout=2.0)
 
         assert clear_calls == 0
         assert add_row_calls == 0

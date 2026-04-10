@@ -60,6 +60,7 @@ from peneo.state import (
 )
 from peneo.state import command_palette as command_palette_module
 from peneo.state.command_palette import CommandPaletteItem
+from peneo.state.reducer_common import directory_size_target_paths
 from peneo.state.selectors import (
     _has_execute_permission,
     _select_command_palette_window,
@@ -415,6 +416,118 @@ def test_select_pane_entries_show_directory_sizes_from_cache() -> None:
     assert parent_entries[0].name_detail is None
     assert current_entries[0].size_label == "-"
     assert child_entries[0].name_detail is None
+
+
+def test_directory_size_target_paths_only_uses_current_pane_directories() -> None:
+    state = replace(
+        build_initial_app_state(
+            config=AppConfig(
+                display=replace(
+                    AppConfig().display,
+                    show_directory_sizes=True,
+                )
+            )
+        ),
+        parent_pane=PaneState(
+            directory_path="/tmp",
+            entries=(DirectoryEntryState("/tmp/peneo", "peneo", "dir"),),
+            cursor_path="/tmp/peneo",
+        ),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/.cache",
+                    ".cache",
+                    "dir",
+                    hidden=True,
+                ),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/README.md",
+                    "README.md",
+                    "file",
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+        child_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo/docs",
+            entries=(DirectoryEntryState("/home/tadashi/develop/peneo/docs/api", "api", "dir"),),
+        ),
+    )
+
+    assert directory_size_target_paths(state) == ("/home/tadashi/develop/peneo/docs",)
+
+
+def test_directory_size_target_paths_respects_current_hidden_visibility() -> None:
+    state = replace(
+        build_initial_app_state(
+            config=AppConfig(
+                display=replace(
+                    AppConfig().display,
+                    show_directory_sizes=True,
+                )
+            )
+        ),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/.cache",
+                    ".cache",
+                    "dir",
+                    hidden=True,
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+    )
+
+    assert directory_size_target_paths(state) == ("/home/tadashi/develop/peneo/docs",)
+    assert directory_size_target_paths(replace(state, show_hidden=True)) == (
+        "/home/tadashi/develop/peneo/.cache",
+        "/home/tadashi/develop/peneo/docs",
+    )
+
+
+def test_directory_size_target_paths_returns_empty_when_directory_sizes_are_disabled() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+    )
+
+    assert directory_size_target_paths(state) == ()
+
+
+def test_directory_size_target_paths_uses_current_pane_for_size_sort() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/peneo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/peneo/docs", "docs", "dir"),
+                DirectoryEntryState("/home/tadashi/develop/peneo/src", "src", "dir"),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/peneo/README.md",
+                    "README.md",
+                    "file",
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/peneo/docs",
+        ),
+        sort=replace(build_initial_app_state().sort, field="size"),
+    )
+
+    assert directory_size_target_paths(state) == (
+        "/home/tadashi/develop/peneo/docs",
+        "/home/tadashi/develop/peneo/src",
+    )
 
 
 def test_select_visible_current_entries_skip_size_overlay_when_not_sorting_by_size() -> None:
