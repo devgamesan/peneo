@@ -71,6 +71,7 @@ class DirectoryEntryState:
     modified_at: datetime | None = None
     hidden: bool = False
     permissions_mode: int | None = None
+    symlink: bool = False
 
 
 @dataclass(frozen=True)

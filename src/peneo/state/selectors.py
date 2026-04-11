@@ -1323,6 +1323,7 @@ def _to_pane_entry(
         selected=selected,
         cut=cut,
         executable=_has_execute_permission(entry),
+        symlink=entry.symlink,
         path=entry.path,
     )
 
