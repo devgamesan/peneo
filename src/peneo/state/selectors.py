@@ -161,7 +161,7 @@ def _select_child_pane_for_cursor(
 ) -> ChildPaneViewState:
     syntax_theme = _select_child_syntax_theme(state.config.display.theme)
     permissions_label = (
-        _format_permissions_label(cursor_entry.permissions_mode)
+        _format_permissions_detail_label(cursor_entry)
         if cursor_entry
         else ""
     )
@@ -1510,6 +1510,17 @@ def _format_permissions_label(mode: int | None) -> str:
         return "-"
     normalized_mode = S_IMODE(mode)
     return f"{filemode(mode)} ({normalized_mode:03o})"
+
+
+def _format_permissions_detail_label(entry: DirectoryEntryState) -> str:
+    if entry.permissions_mode is None:
+        return ""
+    permission_str = _format_permissions_label(entry.permissions_mode)
+    if entry.owner and entry.group:
+        return f"{entry.owner} {entry.group} {permission_str}"
+    if entry.owner:
+        return f"{entry.owner} {permission_str}"
+    return permission_str
 
 
 def _format_editor_command_value(command: str | None) -> str:
