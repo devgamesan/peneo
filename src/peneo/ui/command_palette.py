@@ -4,7 +4,7 @@ from rich.text import Text
 from textual.containers import Container
 from textual.widgets import Static
 
-from peneo.models import CommandPaletteViewState
+from peneo.models import CommandPaletteInputFieldViewState, CommandPaletteViewState
 from peneo.ui.panes import truncate_middle
 
 
@@ -47,6 +47,14 @@ class CommandPalette(Container):
 
         self.set_class(state.has_more_items, "-expanded")
         title_widget.update(state.title)
+        if state.input_fields:
+            query_widget.update(self._render_input_fields(state.input_fields))
+        else:
+            query_widget.update(self._render_query_line(state))
+        items_widget.update(self._render_items(state))
+
+    @staticmethod
+    def _render_query_line(state: CommandPaletteViewState) -> Text:
         query_text = Text()
         query_text.append("> ", style="bold")
         placeholder = (
@@ -59,8 +67,25 @@ class CommandPalette(Container):
             else "type a command"
         )
         query_text.append(state.query or placeholder, style="bold" if state.query else "dim")
-        query_widget.update(query_text)
-        items_widget.update(self._render_items(state))
+        return query_text
+
+    @staticmethod
+    def _render_input_fields(
+        fields: tuple[CommandPaletteInputFieldViewState, ...],
+    ) -> Text:
+        rendered = Text()
+        for index, field in enumerate(fields):
+            label_style = "reverse bold" if field.active else "bold"
+            value_style = "bold" if field.active and field.value else ""
+            placeholder_style = "dim"
+            rendered.append(f"{field.label:>8}: ", style=label_style)
+            if field.value:
+                rendered.append(field.value, style=value_style)
+            else:
+                rendered.append(field.placeholder, style=placeholder_style)
+            if index < len(fields) - 1:
+                rendered.append("\n")
+        return rendered
 
     @staticmethod
     def _render_items(state: CommandPaletteViewState) -> Text:

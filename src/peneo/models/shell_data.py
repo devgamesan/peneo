@@ -143,6 +143,16 @@ class CommandPaletteItemViewState:
 
 
 @dataclass(frozen=True)
+class CommandPaletteInputFieldViewState:
+    """Single input row rendered above command palette results."""
+
+    label: str
+    value: str
+    placeholder: str
+    active: bool = False
+
+
+@dataclass(frozen=True)
 class CommandPaletteViewState:
     """Display data for the command palette."""
 
@@ -150,6 +160,7 @@ class CommandPaletteViewState:
     query: str
     items: tuple[CommandPaletteItemViewState, ...]
     empty_message: str
+    input_fields: tuple[CommandPaletteInputFieldViewState, ...] = ()
     has_more_items: bool = False
 
 

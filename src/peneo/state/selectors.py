@@ -10,6 +10,7 @@ from peneo.archive_utils import is_supported_archive_path
 from peneo.models import (
     AttributeDialogState,
     ChildPaneViewState,
+    CommandPaletteInputFieldViewState,
     CommandPaletteItemViewState,
     CommandPaletteViewState,
     ConfigDialogState,
@@ -34,6 +35,7 @@ from .command_palette import (
 )
 from .models import (
     AppState,
+    CommandPaletteState,
     DirectoryEntryState,
     DirectorySizeCacheEntry,
     FileSearchResultState,
@@ -390,7 +392,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
                 return HelpBarState(state.config.help_bar.palette_grep_search)
             return HelpBarState(
                 (
-                    "type text / re:pattern | ↑↓ or Ctrl+N/P select | "
+                    "type text / tab fields / ↑↓ or Ctrl+N/P select | "
                     "enter jump | Ctrl+E edit | esc cancel",
                 )
             )
@@ -501,7 +503,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
         )
         return CommandPaletteViewState(
             title=title,
-            query=state.command_palette.query,
+            query=state.command_palette.grep_search_keyword,
             items=tuple(
                 CommandPaletteItemViewState(
                     label=result.display_label,
@@ -512,6 +514,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
                 for index, result in visible_results
             ),
             empty_message=_grep_search_empty_message(state),
+            input_fields=_build_grep_search_input_fields(state.command_palette),
             has_more_items=len(state.command_palette.grep_search_results) > len(visible_results),
         )
     if state.command_palette.source == "history":
@@ -590,6 +593,31 @@ def select_split_terminal_state(state: AppState) -> SplitTerminalViewState:
         status=split_terminal.status,
         body=body,
         focused=split_terminal.focus_target == "terminal",
+    )
+
+
+def _build_grep_search_input_fields(
+    palette: CommandPaletteState,
+) -> tuple[CommandPaletteInputFieldViewState, ...]:
+    return (
+        CommandPaletteInputFieldViewState(
+            label="Keyword",
+            value=palette.grep_search_keyword or palette.query,
+            placeholder="text or re:pattern",
+            active=palette.grep_search_active_field == "keyword",
+        ),
+        CommandPaletteInputFieldViewState(
+            label="Include",
+            value=palette.grep_search_include_extensions,
+            placeholder="all extensions",
+            active=palette.grep_search_active_field == "include",
+        ),
+        CommandPaletteInputFieldViewState(
+            label="Exclude",
+            value=palette.grep_search_exclude_extensions,
+            placeholder="none",
+            active=palette.grep_search_active_field == "exclude",
+        ),
     )
 
 

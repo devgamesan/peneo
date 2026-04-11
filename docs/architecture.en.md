@@ -231,6 +231,7 @@ sequenceDiagram
   - `Create directory`
 - Palette sources are `commands`, `file_search`, `grep_search`, `history`, `bookmarks`, and `go_to_path`
 - `go_to_path` shows matching directory candidates while the user types and lets `Tab` complete the selected one
+- `grep_search` uses separate keyword / include-extensions / exclude-extensions fields and moves focus with `Tab` / `Shift+Tab`
 
 ### `src/peneo/services/`
 
@@ -298,6 +299,7 @@ Notes:
   - If an active filter exists, `Esc` clears the filter before clearing selection
 - `PALETTE`
   - Reuses one UI surface for normal commands plus file search, grep search, history, bookmarks, and go-to-path preview
+  - Keeps grep result selection on `↑↓` and `Ctrl+N/P` even though grep search now has multiple input fields
 - `DETAIL`
   - Read-only mode for the attribute dialog
 - `EXTRACT`

@@ -1375,9 +1375,35 @@ def test_select_help_bar_state_for_grep_search_palette() -> None:
     help_bar = select_help_bar_state(state)
 
     assert help_bar.lines == (
-        "type text / re:pattern | ↑↓ or Ctrl+N/P select | "
+        "type text / tab fields / ↑↓ or Ctrl+N/P select | "
         "enter jump | Ctrl+E edit | esc cancel",
     )
+
+
+def test_select_command_palette_state_for_grep_search_includes_input_fields() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            query="todo",
+            grep_search_keyword="todo",
+            grep_search_include_extensions="py,ts",
+            grep_search_exclude_extensions="log",
+            grep_search_active_field="exclude",
+        ),
+    )
+
+    palette_state = select_command_palette_state(state)
+
+    assert palette_state is not None
+    assert [field.label for field in palette_state.input_fields] == [
+        "Keyword",
+        "Include",
+        "Exclude",
+    ]
+    assert [field.value for field in palette_state.input_fields] == ["todo", "py,ts", "log"]
+    assert [field.active for field in palette_state.input_fields] == [False, False, True]
 
 
 def test_select_command_palette_state_go_to_path_can_show_candidates_without_selection() -> None:

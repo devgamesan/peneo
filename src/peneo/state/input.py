@@ -36,6 +36,7 @@ from .actions import (
     CopyTargets,
     CutTargets,
     CycleConfigEditorValue,
+    CycleGrepSearchField,
     DismissAttributeDialog,
     DismissConfigEditor,
     DismissNameConflict,
@@ -67,6 +68,7 @@ from .actions import (
     SendSplitTerminalInput,
     SetCommandPaletteQuery,
     SetFilterQuery,
+    SetGrepSearchField,
     SetNotification,
     SetPendingInputValue,
     SetShellCommandValue,
@@ -80,7 +82,7 @@ from .actions import (
     ToggleSplitTerminal,
 )
 from .command_palette import normalize_command_palette_cursor
-from .models import AppState, DirectoryEntryState, NotificationState
+from .models import AppState, DirectoryEntryState, GrepSearchFieldId, NotificationState
 from .reducer_common import format_go_to_path_completion
 from .selectors import (
     compute_current_pane_visible_window,
@@ -170,6 +172,7 @@ TERMINAL_KEYMAP = {
 }
 
 PRINTABLE_BINDING_KEYS = tuple((*string.ascii_letters, *string.digits))
+PALETTE_EXTRA_KEYS = ("shift+tab",)
 
 
 def iter_bound_keys() -> tuple[str, ...]:
@@ -182,6 +185,7 @@ def iter_bound_keys() -> tuple[str, ...]:
                 *CONFLICT_KEYMAP.keys(),
                 *TERMINAL_KEYMAP.keys(),
                 *PRINTABLE_BINDING_KEYS,
+                *PALETTE_EXTRA_KEYS,
             )
         )
     )
@@ -510,6 +514,17 @@ def _terminal_control_character(key: str) -> str | None:
     return chr(ord(letter) - ord("a") + 1)
 
 
+def _active_grep_field_value(state: AppState) -> str:
+    if state.command_palette is None:
+        return ""
+    field = state.command_palette.grep_search_active_field
+    if field == "keyword":
+        return state.command_palette.grep_search_keyword or state.command_palette.query
+    if field == "include":
+        return state.command_palette.grep_search_include_extensions
+    return state.command_palette.grep_search_exclude_extensions
+
+
 def _dispatch_command_palette_input(
     state: AppState,
     *,
@@ -544,6 +559,12 @@ def _dispatch_command_palette_input(
     if key == "escape":
         return _supported(CancelCommandPalette())
 
+    if key == "tab" and palette_source == "grep_search":
+        return _supported(CycleGrepSearchField(delta=1))
+
+    if key == "shift+tab" and palette_source == "grep_search":
+        return _supported(CycleGrepSearchField(delta=-1))
+
     if key == "up" or (key == "k" and not search_palette):
         return _supported(MoveCommandPaletteCursor(delta=-1))
 
@@ -574,6 +595,13 @@ def _dispatch_command_palette_input(
         return _supported(SubmitCommandPalette())
 
     if key == "backspace":
+        if palette_source == "grep_search":
+            return _supported(
+                SetGrepSearchField(
+                    field=state.command_palette.grep_search_active_field,
+                    value=_active_grep_field_value(state)[:-1],
+                )
+            )
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(current_query[:-1]))
 
@@ -584,12 +612,20 @@ def _dispatch_command_palette_input(
             return _supported(OpenFindResultInEditor())
 
     if character and character.isprintable():
+        if palette_source == "grep_search":
+            active_field: GrepSearchFieldId = state.command_palette.grep_search_active_field
+            return _supported(
+                SetGrepSearchField(
+                    field=active_field,
+                    value=f"{_active_grep_field_value(state)}{character}",
+                )
+            )
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(f"{current_query}{character}"))
 
     if search_palette:
         if state.command_palette is not None and state.command_palette.source == "grep_search":
-            return _warn("Use arrows, type to filter, Enter, Ctrl+E, or Esc")
+            return _warn("Use Tab/Shift+Tab, type, arrows, Enter, Ctrl+E, or Esc")
         return _warn("Use arrows, type to filter, Enter, Ctrl+E for editor, or Esc")
 
     return _warn("Use arrows, type to filter, Enter to run, or Esc to cancel")
