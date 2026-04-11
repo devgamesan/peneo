@@ -609,13 +609,13 @@ def _build_grep_search_input_fields(
         CommandPaletteInputFieldViewState(
             label="Include",
             value=palette.grep_search_include_extensions,
-            placeholder="py,ts",
+            placeholder="all extensions",
             active=palette.grep_search_active_field == "include",
         ),
         CommandPaletteInputFieldViewState(
             label="Exclude",
             value=palette.grep_search_exclude_extensions,
-            placeholder="log,tmp",
+            placeholder="none",
             active=palette.grep_search_active_field == "exclude",
         ),
     )
