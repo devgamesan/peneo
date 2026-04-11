@@ -57,7 +57,7 @@ REGEX_FILE_SEARCH_PREFIX = "re:"
 REGEX_GREP_SEARCH_PREFIX = "re:"
 
 
-def done(next_state: AppState, *effects: Effect) -> ReduceResult:
+def finalize(next_state: AppState, *effects: Effect) -> ReduceResult:
     return ReduceResult(state=next_state, effects=effects)
 
 
