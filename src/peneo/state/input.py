@@ -5,6 +5,8 @@ import string
 
 from .actions import (
     Action,
+    ActivateNextTab,
+    ActivatePreviousTab,
     AddBookmark,
     BeginBookmarkSearch,
     BeginCommandPalette,
@@ -27,6 +29,7 @@ from .actions import (
     CancelShellCommandInput,
     CancelZipCompressConfirmation,
     ClearSelection,
+    CloseCurrentTab,
     ConfirmArchiveExtract,
     ConfirmDeleteTargets,
     ConfirmEmptyTrash,
@@ -54,6 +57,7 @@ from .actions import (
     MoveCursorByPage,
     OpenFindResultInEditor,
     OpenGrepResultInEditor,
+    OpenNewTab,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     OpenTerminalAtPath,
@@ -144,6 +148,10 @@ BROWSING_KEYMAP = {
     "end": "jump_cursor_end",
     "pageup": "cursor_pageup",
     "pagedown": "cursor_pagedown",
+    "ctrl+t": "open_new_tab",
+    "ctrl+w": "close_current_tab",
+    "ctrl+tab": "activate_next_tab",
+    "ctrl+shift+tab": "activate_previous_tab",
 }
 
 CONFLICT_KEYMAP = {
@@ -293,6 +301,18 @@ def _dispatch_browsing_input(
                 direction="down", page_size=page_size, visible_paths=visible_paths
             )
         )
+
+    if command == "open_new_tab":
+        return _supported(OpenNewTab())
+
+    if command == "close_current_tab":
+        return _supported(CloseCurrentTab())
+
+    if command == "activate_next_tab":
+        return _supported(ActivateNextTab())
+
+    if command == "activate_previous_tab":
+        return _supported(ActivatePreviousTab())
 
     if command == "toggle_selection" and state.current_pane.cursor_path is not None:
         return _supported(

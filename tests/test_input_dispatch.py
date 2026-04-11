@@ -2,6 +2,8 @@ from dataclasses import replace
 
 from peneo.models import AppConfig, BookmarkConfig, CreateZipArchiveRequest
 from peneo.state import (
+    ActivateNextTab,
+    ActivatePreviousTab,
     AddBookmark,
     BeginBookmarkSearch,
     BeginCommandPalette,
@@ -20,6 +22,7 @@ from peneo.state import (
     CancelPendingInput,
     CancelZipCompressConfirmation,
     ClearSelection,
+    CloseCurrentTab,
     CommandPaletteState,
     ConfigEditorState,
     ConfirmDeleteTargets,
@@ -48,6 +51,7 @@ from peneo.state import (
     NotificationState,
     OpenFindResultInEditor,
     OpenGrepResultInEditor,
+    OpenNewTab,
     OpenPathInEditor,
     OpenPathWithDefaultApp,
     PasteClipboard,
@@ -606,6 +610,38 @@ def test_browsing_lowercase_t_toggles_split_terminal() -> None:
     assert actions == (SetNotification(None), ToggleSplitTerminal())
 
 
+def test_browsing_ctrl_t_opens_new_tab() -> None:
+    state = build_initial_app_state()
+
+    actions = dispatch_key_input(state, key="ctrl+t")
+
+    assert actions == (SetNotification(None), OpenNewTab())
+
+
+def test_browsing_ctrl_w_closes_current_tab() -> None:
+    state = build_initial_app_state()
+
+    actions = dispatch_key_input(state, key="ctrl+w")
+
+    assert actions == (SetNotification(None), CloseCurrentTab())
+
+
+def test_browsing_ctrl_tab_activates_next_tab() -> None:
+    state = build_initial_app_state()
+
+    actions = dispatch_key_input(state, key="ctrl+tab")
+
+    assert actions == (SetNotification(None), ActivateNextTab())
+
+
+def test_browsing_ctrl_shift_tab_activates_previous_tab() -> None:
+    state = build_initial_app_state()
+
+    actions = dispatch_key_input(state, key="ctrl+shift+tab")
+
+    assert actions == (SetNotification(None), ActivatePreviousTab())
+
+
 def test_browsing_tab_is_unbound() -> None:
     state = build_initial_app_state()
 
@@ -922,7 +958,7 @@ def test_palette_pageup_moves_cursor_by_page() -> None:
 
     actions = dispatch_key_input(state, key="pageup")
 
-    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=-15))
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=-14))
 
 
 def test_palette_pagedown_moves_cursor_by_page() -> None:
@@ -930,7 +966,7 @@ def test_palette_pagedown_moves_cursor_by_page() -> None:
 
     actions = dispatch_key_input(state, key="pagedown")
 
-    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=15))
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=14))
 
 
 def test_grep_palette_pageup_accounts_for_extra_input_rows() -> None:
@@ -942,7 +978,7 @@ def test_grep_palette_pageup_accounts_for_extra_input_rows() -> None:
 
     actions = dispatch_key_input(state, key="pageup")
 
-    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=-13))
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=-12))
 
 
 def test_grep_palette_pagedown_accounts_for_extra_input_rows() -> None:
@@ -954,7 +990,7 @@ def test_grep_palette_pagedown_accounts_for_extra_input_rows() -> None:
 
     actions = dispatch_key_input(state, key="pagedown")
 
-    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=13))
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=12))
 
 
 def test_palette_unbound_key_shows_guidance() -> None:
