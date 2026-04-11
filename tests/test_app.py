@@ -2870,6 +2870,9 @@ async def test_app_file_search_shows_invalid_regex_message_in_palette(tmp_path) 
 
 
 @pytest.mark.asyncio
+
+
+@pytest.mark.asyncio
 async def test_app_command_palette_grep_jumps_to_matching_parent_directory() -> None:
     path = "/tmp/peneo-command-palette-grep"
     docs_path = f"{path}/docs"

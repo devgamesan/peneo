@@ -1086,10 +1086,10 @@ def _sync_file_search_preview(state: AppState) -> ReduceResult:
     if selected_result is None or not state.config.display.show_preview:
         return done(replace(state, pending_child_pane_request_id=None))
 
-    if state.pending_child_pane_request_id is None and _matches_file_search_preview(
-        state,
-        selected_result,
-    ):
+    # file_search では、preview_highlight_line がないので、preview_path のみで一致を判定
+    # カーソル移動時の無限ループを防ぐため、pending_child_pane_request_id が None の場合のみ
+    # preview_path が一致する場合はスキップ
+    if state.pending_child_pane_request_id is None and _matches_file_search_preview(state, selected_result):
         return done(state)
 
     request_id = state.next_request_id
