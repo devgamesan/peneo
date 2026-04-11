@@ -231,6 +231,7 @@ sequenceDiagram
   - `Create directory`
 - palette source は `commands` / `file_search` / `grep_search` / `history` / `bookmarks` / `go_to_path` を持つ
 - `go_to_path` は入力中に一致するディレクトリ候補を複数表示し、`Tab` で選択候補を補完できる
+- `grep_search` は keyword / include extensions / exclude extensions の 3 フィールドを持ち、`Tab` / `Shift+Tab` で入力欄を移動する
 
 ### `src/peneo/services/`
 
@@ -298,6 +299,7 @@ stateDiagram-v2
   - `Esc` は active filter が残っている場合、選択解除より先に filter 解除を優先する
 - `PALETTE`
   - 通常コマンドだけでなく、file search / grep search / history / bookmarks / go-to-path preview の各 source を同一 UI で扱う
+  - grep search では複数入力欄を持ちつつ、結果選択の `↑↓` と `Ctrl+N/P` は既存どおり維持する
 - `DETAIL`
   - read-only 属性ダイアログを閉じるだけのモード
 - `EXTRACT`

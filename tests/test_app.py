@@ -370,13 +370,19 @@ class BlockingGrepSearchService:
         self,
         *,
         results_by_query: (
-            dict[tuple[str, str, bool], tuple[GrepSearchResultState, ...]] | None
+            dict[
+                tuple[str, str, tuple[str, ...], tuple[str, ...], bool],
+                tuple[GrepSearchResultState, ...],
+            ]
+            | None
         ) = None,
         blocked_queries: tuple[str, ...] = (),
     ) -> None:
         self.results_by_query = results_by_query or {}
         self.blocked_queries = set(blocked_queries)
-        self.executed_requests: list[tuple[str, str, bool]] = []
+        self.executed_requests: list[
+            tuple[str, str, tuple[str, ...], tuple[str, ...], bool]
+        ] = []
         self.cancelled_queries: list[str] = []
         self.release_event = threading.Event()
 
@@ -386,9 +392,11 @@ class BlockingGrepSearchService:
         query: str,
         *,
         show_hidden: bool,
+        include_globs: tuple[str, ...] = (),
+        exclude_globs: tuple[str, ...] = (),
         is_cancelled=None,
     ) -> tuple[GrepSearchResultState, ...]:
-        key = (root_path, query, show_hidden)
+        key = (root_path, query, include_globs, exclude_globs, show_hidden)
         self.executed_requests.append(key)
         if query in self.blocked_queries:
             while not self.release_event.is_set():
@@ -2990,7 +2998,7 @@ async def test_app_command_palette_grep_jumps_to_matching_parent_directory() -> 
     )
     grep_search_service = FakeGrepSearchService(
         results_by_query={
-            (path, "todo", False): (
+            (path, "todo", (), (), False): (
                 GrepSearchResultState(
                     path=f"{docs_path}/README.md",
                     display_path="docs/README.md",
@@ -3025,7 +3033,7 @@ async def test_app_grep_search_renders_context_preview_within_current_pane(tmp_p
     notes.write_text("alpha\nbeta\nTODO: update docs\ndelta\nepsilon\n", encoding="utf-8")
     grep_search_service = FakeGrepSearchService(
         results_by_query={
-            (path, "todo", False): (
+            (path, "todo", (), (), False): (
                 GrepSearchResultState(
                     path=str(notes),
                     display_path="notes.txt",
@@ -3059,7 +3067,7 @@ async def test_app_grep_search_debounces_rapid_query_updates(tmp_path) -> None:
     (tmp_path / "README.md").write_text("TODO: readme\n", encoding="utf-8")
     grep_search_service = FakeGrepSearchService(
         results_by_query={
-            (path, "todo", False): (
+            (path, "todo", (), (), False): (
                 GrepSearchResultState(
                     path=f"{path}/README.md",
                     display_path="README.md",
@@ -3077,7 +3085,46 @@ async def test_app_grep_search_debounces_rapid_query_updates(tmp_path) -> None:
         await pilot.press("t", "o", "d", "o")
 
         await _wait_for_request_count(grep_search_service, 1, timeout=0.5)
-        assert grep_search_service.executed_requests == [(path, "todo", False)]
+        assert grep_search_service.executed_requests == [(path, "todo", (), (), False)]
+
+
+@pytest.mark.asyncio
+async def test_app_grep_search_passes_include_and_exclude_extensions(tmp_path) -> None:
+    path = str(tmp_path)
+    (tmp_path / "README.md").write_text("TODO: readme\n", encoding="utf-8")
+    grep_search_service = FakeGrepSearchService(
+        results_by_query={
+            (path, "todo", ("*.md",), ("*.log",), False): (
+                GrepSearchResultState(
+                    path=f"{path}/README.md",
+                    display_path="README.md",
+                    line_number=1,
+                    line_text="TODO: readme",
+                ),
+            )
+        }
+    )
+    app = create_app(grep_search_service=grep_search_service, initial_path=path)
+
+    async with app.run_test() as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("g")
+        await pilot.press("t", "o", "d", "o")
+        await pilot.press("tab", "m", "d")
+        await pilot.press("tab", "l", "o", "g")
+
+        await _wait_for_request_count(grep_search_service, 1, timeout=1.0)
+        assert grep_search_service.executed_requests[-1] == (
+            path,
+            "todo",
+            ("*.md",),
+            ("*.log",),
+            False,
+        )
+        assert app.app_state.command_palette is not None
+        assert [
+            result.display_label for result in app.app_state.command_palette.grep_search_results
+        ] == ["README.md:1: TODO: readme"]
 
 
 @pytest.mark.asyncio
@@ -3087,7 +3134,7 @@ async def test_app_grep_search_cancels_superseded_request_without_notification(t
     (tmp_path / "guide.md").write_text("guide\n", encoding="utf-8")
     grep_search_service = BlockingGrepSearchService(
         results_by_query={
-            (path, "todo", False): (
+            (path, "todo", (), (), False): (
                 GrepSearchResultState(
                     path=f"{path}/README.md",
                     display_path="README.md",
@@ -3095,7 +3142,7 @@ async def test_app_grep_search_cancels_superseded_request_without_notification(t
                     line_text="TODO: readme",
                 ),
             ),
-            (path, "guide", False): (
+            (path, "guide", (), (), False): (
                 GrepSearchResultState(
                     path=f"{path}/guide.md",
                     display_path="guide.md",
@@ -3138,7 +3185,7 @@ async def test_app_grep_search_shows_invalid_regex_message_in_palette(tmp_path) 
     (tmp_path / "README.md").write_text("TODO: readme\n", encoding="utf-8")
     grep_search_service = FakeGrepSearchService(
         invalid_query_messages={
-            (path, "re:[", False): "regex parse error",
+            (path, "re:[", (), (), False): "regex parse error",
         }
     )
     app = create_app(grep_search_service=grep_search_service, initial_path=path)

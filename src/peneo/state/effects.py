@@ -120,6 +120,8 @@ class RunGrepSearchEffect:
     root_path: str
     query: str
     show_hidden: bool
+    include_globs: tuple[str, ...] = ()
+    exclude_globs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

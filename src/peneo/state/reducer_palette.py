@@ -1,5 +1,6 @@
 """Command palette reducer handlers."""
 
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from .actions import (
     BeginZipCompressInput,
     CancelCommandPalette,
     CopyPathsToClipboard,
+    CycleGrepSearchField,
     DismissAttributeDialog,
     FileSearchCompleted,
     FileSearchFailed,
@@ -43,6 +45,7 @@ from .actions import (
     RequestBrowserSnapshot,
     SelectAllVisibleEntries,
     SetCommandPaletteQuery,
+    SetGrepSearchField,
     ShowAttributes,
     SubmitCommandPalette,
     ToggleHiddenFiles,
@@ -61,6 +64,7 @@ from .models import (
     CommandPaletteState,
     ConfigEditorState,
     FileSearchResultState,
+    GrepSearchFieldId,
     GrepSearchResultState,
     NotificationState,
 )
@@ -79,6 +83,73 @@ from .reducer_common import (
 from .selectors import select_target_paths, select_visible_current_entry_states
 
 GREP_PREVIEW_CONTEXT_LINES = 3
+_GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "include", "exclude")
+_EXTENSION_SEPARATOR_RE = re.compile(r"[\s,]+")
+_VALID_EXTENSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
+
+
+def _grep_field_value(
+    palette: CommandPaletteState,
+    field: GrepSearchFieldId,
+) -> str:
+    if field == "keyword":
+        return palette.grep_search_keyword
+    if field == "include":
+        return palette.grep_search_include_extensions
+    return palette.grep_search_exclude_extensions
+
+
+def _replace_grep_field(
+    palette: CommandPaletteState,
+    *,
+    field: GrepSearchFieldId,
+    value: str,
+) -> CommandPaletteState:
+    if field == "keyword":
+        return replace(palette, query=value, grep_search_keyword=value)
+    if field == "include":
+        return replace(palette, grep_search_include_extensions=value)
+    return replace(palette, grep_search_exclude_extensions=value)
+
+
+def _normalize_grep_extension_filters(
+    raw_value: str,
+    *,
+    label: str,
+) -> tuple[str, ...]:
+    normalized_globs: list[str] = []
+    seen: set[str] = set()
+    for token in _EXTENSION_SEPARATOR_RE.split(raw_value.strip()):
+        if not token:
+            continue
+        normalized_token = token.strip().lstrip(".").casefold()
+        if not normalized_token or not _VALID_EXTENSION_RE.fullmatch(normalized_token):
+            raise ValueError(f"Invalid {label} extension: {token}")
+        glob = f"*.{normalized_token}"
+        if glob not in seen:
+            seen.add(glob)
+            normalized_globs.append(glob)
+    return tuple(normalized_globs)
+
+
+def _validate_grep_search_filters(
+    palette: CommandPaletteState,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    include_globs = _normalize_grep_extension_filters(
+        palette.grep_search_include_extensions,
+        label="include",
+    )
+    exclude_globs = _normalize_grep_extension_filters(
+        palette.grep_search_exclude_extensions,
+        label="exclude",
+    )
+    conflicts = tuple(sorted(set(include_globs) & set(exclude_globs)))
+    if conflicts:
+        formatted = ", ".join(glob.removeprefix("*.") for glob in conflicts)
+        raise ValueError(
+            f"Extensions cannot be included and excluded at the same time: {formatted}"
+        )
+    return include_globs, exclude_globs
 
 
 def _notify(
@@ -207,7 +278,7 @@ def _handle_set_palette_query(
     if state.command_palette.source == "file_search":
         return _handle_set_file_search_query(state, next_palette, action.query)
     if state.command_palette.source == "grep_search":
-        return _handle_set_grep_search_query(state, next_palette, action.query)
+        return _handle_set_grep_search_field(state, "keyword", action.query)
     if state.command_palette.source == "go_to_path":
         return _handle_set_go_to_path_query(state, next_palette, action.query)
     return done(replace(state, command_palette=next_palette))
@@ -277,12 +348,17 @@ def _handle_set_file_search_query(
     )
 
 
-def _handle_set_grep_search_query(
+def _handle_set_grep_search_field(
     state: AppState,
-    next_palette: CommandPaletteState,
-    query: str,
+    field: GrepSearchFieldId,
+    value: str,
 ) -> ReduceResult:
-    stripped_query = query.strip()
+    next_palette = replace(
+        _replace_grep_field(state.command_palette, field=field, value=value),
+        grep_search_error_message=None,
+        cursor_index=0,
+    )
+    stripped_query = next_palette.grep_search_keyword.strip()
     if not stripped_query:
         return _sync_grep_preview(
             replace(
@@ -291,6 +367,22 @@ def _handle_set_grep_search_query(
                     next_palette,
                     grep_search_results=(),
                     grep_search_error_message=None,
+                ),
+                pending_grep_search_request_id=None,
+                pending_child_pane_request_id=None,
+            )
+        )
+
+    try:
+        include_globs, exclude_globs = _validate_grep_search_filters(next_palette)
+    except ValueError as error:
+        return _sync_grep_preview(
+            replace(
+                state,
+                command_palette=replace(
+                    next_palette,
+                    grep_search_results=(),
+                    grep_search_error_message=str(error),
                 ),
                 pending_grep_search_request_id=None,
                 pending_child_pane_request_id=None,
@@ -311,7 +403,28 @@ def _handle_set_grep_search_query(
             root_path=state.current_path,
             query=stripped_query,
             show_hidden=state.show_hidden,
+            include_globs=include_globs,
+            exclude_globs=exclude_globs,
         ),
+    )
+
+
+def _handle_cycle_grep_search_field(
+    state: AppState,
+    action: CycleGrepSearchField,
+) -> ReduceResult:
+    if state.command_palette is None or state.command_palette.source != "grep_search":
+        return done(state)
+    current_index = _GREP_SEARCH_FIELDS.index(state.command_palette.grep_search_active_field)
+    next_index = (current_index + action.delta) % len(_GREP_SEARCH_FIELDS)
+    return done(
+        replace(
+            state,
+            command_palette=replace(
+                state.command_palette,
+                grep_search_active_field=_GREP_SEARCH_FIELDS[next_index],
+            ),
+        )
     )
 
 
@@ -960,12 +1073,10 @@ def _handle_grep_search_completed(
     state: AppState,
     action: GrepSearchCompleted,
 ) -> ReduceResult:
-    if not _matches_search_completion(
-        state,
-        request_id=action.request_id,
-        pending_request_id=state.pending_grep_search_request_id,
-        source="grep_search",
-        query=action.query,
+    if (
+        action.request_id != state.pending_grep_search_request_id
+        or state.command_palette is None
+        or state.command_palette.source != "grep_search"
     ):
         return done(state)
 
@@ -998,6 +1109,7 @@ def _handle_grep_search_failed(
                     state.command_palette,
                     grep_search_results=(),
                     grep_search_error_message=action.message,
+                    cursor_index=0,
                 ),
                 pending_grep_search_request_id=None,
                 pending_child_pane_request_id=None,
@@ -1159,6 +1271,12 @@ def handle_palette_action(
 
     if isinstance(action, SetCommandPaletteQuery):
         return _handle_set_palette_query(state, action)
+
+    if isinstance(action, SetGrepSearchField):
+        return _handle_set_grep_search_field(state, action.field, action.value)
+
+    if isinstance(action, CycleGrepSearchField):
+        return _handle_cycle_grep_search_field(state, action)
 
     if isinstance(action, SubmitCommandPalette):
         return _handle_submit_palette(state, reduce_state)

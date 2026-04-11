@@ -135,6 +135,7 @@ from peneo.state import (
     SetCommandPaletteQuery,
     SetCursorPath,
     SetFilterQuery,
+    SetGrepSearchField,
     SetNotification,
     SetPendingInputValue,
     SetSort,
@@ -2371,8 +2372,94 @@ def test_set_command_palette_query_starts_grep_search_effect() -> None:
             root_path="/home/tadashi/develop/peneo",
             query="todo",
             show_hidden=False,
+            include_globs=(),
+            exclude_globs=(),
         ),
     )
+
+
+def test_set_grep_search_field_builds_include_and_exclude_globs() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = _reduce_state(state, SetCommandPaletteQuery("todo"))
+
+    result = reduce_app_state(state, SetGrepSearchField(field="include", value="py, ts"))
+    result = reduce_app_state(result.state, SetGrepSearchField(field="exclude", value=".log"))
+
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.grep_search_include_extensions == "py, ts"
+    assert result.state.command_palette.grep_search_exclude_extensions == ".log"
+    assert result.effects == (
+        RunGrepSearchEffect(
+            request_id=3,
+            root_path="/home/tadashi/develop/peneo",
+            query="todo",
+            show_hidden=False,
+            include_globs=("*.py", "*.ts"),
+            exclude_globs=("*.log",),
+        ),
+    )
+
+
+def test_set_grep_search_field_rejects_conflicting_extensions() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = _reduce_state(state, SetCommandPaletteQuery("todo"))
+    state = _reduce_state(state, SetGrepSearchField(field="include", value="py"))
+
+    result = reduce_app_state(state, SetGrepSearchField(field="exclude", value=".py"))
+
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.grep_search_results == ()
+    assert (
+        result.state.command_palette.grep_search_error_message
+        == "Extensions cannot be included and excluded at the same time: py"
+    )
+    assert result.state.pending_grep_search_request_id is None
+    assert result.effects == ()
+
+
+def test_set_grep_search_field_rejects_invalid_extension_input() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = _reduce_state(state, SetCommandPaletteQuery("todo"))
+
+    result = reduce_app_state(state, SetGrepSearchField(field="include", value="*.py"))
+
+    assert result.state.command_palette is not None
+    assert (
+        result.state.command_palette.grep_search_error_message
+        == "Invalid include extension: *.py"
+    )
+    assert result.effects == ()
+
+
+def test_set_grep_search_field_clears_results_when_keyword_becomes_empty() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            query="todo",
+            grep_search_keyword="todo",
+            grep_search_results=(
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/peneo/README.md",
+                    display_path="README.md",
+                    line_number=1,
+                    line_text="TODO",
+                ),
+            ),
+        ),
+        pending_grep_search_request_id=4,
+        pending_child_pane_request_id=7,
+    )
+
+    result = reduce_app_state(state, SetGrepSearchField(field="keyword", value=""))
+
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.grep_search_results == ()
+    assert result.state.command_palette.grep_search_error_message is None
+    assert result.state.pending_grep_search_request_id is None
+    assert result.state.pending_child_pane_request_id is None
+    assert result.effects == ()
 
 
 def test_set_command_palette_query_reuses_completed_file_search_results_for_prefix_extension(

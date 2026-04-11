@@ -29,6 +29,7 @@ from peneo.state import (
     CopyTargets,
     CutTargets,
     CycleConfigEditorValue,
+    CycleGrepSearchField,
     DeleteConfirmationState,
     DismissAttributeDialog,
     DismissConfigEditor,
@@ -59,6 +60,7 @@ from peneo.state import (
     SendSplitTerminalInput,
     SetCommandPaletteQuery,
     SetFilterQuery,
+    SetGrepSearchField,
     SetNotification,
     SetPendingInputValue,
     SetSort,
@@ -652,12 +654,62 @@ def test_search_palette_k_key_updates_query() -> None:
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
-        command_palette=CommandPaletteState(source="grep_search", query="ab"),
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            query="ab",
+            grep_search_keyword="ab",
+        ),
     )
 
     actions = dispatch_key_input(state, key="k", character="k")
 
-    assert actions == (SetNotification(None), SetCommandPaletteQuery("abk"))
+    assert actions == (
+        SetNotification(None),
+        SetGrepSearchField(field="keyword", value="abk"),
+    )
+
+
+def test_grep_palette_tab_cycles_active_field() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="grep_search"),
+    )
+
+    actions = dispatch_key_input(state, key="tab")
+
+    assert actions == (SetNotification(None), CycleGrepSearchField(delta=1))
+
+
+def test_grep_palette_shift_tab_cycles_active_field_backwards() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="grep_search"),
+    )
+
+    actions = dispatch_key_input(state, key="shift+tab")
+
+    assert actions == (SetNotification(None), CycleGrepSearchField(delta=-1))
+
+
+def test_grep_palette_printable_key_updates_include_field() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            grep_search_active_field="include",
+            grep_search_include_extensions="p",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="y", character="y")
+
+    assert actions == (
+        SetNotification(None),
+        SetGrepSearchField(field="include", value="py"),
+    )
 
 
 def test_commands_palette_j_key_moves_cursor() -> None:

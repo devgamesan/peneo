@@ -513,6 +513,13 @@ def _start_search_worker(
     cancel_event = threading.Event()
     _set_active_tracking(app, config.tracking, effect.request_id, cancel_event)
     service = getattr(app, config.service_attr)
+    search_kwargs = {
+        "show_hidden": effect.show_hidden,
+        "is_cancelled": cancel_event.is_set,
+    }
+    if isinstance(effect, RunGrepSearchEffect):
+        search_kwargs["include_globs"] = effect.include_globs
+        search_kwargs["exclude_globs"] = effect.exclude_globs
     _run_worker(
         app,
         effect,
@@ -520,16 +527,26 @@ def _start_search_worker(
             service.search,
             effect.root_path,
             effect.query,
-            show_hidden=effect.show_hidden,
-            is_cancelled=cancel_event.is_set,
+            **search_kwargs,
         ),
         _WorkerSpec(
             name=f"{config.worker_key}:{effect.request_id}",
             group=config.worker_key,
-            description=effect.query,
+            description=_describe_search_effect(effect),
             exclusive=True,
         ),
     )
+
+
+def _describe_search_effect(effect: RunFileSearchEffect | RunGrepSearchEffect) -> str:
+    if isinstance(effect, RunFileSearchEffect):
+        return effect.query
+    parts = [effect.query]
+    if effect.include_globs:
+        parts.append(f"include={','.join(effect.include_globs)}")
+    if effect.exclude_globs:
+        parts.append(f"exclude={','.join(effect.exclude_globs)}")
+    return " | ".join(part for part in parts if part)
 
 
 def cancel_pending_file_search(app: Any) -> None:

@@ -40,7 +40,7 @@ Peneo is a TUI file manager you can use without memorizing keybindings. Common a
 
   ![](docs/resources/screen-find-command.png)
 
-- Recursive grep search is available under the current directory. You can jump from search results directly to the matching file. You can also open the matching location directly in a terminal editor.
+- Recursive grep search is available under the current directory. The grep palette now has separate keyword, include-extension, and exclude-extension fields, and `Tab` / `Shift+Tab` moves between them. You can jump from search results directly to the matching file or open the matching location directly in a terminal editor.
 
   ![](docs/resources/screen-grep-command.png)
 
@@ -339,7 +339,7 @@ Less frequent actions are grouped in the command palette opened with `:`.
 | Command | Shown when | Behavior / Notes |
 | --- | --- | --- |
 | `Find files` | Always | Opens recursive file search. |
-| `Grep search` | Always | Opens recursive grep search (`ripgrep` / `rg` required on `PATH`). |
+| `Grep search` | Always | Opens recursive grep search (`ripgrep` / `rg` required on `PATH`) with separate keyword, include-extension, and exclude-extension fields. `Tab` / `Shift+Tab` cycles fields. |
 | `History search` | Always | Opens directory history list and jump to a selected directory. |
 | `Show bookmarks` | Always | Opens the saved bookmark list and jumps to the selected directory. |
 | `Go back` | Directory history has a previous entry | Moves to the previous directory in history. |
