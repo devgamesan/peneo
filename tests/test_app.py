@@ -3593,7 +3593,8 @@ async def test_app_command_palette_opens_config_dialog_and_saves_changes() -> No
         assert "Path: /tmp/peneo/config.toml" in str(lines.renderable)
         assert "> Editor command: system default" in str(lines.renderable)
 
-        await pilot.press("down")
+        for _ in range(3):
+            await pilot.press("down")
         await pilot.press("enter")
         await pilot.press("s")
         await _wait_for_notification_message(app, "Config saved: /tmp/peneo/config.toml")
@@ -3661,7 +3662,6 @@ async def test_app_config_dialog_save_updates_theme(monkeypatch) -> None:
 
         assert app.theme == "textual-dark"
 
-        await pilot.press("down")
         await pilot.press("down")
         await pilot.press("enter")
         await pilot.press("s")
@@ -3741,7 +3741,7 @@ async def test_app_config_dialog_save_updates_preview_syntax_theme() -> None:
         await pilot.press("enter")
         await _wait_for_config_dialog(app)
 
-        for _ in range(5):
+        for _ in range(2):
             await pilot.press("down")
         await pilot.press("enter")
         await pilot.press("s")

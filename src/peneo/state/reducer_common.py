@@ -821,6 +821,34 @@ def config_editor_labels() -> tuple[str, ...]:
     )
 
 
+CONFIG_EDITOR_CATEGORIES: tuple[tuple[str, tuple[int, ...]], ...] = (
+    ("External", (0,)),
+    ("Display", (2, 5, 1, 3, 4, 6)),
+    ("Sorting", (7, 8, 9)),
+    ("Behavior", (10, 11)),
+    ("Logging", (12,)),
+)
+
+
+def config_editor_visual_order() -> tuple[int, ...]:
+    """Return field indices in visual display order."""
+    result: list[int] = []
+    for _header, field_indices in CONFIG_EDITOR_CATEGORIES:
+        result.extend(field_indices)
+    return tuple(result)
+
+
+def move_config_cursor_visual(cursor_index: int, delta: int) -> int:
+    """Move cursor by *delta* steps in visual order, returning the new field index."""
+    order = config_editor_visual_order()
+    try:
+        pos = order.index(cursor_index)
+    except ValueError:
+        pos = 0
+    new_pos = max(0, min(len(order) - 1, pos + delta))
+    return order[new_pos]
+
+
 def apply_config_to_runtime_state(state: AppState, config: AppConfig) -> AppState:
     return replace(
         state,

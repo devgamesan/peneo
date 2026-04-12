@@ -53,7 +53,7 @@ from .reducer_common import (
     apply_config_to_runtime_state,
     cycle_config_editor_value,
     finalize,
-    normalize_config_editor_cursor,
+    move_config_cursor_visual,
     notification_for_external_launch,
     run_external_launch_request,
     split_terminal_exit_message,
@@ -123,8 +123,8 @@ def handle_terminal_config_action(
                 state,
                 config_editor=replace(
                     state.config_editor,
-                    cursor_index=normalize_config_editor_cursor(
-                        state.config_editor.cursor_index + action.delta
+                    cursor_index=move_config_cursor_visual(
+                        state.config_editor.cursor_index, action.delta
                     ),
                 ),
             )
