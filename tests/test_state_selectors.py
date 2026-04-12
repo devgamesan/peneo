@@ -1770,10 +1770,13 @@ def test_select_config_dialog_state_formats_editor_lines() -> None:
     assert dialog is not None
     assert dialog.title == "Config Editor*"
     assert "Path: /tmp/peneo/config.toml" in dialog.lines
+    assert "  ── External ──" in dialog.lines
     assert "  Editor command: system default" in dialog.lines
+    assert "  ── Display ──" in dialog.lines
     assert "> Theme: textual-dark" in dialog.lines
-    assert "  Show preview: true" in dialog.lines
     assert "  Preview syntax theme: auto" in dialog.lines
+    assert "  Show preview: true" in dialog.lines
+    assert "  ── Sorting ──" in dialog.lines
     assert "  Default sort field: name" in dialog.lines
     assert "Editor presets: system default, nvim, vim, nano, hx, micro, emacs -nw" in dialog.lines
     assert "Terminal launch templates: edit config.toml with e" in dialog.lines
