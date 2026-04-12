@@ -87,6 +87,14 @@ from peneo.ui import (
 )
 
 
+def _active_app_theme(state: AppState) -> str:
+    """Return the live theme shown in the UI, including config-editor previews."""
+
+    if state.ui_mode == "CONFIG" and state.config_editor is not None:
+        return state.config_editor.draft.display.theme
+    return state.config.display.theme
+
+
 class PeneoApp(App[None]):
     """Three-pane shell with reducer-driven file operations."""
 
@@ -261,6 +269,23 @@ class PeneoApp(App[None]):
         command_palette_layer.styles.height = region.height
         command_palette_layer.styles.offset = (region.x, max(0, region.y - 1))
 
+    def _update_config_dialog_geometry(self) -> None:
+        """Constrain the config dialog overlay to the current pane."""
+
+        try:
+            config_dialog_layer = self.query_one("#config-dialog-layer", Container)
+            current_pane = self.query_one("#current-pane", MainPane)
+        except NoMatches:
+            return
+
+        region = current_pane.region
+        if region.width <= 0 or region.height <= 0:
+            return
+
+        config_dialog_layer.styles.width = region.width
+        config_dialog_layer.styles.height = region.height
+        config_dialog_layer.styles.offset = (region.x, max(0, region.y - 1))
+
     async def on_mount(self) -> None:
         """Load the initial directory snapshot after the UI mounts."""
 
@@ -315,13 +340,13 @@ class PeneoApp(App[None]):
         """Apply reducer actions, refresh the UI, and schedule any effects."""
 
         previous_state = self._app_state
+        previous_theme = _active_app_theme(previous_state)
         changed, effects = self._apply_actions(actions)
         sync_runtime_state(self, previous_state, self._app_state)
-        theme_changed = (
-            previous_state.config.display.theme != self._app_state.config.display.theme
-        )
+        next_theme = _active_app_theme(self._app_state)
+        theme_changed = previous_theme != next_theme
         if theme_changed:
-            self.theme = self._app_state.config.display.theme
+            self.theme = next_theme
         if previous_state.config != self._app_state.config:
             self._sync_external_launch_service()
         if changed or theme_changed:
@@ -421,6 +446,7 @@ class PeneoApp(App[None]):
 
         self._update_pane_visibility(self.size.width if width is None else width)
         self._update_command_palette_geometry()
+        self._update_config_dialog_geometry()
 
     def _resize_split_terminal_session(self) -> None:
         resize_split_terminal_session(
