@@ -39,7 +39,7 @@ def test_render_shell_init_outputs_peneo_cd_function() -> None:
     output = cli.render_shell_init("bash")
 
     assert "zivo-cd()" in output
-    assert 'command peneo --print-last-dir "$@"' in output
+    assert 'command zivo --print-last-dir "$@"' in output
     assert 'builtin cd -- "$target"' in output
 
 
@@ -271,7 +271,7 @@ def test_main_logs_and_reraises_runtime_exception(monkeypatch) -> None:
     with pytest.raises(RuntimeError, match="boom"):
         cli.main([])
 
-    assert captured == ["Peneo crashed during startup or runtime"]
+    assert captured == ["zivo crashed during startup or runtime"]
 
 
 def test_startup_notification_includes_logging_warning() -> None:

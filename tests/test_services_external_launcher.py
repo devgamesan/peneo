@@ -495,7 +495,7 @@ def test_live_external_launch_service_formats_windows_native_error(tmp_path) -> 
         OSError,
         match=(
             f"Failed to open {readme.resolve()}: "
-            "Windows native is unsupported; run Peneo from WSL"
+            "Windows native is unsupported; run zivo from WSL"
         ),
     ):
         service.execute(ExternalLaunchRequest(kind="open_file", path=str(readme)))
@@ -612,7 +612,7 @@ def test_run_foreground_command_uses_current_standard_streams(monkeypatch) -> No
     monkeypatch.setattr(sys, "stdin", stdin)
     monkeypatch.setattr(sys, "stdout", stdout)
     monkeypatch.setattr(sys, "stderr", stderr)
-    monkeypatch.setattr("peneo.adapters.external_launcher.subprocess.run", fake_run)
+    monkeypatch.setattr("zivo.adapters.external_launcher.subprocess.run", fake_run)
 
     _run_foreground_command(("nvim", "README.md"), "/tmp/project")
 

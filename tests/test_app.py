@@ -941,7 +941,7 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
     async with app.run_test():
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
-        await _wait_for_parent_entries(app, ["peneo-app", "sibling"])
+        await _wait_for_parent_entries(app, ["zivo-app", "sibling"])
         await _wait_for_child_entries(app, ["spec.md"])
 
         parent_pane = app.query_one("#parent-pane", SidePane)
@@ -961,7 +961,7 @@ async def test_app_renders_loaded_three_pane_shell() -> None:
         assert str(parent_title.renderable) == "Parent Directory"
         assert str(current_title.renderable) == "Current Directory"
         assert str(child_title.renderable) == "Child Directory"
-        assert parent_entries == ["peneo-app", "sibling"]
+        assert parent_entries == ["zivo-app", "sibling"]
         parent_renderable = parent_list.renderable
         assert isinstance(parent_renderable, Text)
         assert _text_has_style(
@@ -1406,7 +1406,7 @@ async def test_app_tab_shortcuts_switch_between_browser_tabs() -> None:
 
         tab_bar = await _wait_for_tab_bar(app)
         assert tab_bar.display is True
-        assert str(tab_bar.renderable) == "[1:peneo-tabs] [2:peneo-tabs]"
+        assert str(tab_bar.renderable) == "[1:zivo-tabs] [2:zivo-tabs]"
         assert app.focused is current_table
 
         await pilot.press("enter")
