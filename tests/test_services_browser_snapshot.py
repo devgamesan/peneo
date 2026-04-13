@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from peneo.adapters import LocalFilesystemAdapter
-from peneo.services import FakeBrowserSnapshotLoader, LiveBrowserSnapshotLoader
-from peneo.state import BrowserSnapshot, DirectoryEntryState, GrepSearchResultState, PaneState
+from zivo.adapters import LocalFilesystemAdapter
+from zivo.services import FakeBrowserSnapshotLoader, LiveBrowserSnapshotLoader
+from zivo.state import BrowserSnapshot, DirectoryEntryState, GrepSearchResultState, PaneState
 
 
 @dataclass
@@ -325,7 +325,7 @@ def test_live_browser_snapshot_loader_invalidates_selected_directory_cache_entry
 
 
 def test_fake_browser_snapshot_loader_prefers_requested_cursor_path() -> None:
-    path = "/tmp/peneo"
+    path = "/tmp/zivo"
     docs = f"{path}/docs"
     src = f"{path}/src"
     snapshot = BrowserSnapshot(

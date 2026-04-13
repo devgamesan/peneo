@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from peneo.__main__ import main
+from zivo.__main__ import main
 
 
 def test_main_runs_app() -> None:

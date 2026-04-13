@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import peneo.__main__ as cli
-from peneo.models import AppConfig, BehaviorConfig, ConfigLoadResult, LoggingConfig
-from peneo.services.logging import LoggingSetupResult
+import zivo.__main__ as cli
+from zivo.models import AppConfig, BehaviorConfig, ConfigLoadResult, LoggingConfig
+from zivo.services.logging import LoggingSetupResult
 
 
 class DummyApp:
@@ -38,18 +38,18 @@ class DummyTextStream(io.StringIO):
 def test_render_shell_init_outputs_peneo_cd_function() -> None:
     output = cli.render_shell_init("bash")
 
-    assert "peneo-cd()" in output
+    assert "zivo-cd()" in output
     assert 'command peneo --print-last-dir "$@"' in output
     assert 'builtin cd -- "$target"' in output
 
 
 def test_main_print_last_dir_outputs_return_value(capsys, monkeypatch) -> None:
-    app = DummyApp(return_value="/tmp/peneo-last-dir")
+    app = DummyApp(return_value="/tmp/zivo-last-dir")
     monkeypatch.setattr(cli, "load_app_config", lambda: ConfigLoadResult(config=AppConfig()))
     monkeypatch.setattr(
         cli,
         "configure_file_logging",
-        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/peneo.log"),
+        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/zivo.log"),
     )
     monkeypatch.setattr(cli, "create_app", lambda **_kwargs: app)
 
@@ -57,16 +57,16 @@ def test_main_print_last_dir_outputs_return_value(capsys, monkeypatch) -> None:
 
     assert return_code == 0
     assert app.run_calls == 1
-    assert capsys.readouterr().out == "/tmp/peneo-last-dir\n"
+    assert capsys.readouterr().out == "/tmp/zivo-last-dir\n"
 
 
 def test_main_print_last_dir_falls_back_to_current_path(capsys, monkeypatch) -> None:
-    app = DummyApp(return_value=None, current_path="/tmp/peneo-fallback")
+    app = DummyApp(return_value=None, current_path="/tmp/zivo-fallback")
     monkeypatch.setattr(cli, "load_app_config", lambda: ConfigLoadResult(config=AppConfig()))
     monkeypatch.setattr(
         cli,
         "configure_file_logging",
-        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/peneo.log"),
+        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/zivo.log"),
     )
     monkeypatch.setattr(cli, "create_app", lambda **_kwargs: app)
 
@@ -74,7 +74,7 @@ def test_main_print_last_dir_falls_back_to_current_path(capsys, monkeypatch) -> 
 
     assert return_code == 0
     assert app.run_calls == 1
-    assert capsys.readouterr().out == "/tmp/peneo-fallback\n"
+    assert capsys.readouterr().out == "/tmp/zivo-fallback\n"
 
 
 def test_shell_integration_stdio_redirects_standard_streams_to_tty(monkeypatch) -> None:
@@ -149,7 +149,7 @@ def test_main_print_last_dir_runs_app_with_tty_streams_when_stdout_is_captured(
     tty_stdin = DummyTextStream(isatty=True)
     tty_stdout = DummyTextStream(isatty=True)
     tty_stderr = DummyTextStream(isatty=True)
-    app = DummyApp(return_value="/tmp/peneo-last-dir")
+    app = DummyApp(return_value="/tmp/zivo-last-dir")
 
     def run_with_tty_streams(*, mouse: bool = True) -> None:
         app.run_calls += 1
@@ -172,7 +172,7 @@ def test_main_print_last_dir_runs_app_with_tty_streams_when_stdout_is_captured(
     monkeypatch.setattr(
         cli,
         "configure_file_logging",
-        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/peneo.log"),
+        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/zivo.log"),
     )
     monkeypatch.setattr(cli, "create_app", lambda **_kwargs: app)
     monkeypatch.setattr(
@@ -189,7 +189,7 @@ def test_main_print_last_dir_runs_app_with_tty_streams_when_stdout_is_captured(
 
     assert return_code == 0
     assert app.run_calls == 1
-    assert original_stdout.getvalue() == "/tmp/peneo-last-dir\n"
+    assert original_stdout.getvalue() == "/tmp/zivo-last-dir\n"
     assert sys.stdout is original_stdout
     assert tty_stdout.closed is True
 
@@ -256,7 +256,7 @@ def test_main_logs_and_reraises_runtime_exception(monkeypatch) -> None:
     monkeypatch.setattr(
         cli,
         "configure_file_logging",
-        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/peneo.log"),
+        lambda **_kwargs: LoggingSetupResult(enabled=True, path="/tmp/zivo.log"),
     )
     monkeypatch.setattr(cli, "create_app", lambda **_kwargs: app)
 

@@ -1,14 +1,14 @@
 import logging
 from pathlib import Path
 
-from peneo.models import LoggingConfig
-from peneo.services.logging import configure_file_logging, resolve_default_log_path
+from zivo.models import LoggingConfig
+from zivo.services.logging import configure_file_logging, resolve_default_log_path
 
 
 def test_resolve_default_log_path_uses_config_directory() -> None:
-    path = resolve_default_log_path("/tmp/peneo/config.toml")
+    path = resolve_default_log_path("/tmp/zivo/config.toml")
 
-    assert path == Path("/tmp/peneo/peneo.log")
+    assert path == Path("/tmp/zivo/zivo.log")
 
 
 def test_configure_file_logging_writes_error_entries(tmp_path) -> None:
