@@ -1,5 +1,6 @@
-import pytest
 from dataclasses import replace
+
+import pytest
 
 from tests.state_test_helpers import reduce_state
 from zivo.models import (
