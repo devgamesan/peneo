@@ -177,11 +177,81 @@ class MacOsTrashService:
         path: str,
         send_to_trash: Callable[[], None],
     ) -> TrashRestoreRecord | None:
+        # 1. 元のパス情報を収集
+        original_path = str(Path(path).expanduser().resolve())
+        original_name = Path(original_path).name
+
+        # 2. ゴミ箱内の既存アイテムを確認
+        trash_path = Path.home() / ".Trash"
+        before_trash: set[str] = set()
+        if trash_path.exists():
+            try:
+                before_trash = {item.name for item in trash_path.iterdir()}
+            except PermissionError:
+                pass
+
+        # 3. ゴミ箱に移動実行
         send_to_trash()
-        return None
+
+        # 4. ゴミ箱内の新規アイテムを検出
+        if not trash_path.exists():
+            return None
+
+        try:
+            after_trash = {item.name for item in trash_path.iterdir()}
+        except PermissionError:
+            return None
+
+        new_items = after_trash - before_trash
+
+        # 5. 元ファイル名と一致するアイテムを探す
+        candidates: list[Path] = []
+        for item_name in new_items:
+            if item_name == original_name or item_name.startswith(f"{original_name} "):
+                trashed_path = trash_path / item_name
+                if trashed_path.exists():
+                    candidates.append(trashed_path)
+
+        if not candidates:
+            return None
+
+        # 6. 最も新しいアイテムを選択（作成時間で判定）
+        trashed_path = max(candidates, key=lambda p: p.stat().st_mtime)
+
+        # 7. メタデータパスの生成（ダミーを使用）
+        metadata_path = str(trashed_path) + ".zivorestore"
+
+        return TrashRestoreRecord(
+            original_path=original_path,
+            trashed_path=str(trashed_path),
+            metadata_path=metadata_path,
+        )
 
     def restore(self, record: TrashRestoreRecord) -> str:
-        raise OSError("Trash restore is not supported on this platform")
+        trashed_path = Path(record.trashed_path)
+        original_path = Path(record.original_path)
+
+        if not trashed_path.exists():
+            raise OSError(f"Trashed entry not found: {trashed_path.name}")
+        if original_path.exists():
+            raise OSError(f"Restore destination already exists: {original_path.name}")
+
+        original_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            shutil.move(str(trashed_path), str(original_path))
+        except OSError as error:
+            raise OSError(str(error) or f"Failed to restore {original_path.name}") from error
+
+        # メタデータのクリーンアップ
+        metadata_path = Path(record.metadata_path)
+        if metadata_path.exists() and metadata_path.name.endswith(".zivorestore"):
+            try:
+                metadata_path.unlink()
+            except OSError:
+                pass
+
+        return str(original_path)
 
 
 @dataclass(frozen=True)

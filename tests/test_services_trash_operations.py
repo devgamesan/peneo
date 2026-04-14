@@ -1,5 +1,7 @@
+from pathlib import Path
+
 from zivo.models import TrashRestoreRecord
-from zivo.services.trash_operations import LinuxTrashService
+from zivo.services.trash_operations import LinuxTrashService, MacOsTrashService
 
 
 def test_linux_trash_service_captures_restorable_metadata(tmp_path, monkeypatch) -> None:
@@ -60,3 +62,47 @@ def test_linux_trash_service_restores_record(tmp_path, monkeypatch) -> None:
     assert destination.read_text(encoding="utf-8") == "restored\n"
     assert trashed_path.exists() is False
     assert metadata_path.exists() is False
+
+
+def test_macos_trash_service_captures_restorable_metadata(tmp_path, monkeypatch) -> None:
+    trash_path = tmp_path / ".Trash"
+    trash_path.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: trash_path.parent))
+
+    original_path = tmp_path / "docs"
+    original_path.write_text("original\n", encoding="utf-8")
+
+    def fake_send_to_trash() -> None:
+        (trash_path / "docs").write_text("trashed\n", encoding="utf-8")
+
+    service = MacOsTrashService()
+
+    record = service.capture_restorable_trash(str(original_path), fake_send_to_trash)
+
+    assert record == TrashRestoreRecord(
+        original_path=str(original_path),
+        trashed_path=str(trash_path / "docs"),
+        metadata_path=str(trash_path / "docs") + ".zivorestore",
+    )
+
+
+def test_macos_trash_service_restores_record(tmp_path, monkeypatch) -> None:
+    trash_path = tmp_path / ".Trash"
+    trash_path.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: trash_path.parent))
+
+    trashed_path = trash_path / "docs"
+    trashed_path.write_text("restored\n", encoding="utf-8")
+
+    destination = tmp_path / "restored" / "docs"
+    record = TrashRestoreRecord(
+        original_path=str(destination),
+        trashed_path=str(trashed_path),
+        metadata_path=str(trashed_path) + ".zivorestore",
+    )
+
+    restored_path = MacOsTrashService().restore(record)
+
+    assert restored_path == str(destination)
+    assert destination.read_text(encoding="utf-8") == "restored\n"
+    assert trashed_path.exists() is False
