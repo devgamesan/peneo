@@ -499,6 +499,7 @@ def select_input_bar_state(state: AppState) -> InputBarState | None:
             mode_label="FILTER",
             prompt="Filter: ",
             value=state.filter.query,
+            cursor_pos=len(state.filter.query),
             hint=hint,
         )
 
@@ -526,6 +527,7 @@ def select_input_dialog_state(state: AppState) -> InputDialogState | None:
         title=title,
         prompt=state.pending_input.prompt,
         value=state.pending_input.value,
+        cursor_pos=state.pending_input.cursor_pos,
         hint="enter apply | esc cancel",
     )
 

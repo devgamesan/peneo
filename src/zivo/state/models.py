@@ -248,6 +248,7 @@ class PendingInputState:
 
     prompt: str
     value: str = ""
+    cursor_pos: int = 0
     target_path: str | None = None
     create_kind: CreateKind | None = None
     extract_source_path: str | None = None

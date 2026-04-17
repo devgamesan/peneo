@@ -45,14 +45,17 @@ from .actions import (
     ConfirmZipCompress,
     CopyTargets,
     CutTargets,
+    DeletePendingInputForward,
     DismissNameConflict,
     FileMutationCompleted,
     FileMutationFailed,
+    MovePendingInputCursor,
     PasteClipboard,
     PasteIntoPendingInput,
     RequestBrowserSnapshot,
     ResolvePasteConflict,
     SelectAllVisibleEntries,
+    SetPendingInputCursor,
     SetPendingInputValue,
     SubmitPendingInput,
     ToggleSelection,
@@ -201,7 +204,8 @@ def _handle_begin_extract_archive_input(
             notification=None,
             pending_input=PendingInputState(
                 prompt="Extract to: ",
-                value=default_extract_destination(action.source_path),
+                value=(dest := default_extract_destination(action.source_path)),
+                cursor_pos=len(dest),
                 extract_source_path=action.source_path,
             ),
             command_palette=None,
@@ -230,10 +234,13 @@ def _handle_begin_zip_compress_input(
             notification=None,
             pending_input=PendingInputState(
                 prompt="Compress to: ",
-                value=default_zip_destination(
-                    action.source_paths,
-                    state.current_pane.directory_path,
+                value=(
+                    dest := default_zip_destination(
+                        action.source_paths,
+                        state.current_pane.directory_path,
+                    )
                 ),
+                cursor_pos=len(dest),
                 zip_source_paths=action.source_paths,
             ),
             command_palette=None,
@@ -266,6 +273,7 @@ def _handle_begin_rename_input(
             pending_input=PendingInputState(
                 prompt="Rename: ",
                 value=entry.name,
+                cursor_pos=len(entry.name),
                 target_path=entry.path,
             ),
             command_palette=None,
@@ -414,7 +422,11 @@ def _handle_set_pending_input_value(
     return finalize(
         replace(
             state,
-            pending_input=replace(state.pending_input, value=action.value),
+            pending_input=replace(
+                state.pending_input,
+                value=action.value,
+                cursor_pos=action.cursor_pos,
+            ),
         )
     )
 
@@ -429,7 +441,67 @@ def _handle_paste_into_pending_input(
     pasted = "".join(c for c in action.text if c.isprintable())
     if not pasted:
         return finalize(state)
-    new_value = state.pending_input.value + pasted
+    value = state.pending_input.value
+    pos = state.pending_input.cursor_pos
+    new_value = value[:pos] + pasted + value[pos:]
+    return finalize(
+        replace(
+            state,
+            pending_input=replace(
+                state.pending_input,
+                value=new_value,
+                cursor_pos=pos + len(pasted),
+            ),
+        )
+    )
+
+
+def _handle_move_pending_input_cursor(
+    state: AppState,
+    action: MovePendingInputCursor,
+    reduce_state: ReducerFn,
+) -> ReduceResult | None:
+    if state.pending_input is None:
+        return finalize(state)
+    max_pos = len(state.pending_input.value)
+    new_pos = max(0, min(max_pos, state.pending_input.cursor_pos + action.delta))
+    return finalize(
+        replace(
+            state,
+            pending_input=replace(state.pending_input, cursor_pos=new_pos),
+        )
+    )
+
+
+def _handle_set_pending_input_cursor(
+    state: AppState,
+    action: SetPendingInputCursor,
+    reduce_state: ReducerFn,
+) -> ReduceResult | None:
+    if state.pending_input is None:
+        return finalize(state)
+    max_pos = len(state.pending_input.value)
+    new_pos = max(0, min(max_pos, action.cursor_pos))
+    return finalize(
+        replace(
+            state,
+            pending_input=replace(state.pending_input, cursor_pos=new_pos),
+        )
+    )
+
+
+def _handle_delete_pending_input_forward(
+    state: AppState,
+    action: DeletePendingInputForward,
+    reduce_state: ReducerFn,
+) -> ReduceResult | None:
+    if state.pending_input is None:
+        return finalize(state)
+    value = state.pending_input.value
+    pos = state.pending_input.cursor_pos
+    if pos >= len(value):
+        return finalize(state)
+    new_value = value[:pos] + value[pos + 1 :]
     return finalize(
         replace(
             state,
@@ -1479,6 +1551,9 @@ _MUTATION_HANDLERS: dict[type[Action], _MutationHandler] = {
     BeginCreateInput: _handle_begin_create_input,
     BeginEmptyTrash: _handle_begin_empty_trash,
     SetPendingInputValue: _handle_set_pending_input_value,
+    MovePendingInputCursor: _handle_move_pending_input_cursor,
+    SetPendingInputCursor: _handle_set_pending_input_cursor,
+    DeletePendingInputForward: _handle_delete_pending_input_forward,
     PasteIntoPendingInput: _handle_paste_into_pending_input,
     CancelPendingInput: _handle_cancel_pending_input,
     SubmitPendingInput: _handle_submit_pending_input,

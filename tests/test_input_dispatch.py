@@ -47,6 +47,7 @@ from zivo.state import (
     MoveConfigEditorCursor,
     MoveCursor,
     MoveCursorAndSelectRange,
+    MovePendingInputCursor,
     NameConflictState,
     NotificationState,
     OpenFindResultInEditor,
@@ -1544,12 +1545,12 @@ def test_rename_character_dispatches_input_update() -> None:
     state = replace(
         state,
         ui_mode="RENAME",
-        pending_input=PendingInputState(prompt="Rename: ", value="doc"),
+        pending_input=PendingInputState(prompt="Rename: ", value="doc", cursor_pos=3),
     )
 
     actions = dispatch_key_input(state, key="s", character="s")
 
-    assert actions == (SetNotification(None), SetPendingInputValue("docs"))
+    assert actions == (SetNotification(None), SetPendingInputValue("docs", cursor_pos=4))
 
 
 def test_create_space_dispatches_input_update() -> None:
@@ -1557,12 +1558,14 @@ def test_create_space_dispatches_input_update() -> None:
     state = replace(
         state,
         ui_mode="CREATE",
-        pending_input=PendingInputState(prompt="New file: ", value="new", create_kind="file"),
+        pending_input=PendingInputState(
+            prompt="New file: ", value="new", cursor_pos=3, create_kind="file"
+        ),
     )
 
     actions = dispatch_key_input(state, key="space", character=" ")
 
-    assert actions == (SetNotification(None), SetPendingInputValue("new "))
+    assert actions == (SetNotification(None), SetPendingInputValue("new ", cursor_pos=4))
 
 
 def test_zip_enter_dispatches_submit_pending_input() -> None:
@@ -1588,13 +1591,14 @@ def test_zip_printable_character_dispatches_input_update() -> None:
         pending_input=PendingInputState(
             prompt="Compress to: ",
             value="/tmp/output",
+            cursor_pos=11,
             zip_source_paths=("/home/tadashi/develop/zivo/docs",),
         ),
     )
 
     actions = dispatch_key_input(state, key="z", character="z")
 
-    assert actions == (SetNotification(None), SetPendingInputValue("/tmp/outputz"))
+    assert actions == (SetNotification(None), SetPendingInputValue("/tmp/outputz", cursor_pos=12))
 
 
 def test_pending_input_backspace_updates_value() -> None:
@@ -1602,12 +1606,12 @@ def test_pending_input_backspace_updates_value() -> None:
     state = replace(
         state,
         ui_mode="RENAME",
-        pending_input=PendingInputState(prompt="Rename: ", value="docs"),
+        pending_input=PendingInputState(prompt="Rename: ", value="docs", cursor_pos=4),
     )
 
     actions = dispatch_key_input(state, key="backspace")
 
-    assert actions == (SetNotification(None), SetPendingInputValue("doc"))
+    assert actions == (SetNotification(None), SetPendingInputValue("doc", cursor_pos=3))
 
 
 def test_pending_input_enter_submits() -> None:
@@ -1631,19 +1635,12 @@ def test_pending_input_unbound_key_shows_guidance() -> None:
     state = replace(
         state,
         ui_mode="RENAME",
-        pending_input=PendingInputState(prompt="Rename: ", value="docs"),
+        pending_input=PendingInputState(prompt="Rename: ", value="docs", cursor_pos=4),
     )
 
     actions = dispatch_key_input(state, key="left")
 
-    assert actions == (
-        SetNotification(
-            NotificationState(
-                level="warning",
-                message="Use Enter to apply, Esc to cancel, or paste",
-            ),
-        ),
-    )
+    assert actions == (SetNotification(None), MovePendingInputCursor(delta=-1))
 
 
 def test_busy_key_shows_warning_message() -> None:

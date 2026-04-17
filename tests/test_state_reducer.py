@@ -948,6 +948,7 @@ def test_begin_rename_input_sets_initial_value_from_target_name() -> None:
     assert next_state.pending_input == PendingInputState(
         prompt="Rename: ",
         value="docs",
+        cursor_pos=4,
         target_path="/home/tadashi/develop/zivo/docs",
     )
 
@@ -1032,6 +1033,7 @@ def test_submit_command_palette_runs_create_file_flow() -> None:
 
 def test_begin_extract_archive_input_sets_default_destination() -> None:
     archive_path = "/home/tadashi/develop/zivo/archive.tar.gz"
+    expected_value = str(Path("/home/tadashi/develop/zivo/archive").resolve())
     next_state = _reduce_state(
         build_initial_app_state(),
         BeginExtractArchiveInput(archive_path),
@@ -1040,13 +1042,15 @@ def test_begin_extract_archive_input_sets_default_destination() -> None:
     assert next_state.ui_mode == "EXTRACT"
     assert next_state.pending_input == PendingInputState(
         prompt="Extract to: ",
-        value=str(Path("/home/tadashi/develop/zivo/archive").resolve()),
+        value=expected_value,
+        cursor_pos=len(expected_value),
         extract_source_path=archive_path,
     )
 
 
 def test_begin_zip_compress_input_sets_default_destination() -> None:
     source_path = "/home/tadashi/develop/zivo/README.md"
+    expected_value = str(Path("/home/tadashi/develop/zivo/README.zip").resolve())
     next_state = _reduce_state(
         build_initial_app_state(),
         BeginZipCompressInput((source_path,)),
@@ -1055,7 +1059,8 @@ def test_begin_zip_compress_input_sets_default_destination() -> None:
     assert next_state.ui_mode == "ZIP"
     assert next_state.pending_input == PendingInputState(
         prompt="Compress to: ",
-        value=str(Path("/home/tadashi/develop/zivo/README.zip").resolve()),
+        value=expected_value,
+        cursor_pos=len(expected_value),
         zip_source_paths=(source_path,),
     )
 
@@ -3783,7 +3788,7 @@ def test_set_pending_input_value_updates_current_value() -> None:
         pending_input=PendingInputState(prompt="New file: ", value="", create_kind="file"),
     )
 
-    next_state = _reduce_state(state, SetPendingInputValue("notes.txt"))
+    next_state = _reduce_state(state, SetPendingInputValue("notes.txt", cursor_pos=8))
 
     assert next_state.pending_input is not None
     assert next_state.pending_input.value == "notes.txt"
