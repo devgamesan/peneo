@@ -4700,7 +4700,7 @@ async def test_app_filter_mode_accepts_printable_bound_keys() -> None:
         assert app.app_state.ui_mode == "FILTER"
         assert app.app_state.filter.query == "yxp"
         assert current_table.show_cursor is False
-        assert str(input_bar.renderable) == "[FILTER] Filter: yxp  enter/down apply | esc clear"
+        assert str(input_bar.renderable) == "[FILTER] Filter: yxp_  enter/down apply | esc clear"
 
 
 @pytest.mark.asyncio
@@ -4762,7 +4762,7 @@ async def test_app_confirmed_filter_stays_visible_in_current_pane() -> None:
         assert app.app_state.filter.active is True
         assert app.app_state.filter.query == "docs"
         assert input_bar.display is True
-        assert str(input_bar.renderable) == "[FILTER] Filter: docs  esc clear"
+        assert str(input_bar.renderable) == "[FILTER] Filter: docs_  esc clear"
 
 
 @pytest.mark.asyncio
@@ -4795,7 +4795,7 @@ async def test_app_filter_down_confirms_and_returns_to_browsing() -> None:
         assert app.app_state.filter.active is True
         assert app.app_state.filter.query == "docs"
         assert input_bar.display is True
-        assert str(input_bar.renderable) == "[FILTER] Filter: docs  esc clear"
+        assert str(input_bar.renderable) == "[FILTER] Filter: docs_  esc clear"
 
 
 @pytest.mark.asyncio

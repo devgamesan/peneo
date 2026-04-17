@@ -41,13 +41,24 @@ class InputDialog(Container):
 
         self.query_one("#input-dialog-title", Static).update(state.title)
         self.query_one("#input-dialog-value", Static).update(
-            self._render_input(state.prompt, state.value)
+            self._render_input(state.prompt, state.value, state.cursor_pos)
         )
         self.query_one("#input-dialog-hint", Static).update(f"  {state.hint}")
 
     @staticmethod
-    def _render_input(prompt: str, value: str) -> Text:
+    def _render_input(prompt: str, value: str, cursor_pos: int) -> Text:
         text = Text()
         text.append(prompt, style="bold")
-        text.append(value or "_", style="underline")
+        if not value:
+            text.append("_", style="reverse")
+            return text
+        before = value[:cursor_pos]
+        at_cursor = value[cursor_pos] if cursor_pos < len(value) else None
+        after = value[cursor_pos + 1 :]
+        text.append(before, style="underline")
+        if at_cursor is not None:
+            text.append(at_cursor, style="reverse underline")
+            text.append(after, style="underline")
+        else:
+            text.append("_", style="reverse")
         return text

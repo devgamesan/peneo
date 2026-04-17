@@ -42,6 +42,7 @@ from .actions import (
     CutTargets,
     CycleConfigEditorValue,
     CycleGrepSearchField,
+    DeletePendingInputForward,
     DismissAttributeDialog,
     DismissConfigEditor,
     DismissNameConflict,
@@ -57,6 +58,7 @@ from .actions import (
     MoveCursor,
     MoveCursorAndSelectRange,
     MoveCursorByPage,
+    MovePendingInputCursor,
     OpenFindResultInEditor,
     OpenGrepResultInEditor,
     OpenNewTab,
@@ -75,6 +77,7 @@ from .actions import (
     SetFilterQuery,
     SetGrepSearchField,
     SetNotification,
+    SetPendingInputCursor,
     SetPendingInputValue,
     SetShellCommandValue,
     SetSort,
@@ -654,15 +657,40 @@ def _dispatch_input_dialog_input(
         return _supported(SubmitPendingInput())
 
     if key == "backspace":
-        current_value = state.pending_input.value if state.pending_input is not None else ""
-        return _supported(SetPendingInputValue(current_value[:-1]))
+        pending = state.pending_input
+        if pending is None or pending.cursor_pos == 0:
+            return _supported()
+        pos = pending.cursor_pos
+        new_value = pending.value[: pos - 1] + pending.value[pos:]
+        return _supported(SetPendingInputValue(new_value, pos - 1))
+
+    if key == "delete":
+        return _supported(DeletePendingInputForward())
+
+    if key == "left":
+        return _supported(MovePendingInputCursor(delta=-1))
+
+    if key == "right":
+        return _supported(MovePendingInputCursor(delta=1))
+
+    if key == "home":
+        return _supported(SetPendingInputCursor(cursor_pos=0))
+
+    if key == "end":
+        pending = state.pending_input
+        end_pos = len(pending.value) if pending is not None else 0
+        return _supported(SetPendingInputCursor(cursor_pos=end_pos))
 
     if key == "ctrl+v":
         return _supported()  # handled by on_key in app.py
 
     if character and character.isprintable():
-        current_value = state.pending_input.value if state.pending_input is not None else ""
-        return _supported(SetPendingInputValue(f"{current_value}{character}"))
+        pending = state.pending_input
+        if pending is None:
+            return _supported()
+        pos = pending.cursor_pos
+        new_value = pending.value[:pos] + character + pending.value[pos:]
+        return _supported(SetPendingInputValue(new_value, pos + 1))
 
     return _warn("Use Enter to apply, Esc to cancel, or paste")
 

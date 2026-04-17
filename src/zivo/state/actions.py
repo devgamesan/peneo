@@ -265,9 +265,29 @@ class GrepSearchFailed:
 
 @dataclass(frozen=True)
 class SetPendingInputValue:
-    """Update the rename/create text input value."""
+    """Update the rename/create text input value and cursor position."""
 
     value: str
+    cursor_pos: int
+
+
+@dataclass(frozen=True)
+class MovePendingInputCursor:
+    """Move the pending input cursor by a relative delta."""
+
+    delta: int
+
+
+@dataclass(frozen=True)
+class SetPendingInputCursor:
+    """Set the pending input cursor to an absolute position."""
+
+    cursor_pos: int
+
+
+@dataclass(frozen=True)
+class DeletePendingInputForward:
+    """Delete the character at the cursor position (forward delete)."""
 
 
 @dataclass(frozen=True)
@@ -945,6 +965,9 @@ Action = (
     | GrepSearchCompleted
     | GrepSearchFailed
     | SetPendingInputValue
+    | MovePendingInputCursor
+    | SetPendingInputCursor
+    | DeletePendingInputForward
     | SetShellCommandValue
     | SubmitPendingInput
     | SubmitShellCommand

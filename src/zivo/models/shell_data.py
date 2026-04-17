@@ -148,6 +148,7 @@ class InputBarState:
     mode_label: str
     prompt: str
     value: str
+    cursor_pos: int
     hint: str
 
 
@@ -228,6 +229,7 @@ class InputDialogState:
     title: str
     prompt: str
     value: str
+    cursor_pos: int
     hint: str
 
 
