@@ -2731,7 +2731,7 @@ async def test_app_command_palette_create_file_opens_context_input() -> None:
         assert input_dialog.state is not None
         assert input_dialog.state.title == "New File"
         assert input_dialog.state.prompt == "New file: "
-        assert input_dialog.state.hint == "enter apply | esc cancel | ctrl+v paste"
+        assert input_dialog.state.hint == "enter apply | esc cancel"
 
 
 @pytest.mark.asyncio
@@ -4856,7 +4856,7 @@ async def test_app_rename_mode_shows_context_input_and_updates_help() -> None:
         assert input_dialog.state is not None
         assert input_dialog.state.title == "Rename"
         assert input_dialog.state.prompt == "Rename: "
-        assert input_dialog.state.hint == "enter apply | esc cancel | ctrl+v paste"
+        assert input_dialog.state.hint == "enter apply | esc cancel"
 
 
 @pytest.mark.asyncio

@@ -1599,7 +1599,7 @@ def test_pending_input_unbound_key_shows_guidance() -> None:
         SetNotification(
             NotificationState(
                 level="warning",
-                message="Use Enter to apply, Esc to cancel, or Ctrl+V to paste",
+                message="Use Enter to apply, Esc to cancel, or paste",
             ),
         ),
     )

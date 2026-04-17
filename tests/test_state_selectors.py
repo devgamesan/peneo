@@ -1734,7 +1734,7 @@ def test_select_input_bar_state_formats_extract_mode() -> None:
     assert input_state is not None
     assert input_state.title == "Extract"
     assert input_state.prompt == "Extract to: "
-    assert input_state.hint == "enter apply | esc cancel | ctrl+v paste"
+    assert input_state.hint == "enter apply | esc cancel"
 
 
 def test_select_input_bar_state_formats_zip_mode() -> None:
@@ -1753,7 +1753,7 @@ def test_select_input_bar_state_formats_zip_mode() -> None:
     assert input_state is not None
     assert input_state.title == "Compress"
     assert input_state.prompt == "Compress to: "
-    assert input_state.hint == "enter apply | esc cancel | ctrl+v paste"
+    assert input_state.hint == "enter apply | esc cancel"
 
 
 def test_select_attribute_dialog_state_formats_selected_entry() -> None:
@@ -2043,7 +2043,7 @@ def test_select_input_bar_state_for_create_mode() -> None:
     assert input_dialog.title == "New File"
     assert input_dialog.prompt == "New file: "
     assert input_dialog.value == "notes.txt"
-    assert input_dialog.hint == "enter apply | esc cancel | ctrl+v paste"
+    assert input_dialog.hint == "enter apply | esc cancel"
 
 
 def test_select_input_bar_state_for_filter_mode() -> None:

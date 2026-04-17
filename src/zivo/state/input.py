@@ -668,7 +668,7 @@ def _dispatch_input_dialog_input(
         current_value = state.pending_input.value if state.pending_input is not None else ""
         return _supported(SetPendingInputValue(f"{current_value}{character}"))
 
-    return _warn("Use Enter to apply, Esc to cancel, or Ctrl+V to paste")
+    return _warn("Use Enter to apply, Esc to cancel, or paste")
 
 
 def _dispatch_shell_command_input(

@@ -526,7 +526,7 @@ def select_input_dialog_state(state: AppState) -> InputDialogState | None:
         title=title,
         prompt=state.pending_input.prompt,
         value=state.pending_input.value,
-        hint="enter apply | esc cancel | ctrl+v paste",
+        hint="enter apply | esc cancel",
     )
 
 
