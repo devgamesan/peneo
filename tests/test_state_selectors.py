@@ -1244,7 +1244,7 @@ def test_select_help_bar_for_split_terminal_focus() -> None:
 
     help_state = select_help_bar_state(state)
 
-    assert help_state.text == "type in terminal | esc close | ctrl+v paste"
+    assert help_state.text == "type in terminal | ctrl+q close | ctrl+v paste"
 
 
 def test_select_status_bar_shows_split_terminal_focus_when_idle() -> None:

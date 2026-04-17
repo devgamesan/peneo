@@ -382,7 +382,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
     if state.split_terminal.visible:
         if state.config.help_bar.split_terminal:
             return HelpBarState(state.config.help_bar.split_terminal)
-        return HelpBarState(("type in terminal | esc close | ctrl+v paste",))
+        return HelpBarState(("type in terminal | ctrl+q close | ctrl+v paste",))
     if state.ui_mode == "CONFIRM":
         if state.delete_confirmation is not None:
             if (
