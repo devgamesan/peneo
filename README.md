@@ -79,7 +79,7 @@ zivo aims to be usable by everyone without complex configuration, plugin install
 | --- | --- | --- |
 | Ubuntu | Supported | Primary verified environment at the moment. |
 | Ubuntu (WSL) | Supported | WSL running Ubuntu is part of the verified environments. |
-| macOS | Not supported at this time | Some fallback implementations exist, but it is not a formally verified target yet. |
+| macOS | Supported | Requires ripgrep (`brew install ripgrep`). Grant Full Disk Access to your terminal for trash operations. |
 | Windows | Not supported at this time | Native Windows runtime is not supported. |
 
 ## Installation
@@ -210,7 +210,7 @@ When a file is focused, press `e` to switch into a terminal editor in the curren
 | `Esc` | Clear selection / Cancel filter |
 | `c` | Copy selected items |
 | `x` | Cut selected items |
-| `p` | Paste from clipboard |
+| `v` | Paste from clipboard |
 | `z` | Undo the last reversible file operation |
 | `C` | Copy paths to clipboard |
 | `r` | Rename selected item |

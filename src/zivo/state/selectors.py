@@ -382,7 +382,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
     if state.split_terminal.visible:
         if state.config.help_bar.split_terminal:
             return HelpBarState(state.config.help_bar.split_terminal)
-        return HelpBarState(("type in terminal | esc close | ctrl+v paste",))
+        return HelpBarState(("type in terminal | ctrl+q close | ctrl+v paste",))
     if state.ui_mode == "CONFIRM":
         if state.delete_confirmation is not None:
             if (
@@ -478,7 +478,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
         return HelpBarState(state.config.help_bar.browsing)
     return HelpBarState(
         (
-            "enter open | e edit | i info | space select | c copy | x cut | p paste | "
+            "enter open | e edit | i info | space select | c copy | x cut | v paste | "
             "r rename | z undo",
             "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to",
             "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit",
@@ -1231,6 +1231,8 @@ def _config_field_value(field_index: int, config: "AppConfig") -> str:  # type: 
         return _format_bool(config.display.directories_first)
     if field_id == "display.grep_preview_context_lines":
         return str(config.display.grep_preview_context_lines)
+    if field_id == "display.split_terminal_position":
+        return config.display.split_terminal_position
     if field_id == "behavior.confirm_delete":
         return _format_bool(config.behavior.confirm_delete)
     if field_id == "behavior.paste_conflict_action":

@@ -425,10 +425,10 @@ def test_browsing_x_dispatches_cut_targets() -> None:
     )
 
 
-def test_browsing_p_dispatches_paste_clipboard() -> None:
+def test_browsing_v_dispatches_paste_clipboard() -> None:
     state = build_initial_app_state()
 
-    actions = dispatch_key_input(state, key="p", character="p")
+    actions = dispatch_key_input(state, key="v", character="v")
 
     assert actions == (SetNotification(None), PasteClipboard())
 
@@ -1671,3 +1671,112 @@ def test_browsing_close_bracket_dispatches_go_forward() -> None:
     actions = dispatch_key_input(state, key="]")
 
     assert actions == (SetNotification(None), GoForward())
+
+
+# ---------------------------------------------------------------------------
+# Split terminal escape key and extended key tests (Issue #573)
+# ---------------------------------------------------------------------------
+
+
+def test_split_terminal_escape_sends_esc_byte() -> None:
+    state = _focused_split_terminal_state()
+
+    actions = dispatch_key_input(state, key="escape")
+
+    assert actions == (SetNotification(None), SendSplitTerminalInput("\x1b"))
+
+
+def test_split_terminal_ctrl_q_closes_terminal() -> None:
+    state = _focused_split_terminal_state()
+
+    actions = dispatch_key_input(state, key="ctrl+q")
+
+    assert actions == (SetNotification(None), ToggleSplitTerminal())
+
+
+def test_split_terminal_function_keys_send_sequences() -> None:
+    state = _focused_split_terminal_state()
+
+    assert dispatch_key_input(state, key="f1") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1bOP"),
+    )
+    assert dispatch_key_input(state, key="f5") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[15~"),
+    )
+    assert dispatch_key_input(state, key="f12") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[24~"),
+    )
+
+
+def test_split_terminal_insert_sends_sequence() -> None:
+    state = _focused_split_terminal_state()
+
+    actions = dispatch_key_input(state, key="insert")
+
+    assert actions == (SetNotification(None), SendSplitTerminalInput("\x1b[2~"))
+
+
+def test_split_terminal_modified_arrows_send_sequences() -> None:
+    state = _focused_split_terminal_state()
+
+    assert dispatch_key_input(state, key="shift+up") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[1;2A"),
+    )
+    assert dispatch_key_input(state, key="ctrl+left") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[1;5D"),
+    )
+    assert dispatch_key_input(state, key="ctrl+shift+right") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[1;6C"),
+    )
+
+
+def test_split_terminal_modified_navigation_sends_sequences() -> None:
+    state = _focused_split_terminal_state()
+
+    assert dispatch_key_input(state, key="ctrl+home") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[1;5H"),
+    )
+    assert dispatch_key_input(state, key="shift+end") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[1;2F"),
+    )
+    assert dispatch_key_input(state, key="ctrl+pagedown") == (
+        SetNotification(None),
+        SendSplitTerminalInput("\x1b[6;5~"),
+    )
+
+
+def test_split_terminal_shift_delete_sends_sequence() -> None:
+    state = _focused_split_terminal_state()
+
+    actions = dispatch_key_input(state, key="shift+delete")
+
+    assert actions == (SetNotification(None), SendSplitTerminalInput("\x1b[3;2~"))
+
+
+def test_split_terminal_ctrl_q_is_not_sent_as_control_character() -> None:
+    """Ctrl+Q should close terminal, not send the XON byte (\\x11)."""
+    state = _focused_split_terminal_state()
+
+    actions = dispatch_key_input(state, key="ctrl+q")
+
+    assert actions == (SetNotification(None), ToggleSplitTerminal())
+
+
+def test_split_terminal_iter_bound_keys_includes_new_keys() -> None:
+    keys = iter_bound_keys()
+
+    assert "ctrl+q" in keys
+    assert "f1" in keys
+    assert "f12" in keys
+    assert "insert" in keys
+    assert "ctrl+up" in keys
+    assert "shift+left" in keys
+    assert "ctrl+shift+right" in keys

@@ -146,7 +146,7 @@ BROWSING_KEYMAP = {
     "a": "select_all",
     "c": "copy_targets",
     "x": "cut_targets",
-    "p": "paste_clipboard",
+    "v": "paste_clipboard",
     "z": "undo_last_operation",
     "~": "go_to_home_directory",
     "H": "begin_history_search",
@@ -178,12 +178,15 @@ CONFLICT_KEYMAP = {
 }
 
 TERMINAL_KEYMAP = {
+    # Actions handled explicitly in _dispatch_split_terminal_input
     "tab": "terminal_tab",
     "ctrl+v": "paste_from_clipboard",
+    "ctrl+q": "close_terminal",
+    # Keys handled via _TERMINAL_KEY_SEQUENCES (kept here for binding registration)
     "enter": "terminal_enter",
     "backspace": "terminal_backspace",
+    "escape": "terminal_escape",
     "delete": "terminal_delete",
-    "escape": "toggle_terminal",
     "home": "terminal_home",
     "end": "terminal_end",
     "pageup": "terminal_pageup",
@@ -193,6 +196,113 @@ TERMINAL_KEYMAP = {
     "left": "terminal_left",
     "right": "terminal_right",
     "ctrl+c": "terminal_ctrl_c",
+    # New keys (binding registration only, handled by _TERMINAL_KEY_SEQUENCES)
+    "insert": "terminal_passthrough",
+    "f1": "terminal_passthrough",
+    "f2": "terminal_passthrough",
+    "f3": "terminal_passthrough",
+    "f4": "terminal_passthrough",
+    "f5": "terminal_passthrough",
+    "f6": "terminal_passthrough",
+    "f7": "terminal_passthrough",
+    "f8": "terminal_passthrough",
+    "f9": "terminal_passthrough",
+    "f10": "terminal_passthrough",
+    "f11": "terminal_passthrough",
+    "f12": "terminal_passthrough",
+    "shift+up": "terminal_passthrough",
+    "shift+down": "terminal_passthrough",
+    "shift+left": "terminal_passthrough",
+    "shift+right": "terminal_passthrough",
+    "ctrl+up": "terminal_passthrough",
+    "ctrl+down": "terminal_passthrough",
+    "ctrl+left": "terminal_passthrough",
+    "ctrl+right": "terminal_passthrough",
+    "shift+home": "terminal_passthrough",
+    "shift+end": "terminal_passthrough",
+    "ctrl+home": "terminal_passthrough",
+    "ctrl+end": "terminal_passthrough",
+    "ctrl+delete": "terminal_passthrough",
+    "ctrl+insert": "terminal_passthrough",
+    "ctrl+pageup": "terminal_passthrough",
+    "ctrl+pagedown": "terminal_passthrough",
+    "shift+pageup": "terminal_passthrough",
+    "shift+pagedown": "terminal_passthrough",
+    "shift+insert": "terminal_passthrough",
+    "shift+delete": "terminal_passthrough",
+    "ctrl+shift+up": "terminal_passthrough",
+    "ctrl+shift+down": "terminal_passthrough",
+    "ctrl+shift+left": "terminal_passthrough",
+    "ctrl+shift+right": "terminal_passthrough",
+    "ctrl+shift+home": "terminal_passthrough",
+    "ctrl+shift+end": "terminal_passthrough",
+    "ctrl+shift+pageup": "terminal_passthrough",
+    "ctrl+shift+pagedown": "terminal_passthrough",
+    "ctrl+shift+insert": "terminal_passthrough",
+    "ctrl+shift+delete": "terminal_passthrough",
+}
+
+_TERMINAL_KEY_SEQUENCES: dict[str, str] = {
+    # Escape key
+    "escape": "\x1b",
+    # Function keys (VT220 / XTerm)
+    "f1": "\x1bOP",
+    "f2": "\x1bOQ",
+    "f3": "\x1bOR",
+    "f4": "\x1bOS",
+    "f5": "\x1b[15~",
+    "f6": "\x1b[17~",
+    "f7": "\x1b[18~",
+    "f8": "\x1b[19~",
+    "f9": "\x1b[20~",
+    "f10": "\x1b[21~",
+    "f11": "\x1b[23~",
+    "f12": "\x1b[24~",
+    # Navigation keys
+    "insert": "\x1b[2~",
+    "delete": "\x1b[3~",
+    "home": "\x1b[H",
+    "end": "\x1b[F",
+    "pageup": "\x1b[5~",
+    "pagedown": "\x1b[6~",
+    "up": "\x1b[A",
+    "down": "\x1b[B",
+    "right": "\x1b[C",
+    "left": "\x1b[D",
+    # Arrow keys with modifiers (XTerm modifiers)
+    "shift+up": "\x1b[1;2A",
+    "shift+down": "\x1b[1;2B",
+    "shift+right": "\x1b[1;2C",
+    "shift+left": "\x1b[1;2D",
+    "ctrl+up": "\x1b[1;5A",
+    "ctrl+down": "\x1b[1;5B",
+    "ctrl+right": "\x1b[1;5C",
+    "ctrl+left": "\x1b[1;5D",
+    "ctrl+shift+up": "\x1b[1;6A",
+    "ctrl+shift+down": "\x1b[1;6B",
+    "ctrl+shift+right": "\x1b[1;6C",
+    "ctrl+shift+left": "\x1b[1;6D",
+    # Home/End with modifiers
+    "shift+home": "\x1b[1;2H",
+    "shift+end": "\x1b[1;2F",
+    "ctrl+home": "\x1b[1;5H",
+    "ctrl+end": "\x1b[1;5F",
+    "ctrl+shift+home": "\x1b[1;6H",
+    "ctrl+shift+end": "\x1b[1;6F",
+    # PageUp/PageDown with modifiers
+    "ctrl+pageup": "\x1b[5;5~",
+    "ctrl+pagedown": "\x1b[6;5~",
+    "shift+pageup": "\x1b[5;2~",
+    "shift+pagedown": "\x1b[6;2~",
+    "ctrl+shift+pageup": "\x1b[5;6~",
+    "ctrl+shift+pagedown": "\x1b[6;6~",
+    # Insert/Delete with modifiers
+    "ctrl+insert": "\x1b[2;5~",
+    "shift+insert": "\x1b[2;2~",
+    "ctrl+delete": "\x1b[3;5~",
+    "shift+delete": "\x1b[3;2~",
+    "ctrl+shift+insert": "\x1b[2;6~",
+    "ctrl+shift+delete": "\x1b[3;6~",
 }
 
 PRINTABLE_BINDING_KEYS = tuple((*string.ascii_letters, *string.digits))
@@ -304,47 +414,22 @@ def _dispatch_split_terminal_input(
     if command == "terminal_tab":
         return _supported(SendSplitTerminalInput("\t"))
 
-    if command == "toggle_terminal":
+    if command == "close_terminal":
         return _supported(ToggleSplitTerminal())
 
     if command == "paste_from_clipboard":
         return _supported(PasteFromClipboardToTerminal())
+
+    # Look up escape sequence for special keys (escape, arrows, F-keys, etc.)
+    sequence = _TERMINAL_KEY_SEQUENCES.get(key)
+    if sequence is not None:
+        return _supported(SendSplitTerminalInput(sequence))
 
     if key == "enter":
         return _supported(SendSplitTerminalInput("\r"))
 
     if key == "backspace":
         return _supported(SendSplitTerminalInput("\x7f"))
-
-    if key == "delete":
-        return _supported(SendSplitTerminalInput("\x1b[3~"))
-
-    if key == "home":
-        return _supported(SendSplitTerminalInput("\x1b[H"))
-
-    if key == "end":
-        return _supported(SendSplitTerminalInput("\x1b[F"))
-
-    if key == "pageup":
-        return _supported(SendSplitTerminalInput("\x1b[5~"))
-
-    if key == "pagedown":
-        return _supported(SendSplitTerminalInput("\x1b[6~"))
-
-    if key == "up":
-        return _supported(SendSplitTerminalInput("\x1b[A"))
-
-    if key == "down":
-        return _supported(SendSplitTerminalInput("\x1b[B"))
-
-    if key == "left":
-        return _supported(SendSplitTerminalInput("\x1b[D"))
-
-    if key == "right":
-        return _supported(SendSplitTerminalInput("\x1b[C"))
-
-    if key == "ctrl+c":
-        return _supported(SendSplitTerminalInput("\x03"))
 
     control_character = _terminal_control_character(key)
     if control_character is not None:
@@ -357,7 +442,7 @@ def _dispatch_split_terminal_input(
 
 
 def _terminal_control_character(key: str) -> str | None:
-    if not key.startswith("ctrl+") or key == "ctrl+v":
+    if not key.startswith("ctrl+") or key in {"ctrl+v", "ctrl+q"}:
         return None
 
     suffix = key[5:]

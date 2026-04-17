@@ -1210,13 +1210,13 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
     help_state = select_help_bar_state(state)
 
     assert help_state.lines == (
-        "enter open | e edit | i info | space select | c copy | x cut | p paste | "
+        "enter open | e edit | i info | space select | c copy | x cut | v paste | "
         "r rename | z undo",
         "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to",
         "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit",
     )
     assert help_state.text == (
-        "enter open | e edit | i info | space select | c copy | x cut | p paste | "
+        "enter open | e edit | i info | space select | c copy | x cut | v paste | "
         "r rename | z undo\n"
         "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to\n"
         "n new-file | N new-dir | H history | b bookmarks | t term | : palette | q quit"
@@ -1244,7 +1244,7 @@ def test_select_help_bar_for_split_terminal_focus() -> None:
 
     help_state = select_help_bar_state(state)
 
-    assert help_state.text == "type in terminal | esc close | ctrl+v paste"
+    assert help_state.text == "type in terminal | ctrl+q close | ctrl+v paste"
 
 
 def test_select_status_bar_shows_split_terminal_focus_when_idle() -> None:
