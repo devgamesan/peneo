@@ -4958,13 +4958,15 @@ async def test_app_rename_round_trip_updates_status_bar(tmp_path) -> None:
         for _ in range(4):
             await pilot.press("backspace")
         await pilot.press("m", "a", "n", "u", "a", "l", "s", "enter")
-        await asyncio.sleep(0.1)
-
-        status_bar = await _wait_for_status_bar(app)
+        await _wait_for_predicate(
+            lambda: app.app_state.ui_mode == "BROWSING",
+            timeout=1.0,
+            message="rename did not return to browsing mode",
+        )
+        await _wait_for_status_message(app, "info: Renamed to manuals", timeout=1.0)
 
         assert (tmp_path / "manuals").is_dir()
         assert app.app_state.ui_mode == "BROWSING"
-        assert str(status_bar.renderable) == "info: Renamed to manuals"
 
 
 @pytest.mark.asyncio
