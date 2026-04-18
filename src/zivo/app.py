@@ -52,11 +52,13 @@ from zivo.services import (
     LiveGrepSearchService,
     LiveShellCommandService,
     LiveSplitTerminalService,
+    LiveTextReplaceService,
     LiveUndoService,
     LiveZipCompressService,
     ShellCommandService,
     SplitTerminalService,
     SplitTerminalSession,
+    TextReplaceService,
     UndoService,
     ZipCompressService,
     resolve_config_path,
@@ -143,6 +145,7 @@ class zivoApp(App[None]):
         external_launch_service: ExternalLaunchService | None = None,
         file_search_service: FileSearchService | None = None,
         grep_search_service: GrepSearchService | None = None,
+        text_replace_service: TextReplaceService | None = None,
         shell_command_service: ShellCommandService | None = None,
         split_terminal_service: SplitTerminalService | None = None,
         undo_service: UndoService | None = None,
@@ -182,6 +185,7 @@ class zivoApp(App[None]):
         )
         self._file_search_service = file_search_service or LiveFileSearchService()
         self._grep_search_service = grep_search_service or LiveGrepSearchService()
+        self._text_replace_service = text_replace_service or LiveTextReplaceService()
         self._shell_command_service = shell_command_service or LiveShellCommandService()
         self._split_terminal_service = split_terminal_service or LiveSplitTerminalService()
         self._undo_service = undo_service or LiveUndoService()
@@ -606,6 +610,7 @@ def create_app(
     external_launch_service: ExternalLaunchService | None = None,
     file_search_service: FileSearchService | None = None,
     grep_search_service: GrepSearchService | None = None,
+    text_replace_service: TextReplaceService | None = None,
     shell_command_service: ShellCommandService | None = None,
     split_terminal_service: SplitTerminalService | None = None,
     undo_service: UndoService | None = None,
@@ -633,6 +638,7 @@ def create_app(
         external_launch_service=external_launch_service,
         file_search_service=file_search_service,
         grep_search_service=grep_search_service,
+        text_replace_service=text_replace_service,
         shell_command_service=shell_command_service,
         split_terminal_service=split_terminal_service,
         undo_service=undo_service,

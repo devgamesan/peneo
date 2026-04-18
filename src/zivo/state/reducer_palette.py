@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from zivo.archive_utils import is_supported_archive_path
+from zivo.models import TextReplaceRequest
 from zivo.models.external_launch import ExternalLaunchRequest
 
 from .actions import (
@@ -25,11 +26,13 @@ from .actions import (
     BeginHistorySearch,
     BeginRenameInput,
     BeginShellCommandInput,
+    BeginTextReplace,
     BeginZipCompressInput,
     CancelCommandPalette,
     CloseCurrentTab,
     CopyPathsToClipboard,
     CycleGrepSearchField,
+    CycleReplaceField,
     DismissAttributeDialog,
     FileSearchCompleted,
     FileSearchFailed,
@@ -51,8 +54,13 @@ from .actions import (
     SelectAllVisibleEntries,
     SetCommandPaletteQuery,
     SetGrepSearchField,
+    SetReplaceField,
     ShowAttributes,
     SubmitCommandPalette,
+    TextReplaceApplied,
+    TextReplaceApplyFailed,
+    TextReplacePreviewCompleted,
+    TextReplacePreviewFailed,
     ToggleHiddenFiles,
     ToggleSplitTerminal,
     UndoLastOperation,
@@ -63,6 +71,8 @@ from .effects import (
     ReduceResult,
     RunFileSearchEffect,
     RunGrepSearchEffect,
+    RunTextReplaceApplyEffect,
+    RunTextReplacePreviewEffect,
 )
 from .models import (
     AppState,
@@ -73,9 +83,12 @@ from .models import (
     GrepSearchFieldId,
     GrepSearchResultState,
     NotificationState,
+    ReplaceFieldId,
+    ReplacePreviewResultState,
 )
 from .reducer_common import (
     ReducerFn,
+    browser_snapshot_invalidation_paths,
     expand_and_validate_path,
     filter_file_search_results,
     finalize,
@@ -89,6 +102,7 @@ from .reducer_common import (
 from .selectors import select_target_paths, select_visible_current_entry_states
 
 _GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "include", "exclude")
+_REPLACE_FIELDS: tuple[ReplaceFieldId, ...] = ("find", "replace")
 _EXTENSION_SEPARATOR_RE = re.compile(r"[\s,]+")
 _VALID_EXTENSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
 
@@ -115,6 +129,26 @@ def _replace_grep_field(
     if field == "include":
         return replace(palette, grep_search_include_extensions=value)
     return replace(palette, grep_search_exclude_extensions=value)
+
+
+def _replace_field_value(
+    palette: CommandPaletteState,
+    field: ReplaceFieldId,
+) -> str:
+    if field == "find":
+        return palette.replace_find_text
+    return palette.replace_replacement_text
+
+
+def _replace_replace_field(
+    palette: CommandPaletteState,
+    *,
+    field: ReplaceFieldId,
+    value: str,
+) -> CommandPaletteState:
+    if field == "find":
+        return replace(palette, replace_find_text=value)
+    return replace(palette, replace_replacement_text=value)
 
 
 def _normalize_grep_extension_filters(
@@ -188,6 +222,8 @@ def _enter_palette(
         ),
         pending_file_search_request_id=None,
         pending_grep_search_request_id=None,
+        pending_replace_preview_request_id=None,
+        pending_replace_apply_request_id=None,
         delete_confirmation=None,
         name_conflict=None,
         attribute_inspection=None,
@@ -206,6 +242,8 @@ def _restore_browsing_from_palette(
         command_palette=None,
         pending_file_search_request_id=None,
         pending_grep_search_request_id=None,
+        pending_replace_preview_request_id=None,
+        pending_replace_apply_request_id=None,
         attribute_inspection=None,
     )
     if clear_name_conflict:
@@ -414,6 +452,67 @@ def _handle_set_grep_search_field(
     )
 
 
+def _handle_set_replace_field(
+    state: AppState,
+    field: ReplaceFieldId,
+    value: str,
+) -> ReduceResult:
+    next_palette = replace(
+        _replace_replace_field(state.command_palette, field=field, value=value),
+        replace_error_message=None,
+        replace_status_message=None,
+        cursor_index=0,
+    )
+    find_text = next_palette.replace_find_text.strip()
+    if not find_text:
+        return finalize(
+            replace(
+                state,
+                command_palette=replace(
+                    next_palette,
+                    replace_preview_results=(),
+                    replace_total_match_count=0,
+                ),
+                pending_replace_preview_request_id=None,
+            )
+        )
+
+    request_id = state.next_request_id
+    request = TextReplaceRequest(
+        paths=next_palette.replace_target_paths,
+        find_text=next_palette.replace_find_text,
+        replace_text=next_palette.replace_replacement_text,
+    )
+    return finalize(
+        replace(
+            state,
+            command_palette=next_palette,
+            pending_replace_preview_request_id=request_id,
+            next_request_id=request_id + 1,
+        ),
+        RunTextReplacePreviewEffect(request_id=request_id, request=request),
+    )
+
+
+def _handle_cycle_replace_field(
+    state: AppState,
+    action: CycleReplaceField,
+) -> ReduceResult:
+    if state.command_palette is None or state.command_palette.source != "replace_text":
+        return finalize(state)
+    current_index = _REPLACE_FIELDS.index(state.command_palette.replace_active_field)
+    next_index = (current_index + action.delta) % len(_REPLACE_FIELDS)
+    return finalize(
+        replace(
+            state,
+            command_palette=replace(
+                state.command_palette,
+                replace_active_field=_REPLACE_FIELDS[next_index],
+            ),
+        )
+    )
+
+
 def _handle_cycle_grep_search_field(
     state: AppState,
     action: CycleGrepSearchField,
@@ -463,6 +562,8 @@ def _handle_submit_palette(
         return _handle_submit_file_search_palette(state, reduce_state)
     if state.command_palette.source == "grep_search":
         return _handle_submit_grep_search_palette(state, reduce_state)
+    if state.command_palette.source == "replace_text":
+        return _handle_submit_replace_palette(state)
     if state.command_palette.source == "history":
         return _handle_submit_history_palette(state, reduce_state)
     if state.command_palette.source == "bookmarks":
@@ -553,6 +654,37 @@ def _handle_open_find_result_in_editor(
             path=selected_result.path,
             line_number=None,  # File search doesn't have line numbers
         ),
+    )
+
+
+def _handle_submit_replace_palette(state: AppState) -> ReduceResult:
+    if state.pending_replace_preview_request_id is not None:
+        return _notify(state, level="warning", message="Replacement preview is still running")
+    if state.command_palette is None:
+        return finalize(state)
+    if not state.command_palette.replace_find_text.strip():
+        return _notify(state, level="warning", message="Find text is required")
+    if state.command_palette.replace_error_message is not None:
+        return _notify(state, level="warning", message=state.command_palette.replace_error_message)
+    if not state.command_palette.replace_preview_results:
+        message = state.command_palette.replace_status_message or "No matching files"
+        return _notify(state, level="warning", message=message)
+
+    request_id = state.next_request_id
+    request = TextReplaceRequest(
+        paths=state.command_palette.replace_target_paths,
+        find_text=state.command_palette.replace_find_text,
+        replace_text=state.command_palette.replace_replacement_text,
+    )
+    next_state = _restore_browsing_from_palette(state)
+    return finalize(
+        replace(
+            next_state,
+            pending_replace_apply_request_id=request_id,
+            next_request_id=request_id + 1,
+            notification=NotificationState(level="info", message="Applying replacement..."),
+        ),
+        RunTextReplaceApplyEffect(request_id=request_id, request=request),
     )
 
 
@@ -686,6 +818,8 @@ def _run_palette_command_item(
         return _run_toggle_split_terminal_command(next_state, reduce_state)
     if item_id == "select_all":
         return _run_select_all_command(next_state, reduce_state)
+    if item_id == "replace_text":
+        return _run_replace_text_command(state, next_state, reduce_state)
     if item_id == "show_attributes":
         return reduce_state(next_state, ShowAttributes())
     if item_id == "copy_path":
@@ -827,6 +961,29 @@ def _run_select_all_command(
 ) -> ReduceResult:
     visible_paths = tuple(entry.path for entry in select_visible_current_entry_states(state))
     return reduce_state(state, SelectAllVisibleEntries(visible_paths))
+
+
+def _selected_current_file_paths(state: AppState) -> tuple[str, ...]:
+    return tuple(
+        entry.path
+        for entry in select_visible_current_entry_states(state)
+        if entry.path in state.current_pane.selected_paths and entry.kind == "file"
+    )
+
+
+def _run_replace_text_command(
+    state: AppState,
+    next_state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    target_paths = _selected_current_file_paths(state)
+    if not target_paths:
+        return _notify(
+            next_state,
+            level="warning",
+            message="Replace text requires selected files in the current directory",
+        )
+    return reduce_state(next_state, BeginTextReplace(target_paths=target_paths))
 
 
 def _run_show_attributes_command(state: AppState) -> ReduceResult:
@@ -1168,6 +1325,127 @@ def _handle_grep_search_failed(
     )
 
 
+def _handle_text_replace_preview_completed(
+    state: AppState,
+    action: TextReplacePreviewCompleted,
+) -> ReduceResult:
+    if (
+        action.request_id != state.pending_replace_preview_request_id
+        or state.command_palette is None
+        or state.command_palette.source != "replace_text"
+    ):
+        return finalize(state)
+
+    preview_results = tuple(
+        ReplacePreviewResultState(
+            path=entry.path,
+            display_path=str(Path(entry.path).name)
+            if Path(entry.path).parent == Path(state.current_path)
+            else str(Path(entry.path).relative_to(state.current_path)),
+            match_count=entry.match_count,
+            first_match_line_number=entry.first_match_line_number,
+            first_match_before=entry.first_match_before,
+            first_match_after=entry.first_match_after,
+        )
+        for entry in action.result.changed_entries
+    )
+    status_message = None
+    if action.result.skipped_paths:
+        status_message = f"Skipped {len(action.result.skipped_paths)} unreadable file(s)"
+    return finalize(
+        replace(
+            state,
+            command_palette=replace(
+                state.command_palette,
+                replace_preview_results=preview_results,
+                replace_error_message=None,
+                replace_status_message=status_message,
+                replace_total_match_count=action.result.total_match_count,
+                cursor_index=0,
+            ),
+            pending_replace_preview_request_id=None,
+        )
+    )
+
+
+def _handle_text_replace_preview_failed(
+    state: AppState,
+    action: TextReplacePreviewFailed,
+) -> ReduceResult:
+    if action.request_id != state.pending_replace_preview_request_id:
+        return finalize(state)
+
+    if state.command_palette is not None and action.invalid_query:
+        return finalize(
+            replace(
+                state,
+                command_palette=replace(
+                    state.command_palette,
+                    replace_preview_results=(),
+                    replace_error_message=action.message,
+                    replace_status_message=None,
+                    replace_total_match_count=0,
+                    cursor_index=0,
+                ),
+                pending_replace_preview_request_id=None,
+            )
+        )
+
+    return finalize(
+        replace(
+            state,
+            notification=NotificationState(level="error", message=action.message),
+            pending_replace_preview_request_id=None,
+        )
+    )
+
+
+def _handle_text_replace_applied(
+    state: AppState,
+    action: TextReplaceApplied,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    if action.request_id != state.pending_replace_apply_request_id:
+        return finalize(state)
+
+    next_state = replace(
+        state,
+        pending_replace_apply_request_id=None,
+        post_reload_notification=NotificationState(
+            level=action.result.level,
+            message=action.result.message,
+        ),
+        notification=None,
+    )
+    return reduce_state(
+        next_state,
+        RequestBrowserSnapshot(
+            path=state.current_path,
+            cursor_path=state.current_pane.cursor_path,
+            blocking=True,
+            invalidate_paths=browser_snapshot_invalidation_paths(
+                state.current_path,
+                *action.result.changed_paths,
+            ),
+        ),
+    )
+
+
+def _handle_text_replace_apply_failed(
+    state: AppState,
+    action: TextReplaceApplyFailed,
+) -> ReduceResult:
+    if action.request_id != state.pending_replace_apply_request_id:
+        return finalize(state)
+    return finalize(
+        replace(
+            state,
+            pending_replace_apply_request_id=None,
+            notification=NotificationState(level="error", message=action.message),
+        )
+    )
+
+
 def _selected_grep_result(state: AppState) -> GrepSearchResultState | None:
     if state.command_palette is None or state.command_palette.source != "grep_search":
         return None
@@ -1293,6 +1571,23 @@ def _handle_begin_grep_search(
     return finalize(_enter_palette(state, source="grep_search"))
 
 
+def _handle_begin_text_replace(
+    state: AppState,
+    action: BeginTextReplace,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    next_state = _enter_palette(state, source="replace_text")
+    return finalize(
+        replace(
+            next_state,
+            command_palette=replace(
+                next_state.command_palette,
+                replace_target_paths=action.target_paths,
+            ),
+        )
+    )
+
+
 def _dispatch_begin_history_search(
     state: AppState,
     action: BeginHistorySearch,
@@ -1380,12 +1675,28 @@ def _dispatch_set_grep_search_field(
     return _handle_set_grep_search_field(state, action.field, action.value)
 
 
+def _dispatch_set_replace_field(
+    state: AppState,
+    action: SetReplaceField,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return _handle_set_replace_field(state, action.field, action.value)
+
+
 def _dispatch_cycle_grep_search_field(
     state: AppState,
     action: CycleGrepSearchField,
     reduce_state: ReducerFn,
 ) -> ReduceResult:
     return _handle_cycle_grep_search_field(state, action)
+
+
+def _dispatch_cycle_replace_field(
+    state: AppState,
+    action: CycleReplaceField,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return _handle_cycle_replace_field(state, action)
 
 
 def _dispatch_submit_command_palette(
@@ -1428,6 +1739,38 @@ def _dispatch_grep_search_failed(
     return _handle_grep_search_failed(state, action)
 
 
+def _dispatch_text_replace_preview_completed(
+    state: AppState,
+    action: TextReplacePreviewCompleted,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return _handle_text_replace_preview_completed(state, action)
+
+
+def _dispatch_text_replace_preview_failed(
+    state: AppState,
+    action: TextReplacePreviewFailed,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return _handle_text_replace_preview_failed(state, action)
+
+
+def _dispatch_text_replace_applied(
+    state: AppState,
+    action: TextReplaceApplied,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return _handle_text_replace_applied(state, action, reduce_state)
+
+
+def _dispatch_text_replace_apply_failed(
+    state: AppState,
+    action: TextReplaceApplyFailed,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return _handle_text_replace_apply_failed(state, action)
+
+
 def _dispatch_open_grep_result_in_editor(
     state: AppState,
     action: OpenGrepResultInEditor,
@@ -1454,6 +1797,7 @@ _PALETTE_HANDLERS: dict[type[Action], _PaletteHandler] = {
     BeginCommandPalette: _handle_begin_command_palette,
     BeginFileSearch: _handle_begin_file_search,
     BeginGrepSearch: _handle_begin_grep_search,
+    BeginTextReplace: _handle_begin_text_replace,
     BeginHistorySearch: _dispatch_begin_history_search,
     BeginBookmarkSearch: _dispatch_begin_bookmark_search,
     BeginGoToPath: _handle_begin_go_to_path,
@@ -1463,12 +1807,18 @@ _PALETTE_HANDLERS: dict[type[Action], _PaletteHandler] = {
     MoveCommandPaletteCursor: _dispatch_move_palette_cursor,
     SetCommandPaletteQuery: _dispatch_set_command_palette_query,
     SetGrepSearchField: _dispatch_set_grep_search_field,
+    SetReplaceField: _dispatch_set_replace_field,
     CycleGrepSearchField: _dispatch_cycle_grep_search_field,
+    CycleReplaceField: _dispatch_cycle_replace_field,
     SubmitCommandPalette: _dispatch_submit_command_palette,
     FileSearchCompleted: _dispatch_file_search_completed,
     FileSearchFailed: _dispatch_file_search_failed,
     GrepSearchCompleted: _dispatch_grep_search_completed,
     GrepSearchFailed: _dispatch_grep_search_failed,
+    TextReplacePreviewCompleted: _dispatch_text_replace_preview_completed,
+    TextReplacePreviewFailed: _dispatch_text_replace_preview_failed,
+    TextReplaceApplied: _dispatch_text_replace_applied,
+    TextReplaceApplyFailed: _dispatch_text_replace_apply_failed,
     OpenGrepResultInEditor: _dispatch_open_grep_result_in_editor,
     OpenFindResultInEditor: _dispatch_open_find_result_in_editor,
 }

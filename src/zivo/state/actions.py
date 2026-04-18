@@ -19,6 +19,8 @@ from zivo.models import (
     PasteRequest,
     PasteSummary,
     ShellCommandResult,
+    TextReplacePreviewResult,
+    TextReplaceResult,
     UndoEntry,
     UndoResult,
 )
@@ -31,6 +33,7 @@ from .models import (
     GrepSearchResultState,
     NotificationState,
     PaneState,
+    ReplaceFieldId,
     SortField,
     SplitTerminalFocusTarget,
     UiMode,
@@ -128,6 +131,13 @@ class BeginGoToPath:
 
 
 @dataclass(frozen=True)
+class BeginTextReplace:
+    """Open the command palette in text-replace mode for selected files."""
+
+    target_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class BeginCommandPalette:
     """Open the command palette."""
 
@@ -187,6 +197,21 @@ class SetGrepSearchField:
 @dataclass(frozen=True)
 class CycleGrepSearchField:
     """Move focus between grep-search input fields."""
+
+    delta: int
+
+
+@dataclass(frozen=True)
+class SetReplaceField:
+    """Update one text-replace input field."""
+
+    field: ReplaceFieldId
+    value: str
+
+
+@dataclass(frozen=True)
+class CycleReplaceField:
+    """Move focus between text-replace input fields."""
 
     delta: int
 
@@ -261,6 +286,39 @@ class GrepSearchFailed:
     query: str
     message: str
     invalid_query: bool = False
+
+
+@dataclass(frozen=True)
+class TextReplacePreviewCompleted:
+    """Apply completed text-replace preview results to the command palette."""
+
+    request_id: int
+    result: TextReplacePreviewResult
+
+
+@dataclass(frozen=True)
+class TextReplacePreviewFailed:
+    """Apply a terminal text-replace preview failure."""
+
+    request_id: int
+    message: str
+    invalid_query: bool = False
+
+
+@dataclass(frozen=True)
+class TextReplaceApplied:
+    """Apply a completed text replacement."""
+
+    request_id: int
+    result: TextReplaceResult
+
+
+@dataclass(frozen=True)
+class TextReplaceApplyFailed:
+    """Apply a terminal text-replace execution failure."""
+
+    request_id: int
+    message: str
 
 
 @dataclass(frozen=True)
@@ -943,6 +1001,7 @@ Action = (
     | BeginGrepSearch
     | BeginHistorySearch
     | BeginBookmarkSearch
+    | BeginTextReplace
     | BeginCommandPalette
     | OpenNewTab
     | ActivateNextTab
@@ -953,7 +1012,9 @@ Action = (
     | MoveCommandPaletteCursor
     | SetCommandPaletteQuery
     | SetGrepSearchField
+    | SetReplaceField
     | CycleGrepSearchField
+    | CycleReplaceField
     | SubmitCommandPalette
     | DismissConfigEditor
     | MoveConfigEditorCursor
@@ -964,6 +1025,10 @@ Action = (
     | FileSearchFailed
     | GrepSearchCompleted
     | GrepSearchFailed
+    | TextReplacePreviewCompleted
+    | TextReplacePreviewFailed
+    | TextReplaceApplied
+    | TextReplaceApplyFailed
     | SetPendingInputValue
     | MovePendingInputCursor
     | SetPendingInputCursor

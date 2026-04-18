@@ -44,6 +44,7 @@ from .models import (
     DirectorySizeCacheEntry,
     FileSearchResultState,
     GrepSearchResultState,
+    ReplacePreviewResultState,
     SortState,
     select_browser_tabs,
 )
@@ -455,6 +456,13 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
                     "enter jump | Ctrl+e edit | esc cancel",
                 )
             )
+        if state.command_palette is not None and state.command_palette.source == "replace_text":
+            return HelpBarState(
+                (
+                    "type text / tab fields / ↑↓ or Ctrl+n/p preview | "
+                    "enter apply | esc cancel",
+                )
+            )
         if state.command_palette is not None and state.command_palette.source == "history":
             if state.config.help_bar.palette_history:
                 return HelpBarState(state.config.help_bar.palette_history)
@@ -582,6 +590,30 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
             input_fields=_build_grep_search_input_fields(state.command_palette),
             has_more_items=len(state.command_palette.grep_search_results) > len(visible_results),
         )
+    if state.command_palette.source == "replace_text":
+        visible_results, title = _select_replace_preview_window(
+            state,
+            state.command_palette.replace_preview_results,
+            cursor_index,
+        )
+        return CommandPaletteViewState(
+            title=title,
+            query=state.command_palette.replace_find_text,
+            items=tuple(
+                CommandPaletteItemViewState(
+                    label=result.display_label,
+                    shortcut=None,
+                    enabled=True,
+                    selected=index == cursor_index,
+                )
+                for index, result in visible_results
+            ),
+            empty_message=_replace_text_empty_message(state),
+            input_fields=_build_replace_input_fields(state.command_palette),
+            has_more_items=(
+                len(state.command_palette.replace_preview_results) > len(visible_results)
+            ),
+        )
     if state.command_palette.source == "history":
         return _build_command_palette_items_view(
             state,
@@ -682,6 +714,25 @@ def _build_grep_search_input_fields(
             value=palette.grep_search_exclude_extensions,
             placeholder="none",
             active=palette.grep_search_active_field == "exclude",
+        ),
+    )
+
+
+def _build_replace_input_fields(
+    palette: CommandPaletteState,
+) -> tuple[CommandPaletteInputFieldViewState, ...]:
+    return (
+        CommandPaletteInputFieldViewState(
+            label="Find",
+            value=palette.replace_find_text,
+            placeholder="text or re:pattern",
+            active=palette.replace_active_field == "find",
+        ),
+        CommandPaletteInputFieldViewState(
+            label="Replace",
+            value=palette.replace_replacement_text,
+            placeholder="replacement text",
+            active=palette.replace_active_field == "replace",
         ),
     )
 
@@ -1428,6 +1479,23 @@ def _select_grep_search_window(
     )
 
 
+def _select_replace_preview_window(
+    state: AppState,
+    results: tuple[ReplacePreviewResultState, ...],
+    cursor_index: int,
+) -> tuple[tuple[tuple[int, ReplacePreviewResultState], ...], str]:
+    visible_window = compute_search_visible_window(
+        state.terminal_height,
+        extra_rows=_GREP_SEARCH_EXTRA_INPUT_ROWS,
+    )
+    title = "Replace Text"
+    if state.command_palette is not None and state.command_palette.replace_preview_results:
+        file_count = len(state.command_palette.replace_preview_results)
+        total_matches = state.command_palette.replace_total_match_count
+        title = f"Replace Text ({file_count} file(s), {total_matches} match(es))"
+    return _select_search_window(results, cursor_index, title=title, visible_window=visible_window)
+
+
 def _select_search_window(
     results: tuple[FileSearchResultState | GrepSearchResultState, ...],
     cursor_index: int,
@@ -1498,6 +1566,20 @@ def _grep_search_empty_message(state: AppState) -> str:
     ):
         return state.command_palette.grep_search_error_message
     return "No matching lines"
+
+
+def _replace_text_empty_message(state: AppState) -> str:
+    if state.pending_replace_preview_request_id is not None:
+        return "Previewing replacements..."
+    if state.command_palette is None or state.command_palette.source != "replace_text":
+        return "No replacement preview"
+    if state.command_palette.replace_error_message is not None:
+        return state.command_palette.replace_error_message
+    if not state.command_palette.replace_find_text.strip():
+        return "Type text to find"
+    if state.command_palette.replace_status_message is not None:
+        return state.command_palette.replace_status_message
+    return "No matching files"
 
 
 def _get_current_cursor_entry(state: AppState) -> DirectoryEntryState | None:

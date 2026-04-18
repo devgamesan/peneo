@@ -42,8 +42,10 @@ CommandPaletteSource = Literal[
     "history",
     "bookmarks",
     "go_to_path",
+    "replace_text",
 ]
 GrepSearchFieldId = Literal["keyword", "include", "exclude"]
+ReplaceFieldId = Literal["find", "replace"]
 SplitTerminalStatus = Literal["closed", "starting", "running"]
 SplitTerminalFocusTarget = Literal["browser", "terminal"]
 DirectorySizeStatus = Literal["pending", "ready", "failed"]
@@ -306,6 +308,28 @@ class GrepSearchResultState:
 
 
 @dataclass(frozen=True)
+class ReplacePreviewResultState:
+    """A single text-replace preview result shown in the command palette."""
+
+    path: str
+    display_path: str
+    match_count: int
+    first_match_line_number: int
+    first_match_before: str
+    first_match_after: str
+
+    @property
+    def display_label(self) -> str:
+        """Return the single-line palette label for the replacement preview."""
+
+        return (
+            f"{self.display_path} ({self.match_count}): "
+            f"{self.first_match_line_number}: "
+            f"{self.first_match_before} -> {self.first_match_after}"
+        )
+
+
+@dataclass(frozen=True)
 class CommandPaletteState:
     """Transient palette search and cursor state."""
 
@@ -315,6 +339,9 @@ class CommandPaletteState:
     grep_search_include_extensions: str = ""
     grep_search_exclude_extensions: str = ""
     grep_search_active_field: GrepSearchFieldId = "keyword"
+    replace_find_text: str = ""
+    replace_replacement_text: str = ""
+    replace_active_field: ReplaceFieldId = "find"
     cursor_index: int = 0
     file_search_results: tuple[FileSearchResultState, ...] = ()
     file_search_error_message: str | None = None
@@ -324,6 +351,11 @@ class CommandPaletteState:
     file_search_cache_show_hidden: bool = False
     grep_search_results: tuple[GrepSearchResultState, ...] = ()
     grep_search_error_message: str | None = None
+    replace_preview_results: tuple[ReplacePreviewResultState, ...] = ()
+    replace_error_message: str | None = None
+    replace_status_message: str | None = None
+    replace_target_paths: tuple[str, ...] = ()
+    replace_total_match_count: int = 0
     history_results: tuple[str, ...] = ()
     go_to_path_candidates: tuple[str, ...] = ()
     go_to_path_selection_active: bool = True
@@ -417,6 +449,8 @@ class AppState:
     pending_zip_compress_request_id: int | None = None
     pending_file_search_request_id: int | None = None
     pending_grep_search_request_id: int | None = None
+    pending_replace_preview_request_id: int | None = None
+    pending_replace_apply_request_id: int | None = None
     pending_directory_size_request_id: int | None = None
     pending_config_save_request_id: int | None = None
     pending_shell_command_request_id: int | None = None
