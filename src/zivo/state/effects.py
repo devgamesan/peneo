@@ -11,6 +11,7 @@ from zivo.models import (
     ExtractArchiveRequest,
     PasteRequest,
     RenameRequest,
+    TextReplaceRequest,
     UndoEntry,
 )
 
@@ -134,6 +135,22 @@ class RunGrepSearchEffect:
 
 
 @dataclass(frozen=True)
+class RunTextReplacePreviewEffect:
+    """Preview text replacement across selected files."""
+
+    request_id: int
+    request: TextReplaceRequest
+
+
+@dataclass(frozen=True)
+class RunTextReplaceApplyEffect:
+    """Apply text replacement across selected files."""
+
+    request_id: int
+    request: TextReplaceRequest
+
+
+@dataclass(frozen=True)
 class StartSplitTerminalEffect:
     """Start a new embedded split-terminal session."""
 
@@ -188,6 +205,8 @@ Effect = (
     | RunExternalLaunchEffect
     | RunFileSearchEffect
     | RunGrepSearchEffect
+    | RunTextReplacePreviewEffect
+    | RunTextReplaceApplyEffect
     | StartSplitTerminalEffect
     | WriteSplitTerminalInputEffect
     | CloseSplitTerminalEffect

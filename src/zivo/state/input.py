@@ -42,6 +42,7 @@ from .actions import (
     CutTargets,
     CycleConfigEditorValue,
     CycleGrepSearchField,
+    CycleReplaceField,
     DeletePendingInputForward,
     DismissAttributeDialog,
     DismissConfigEditor,
@@ -79,6 +80,7 @@ from .actions import (
     SetNotification,
     SetPendingInputCursor,
     SetPendingInputValue,
+    SetReplaceField,
     SetShellCommandValue,
     SetSort,
     ShowAttributes,
@@ -91,7 +93,13 @@ from .actions import (
     UndoLastOperation,
 )
 from .command_palette import normalize_command_palette_cursor
-from .models import AppState, DirectoryEntryState, GrepSearchFieldId, NotificationState
+from .models import (
+    AppState,
+    DirectoryEntryState,
+    GrepSearchFieldId,
+    NotificationState,
+    ReplaceFieldId,
+)
 from .reducer_common import format_go_to_path_completion
 from .selectors import (
     compute_current_pane_visible_window,
@@ -463,6 +471,15 @@ def _active_grep_field_value(state: AppState) -> str:
     return state.command_palette.grep_search_exclude_extensions
 
 
+def _active_replace_field_value(state: AppState) -> str:
+    if state.command_palette is None:
+        return ""
+    field = state.command_palette.replace_active_field
+    if field == "find":
+        return state.command_palette.replace_find_text
+    return state.command_palette.replace_replacement_text
+
+
 def _dispatch_command_palette_input(
     state: AppState,
     *,
@@ -503,6 +520,12 @@ def _dispatch_command_palette_input(
     if key == "shift+tab" and palette_source == "grep_search":
         return _supported(CycleGrepSearchField(delta=-1))
 
+    if key == "tab" and palette_source == "replace_text":
+        return _supported(CycleReplaceField(delta=1))
+
+    if key == "shift+tab" and palette_source == "replace_text":
+        return _supported(CycleReplaceField(delta=-1))
+
     if key == "up" or (key == "k" and not search_palette):
         return _supported(MoveCommandPaletteCursor(delta=-1))
 
@@ -516,12 +539,12 @@ def _dispatch_command_palette_input(
         return _supported(MoveCommandPaletteCursor(delta=-1))
 
     if key == "pageup":
-        extra_rows = 2 if palette_source == "grep_search" else 0
+        extra_rows = 2 if palette_source in {"grep_search", "replace_text"} else 0
         visible = compute_search_visible_window(state.terminal_height, extra_rows=extra_rows)
         return _supported(MoveCommandPaletteCursor(delta=-visible))
 
     if key == "pagedown":
-        extra_rows = 2 if palette_source == "grep_search" else 0
+        extra_rows = 2 if palette_source in {"grep_search", "replace_text"} else 0
         visible = compute_search_visible_window(state.terminal_height, extra_rows=extra_rows)
         return _supported(MoveCommandPaletteCursor(delta=visible))
 
@@ -542,6 +565,13 @@ def _dispatch_command_palette_input(
                     value=_active_grep_field_value(state)[:-1],
                 )
             )
+        if palette_source == "replace_text":
+            return _supported(
+                SetReplaceField(
+                    field=state.command_palette.replace_active_field,
+                    value=_active_replace_field_value(state)[:-1],
+                )
+            )
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(current_query[:-1]))
 
@@ -560,6 +590,14 @@ def _dispatch_command_palette_input(
                     value=f"{_active_grep_field_value(state)}{character}",
                 )
             )
+        if palette_source == "replace_text":
+            active_field: ReplaceFieldId = state.command_palette.replace_active_field
+            return _supported(
+                SetReplaceField(
+                    field=active_field,
+                    value=f"{_active_replace_field_value(state)}{character}",
+                )
+            )
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(f"{current_query}{character}"))
 
@@ -567,6 +605,9 @@ def _dispatch_command_palette_input(
         if state.command_palette is not None and state.command_palette.source == "grep_search":
             return _warn("Use Tab/Shift+Tab, type, arrows, Enter, Ctrl+e, or Esc")
         return _warn("Use arrows, type to filter, Enter, Ctrl+e for editor, or Esc")
+
+    if palette_source == "replace_text":
+        return _warn("Use Tab/Shift+Tab, type, arrows, Enter to apply, or Esc")
 
     return _warn("Use arrows, type to filter, Enter to run, or Esc to cancel")
 

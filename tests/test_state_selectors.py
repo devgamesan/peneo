@@ -38,6 +38,7 @@ from zivo.state import (
     PaneState,
     PasteConflictState,
     PendingInputState,
+    ReplacePreviewResultState,
     SetCursorPath,
     SetFilterQuery,
     SetNotification,
@@ -1511,6 +1512,41 @@ def test_select_command_palette_state_for_grep_search_includes_input_fields() ->
     assert [field.active for field in palette_state.input_fields] == [False, False, True]
 
 
+def test_select_command_palette_state_for_text_replace_includes_input_fields() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="replace_text",
+            replace_find_text="todo",
+            replace_replacement_text="done",
+            replace_active_field="replace",
+            replace_preview_results=(
+                ReplacePreviewResultState(
+                    path="/home/tadashi/develop/zivo/README.md",
+                    display_path="README.md",
+                    match_count=2,
+                    first_match_line_number=8,
+                    first_match_before="todo item",
+                    first_match_after="done item",
+                ),
+            ),
+            replace_total_match_count=2,
+            replace_target_paths=("/home/tadashi/develop/zivo/README.md",),
+        ),
+    )
+
+    palette_state = select_command_palette_state(state)
+
+    assert palette_state is not None
+    assert palette_state.title == "Replace Text"
+    assert [field.label for field in palette_state.input_fields] == ["Find", "Replace"]
+    assert [field.value for field in palette_state.input_fields] == ["todo", "done"]
+    assert [field.active for field in palette_state.input_fields] == [False, True]
+    assert palette_state.items == ()
+    assert palette_state.empty_message == "Preview shown in right pane. Press Enter to apply."
+
+
 def test_select_command_palette_state_go_to_path_can_show_candidates_without_selection() -> None:
     state = replace(
         _reduce_state(build_initial_app_state(), BeginCommandPalette()),
@@ -1716,6 +1752,51 @@ def test_select_command_palette_state_shows_compress_as_zip_for_multiple_targets
 
     assert palette_state is not None
     assert [item.label for item in palette_state.items] == ["Compress as zip"]
+
+
+def test_select_command_palette_state_shows_replace_text_for_selected_files() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=PaneState(
+            directory_path="/home/tadashi/develop/zivo",
+            entries=(
+                DirectoryEntryState("/home/tadashi/develop/zivo/README.md", "README.md", "file"),
+                DirectoryEntryState("/home/tadashi/develop/zivo/src", "src", "dir"),
+            ),
+            cursor_path="/home/tadashi/develop/zivo/README.md",
+            selected_paths=frozenset({"/home/tadashi/develop/zivo/README.md"}),
+        ),
+    )
+    palette_state = select_command_palette_state(
+        replace(
+            _reduce_state(state, BeginCommandPalette()),
+            command_palette=replace(CommandPaletteState(), query="replace text"),
+        )
+    )
+
+    assert palette_state is not None
+    assert [item.label for item in palette_state.items] == ["Replace text in selected files"]
+    assert palette_state.items[0].enabled is True
+
+
+def test_select_command_palette_state_shows_replace_text_for_cursor_file() -> None:
+    state = replace(
+        build_initial_app_state(),
+        current_pane=replace(
+            build_initial_app_state().current_pane,
+            cursor_path="/home/tadashi/develop/zivo/README.md",
+        ),
+    )
+    palette_state = select_command_palette_state(
+        replace(
+            _reduce_state(state, BeginCommandPalette()),
+            command_palette=replace(CommandPaletteState(), query="replace text"),
+        )
+    )
+
+    assert palette_state is not None
+    assert [item.label for item in palette_state.items] == ["Replace text in selected files"]
+    assert palette_state.items[0].enabled is True
 
 
 def test_select_input_bar_state_formats_extract_mode() -> None:

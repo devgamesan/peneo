@@ -21,9 +21,15 @@ from zivo.models import (
     PasteConflictPrompt,
     PasteExecutionResult,
     ShellCommandResult,
+    TextReplacePreviewResult,
+    TextReplaceResult,
     UndoResult,
 )
-from zivo.services import InvalidFileSearchQueryError, InvalidGrepSearchQueryError
+from zivo.services import (
+    InvalidFileSearchQueryError,
+    InvalidGrepSearchQueryError,
+    InvalidTextReplaceQueryError,
+)
 from zivo.state import (
     ArchiveExtractCompleted,
     ArchiveExtractFailed,
@@ -63,6 +69,8 @@ from zivo.state import (
     RunFileSearchEffect,
     RunGrepSearchEffect,
     RunShellCommandEffect,
+    RunTextReplaceApplyEffect,
+    RunTextReplacePreviewEffect,
     RunUndoEffect,
     RunZipCompressEffect,
     RunZipCompressPreparationEffect,
@@ -71,6 +79,10 @@ from zivo.state import (
     SplitTerminalStarted,
     SplitTerminalStartFailed,
     StartSplitTerminalEffect,
+    TextReplaceApplied,
+    TextReplaceApplyFailed,
+    TextReplacePreviewCompleted,
+    TextReplacePreviewFailed,
     UndoCompleted,
     UndoFailed,
     WriteSplitTerminalInputEffect,
@@ -499,6 +511,34 @@ def schedule_grep_search(app: Any, effect: RunGrepSearchEffect) -> None:
     _schedule_search_effect(app, effect, _GREP_SEARCH_RUNTIME)
 
 
+def schedule_text_replace_preview(app: Any, effect: RunTextReplacePreviewEffect) -> None:
+    _run_worker(
+        app,
+        effect,
+        partial(app._text_replace_service.preview, effect.request),
+        _WorkerSpec(
+            name=f"text-replace-preview:{effect.request_id}",
+            group="text-replace-preview",
+            description="preview replacement",
+            exclusive=True,
+        ),
+    )
+
+
+def schedule_text_replace_apply(app: Any, effect: RunTextReplaceApplyEffect) -> None:
+    _run_worker(
+        app,
+        effect,
+        partial(app._text_replace_service.apply, effect.request),
+        _WorkerSpec(
+            name=f"text-replace-apply:{effect.request_id}",
+            group="text-replace-apply",
+            description="apply replacement",
+            exclusive=True,
+        ),
+    )
+
+
 def start_grep_search_worker(app: Any, effect: RunGrepSearchEffect) -> None:
     _start_search_worker(app, effect, _GREP_SEARCH_RUNTIME)
 
@@ -831,6 +871,8 @@ _EFFECT_SCHEDULERS = (
     (RunShellCommandEffect, schedule_shell_command),
     (RunFileSearchEffect, schedule_file_search),
     (RunGrepSearchEffect, schedule_grep_search),
+    (RunTextReplacePreviewEffect, schedule_text_replace_preview),
+    (RunTextReplaceApplyEffect, schedule_text_replace_apply),
     (StartSplitTerminalEffect, start_split_terminal),
     (WriteSplitTerminalInputEffect, write_split_terminal_input),
     (CloseSplitTerminalEffect, _close_split_terminal_effect),
@@ -1031,6 +1073,30 @@ def _complete_grep_search(effect: RunGrepSearchEffect, result: object) -> tuple[
     )
 
 
+def _complete_text_replace_preview(
+    effect: RunTextReplacePreviewEffect,
+    result: TextReplacePreviewResult,
+) -> tuple[Any, ...]:
+    return (
+        TextReplacePreviewCompleted(
+            request_id=effect.request_id,
+            result=result,
+        ),
+    )
+
+
+def _complete_text_replace_apply(
+    effect: RunTextReplaceApplyEffect,
+    result: TextReplaceResult,
+) -> tuple[Any, ...]:
+    return (
+        TextReplaceApplied(
+            request_id=effect.request_id,
+            result=result,
+        ),
+    )
+
+
 ExtraFieldBuilder = Callable[[Effect, BaseException | None, str], Any]
 
 
@@ -1086,6 +1152,13 @@ _failed_grep_search = _make_failed_handler(
         "invalid_query": lambda _e, err, _msg: isinstance(err, InvalidGrepSearchQueryError),
     },
 )
+_failed_text_replace_preview = _make_failed_handler(
+    TextReplacePreviewFailed,
+    extra_field_builders={
+        "invalid_query": lambda _e, err, _msg: isinstance(err, InvalidTextReplaceQueryError),
+    },
+)
+_failed_text_replace_apply = _make_failed_handler(TextReplaceApplyFailed)
 
 
 _RESULT_COMPLETE_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] = (
@@ -1108,6 +1181,8 @@ _COMPLETE_ACTION_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] =
     (RunShellCommandEffect, _complete_shell_command),
     (RunFileSearchEffect, _complete_file_search),
     (RunGrepSearchEffect, _complete_grep_search),
+    (RunTextReplacePreviewEffect, _complete_text_replace_preview),
+    (RunTextReplaceApplyEffect, _complete_text_replace_apply),
 )
 
 _FAILED_ACTION_HANDLERS: tuple[tuple[type[Any], FailureActionHandler], ...] = (
@@ -1126,6 +1201,8 @@ _FAILED_ACTION_HANDLERS: tuple[tuple[type[Any], FailureActionHandler], ...] = (
     (RunUndoEffect, _failed_undo),
     (RunFileSearchEffect, _failed_file_search),
     (RunGrepSearchEffect, _failed_grep_search),
+    (RunTextReplacePreviewEffect, _failed_text_replace_preview),
+    (RunTextReplaceApplyEffect, _failed_text_replace_apply),
 )
 
 

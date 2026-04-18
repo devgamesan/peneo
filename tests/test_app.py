@@ -27,6 +27,10 @@ from zivo.models import (
     PasteSummary,
     ShellCommandResult,
     TerminalConfig,
+    TextReplacePreviewEntry,
+    TextReplacePreviewResult,
+    TextReplaceRequest,
+    TextReplaceResult,
     UndoDeletePathStep,
     UndoEntry,
     UndoResult,
@@ -41,6 +45,7 @@ from zivo.services import (
     FakeGrepSearchService,
     FakeShellCommandService,
     FakeSplitTerminalService,
+    FakeTextReplaceService,
     FakeUndoService,
     LiveExternalLaunchService,
 )
@@ -3499,6 +3504,129 @@ async def test_app_command_palette_show_attributes_opens_read_only_dialog() -> N
         await pilot.press("enter")
         await asyncio.sleep(0.05)
 
+        assert app.app_state.ui_mode == "BROWSING"
+
+
+@pytest.mark.asyncio
+async def test_app_command_palette_replace_text_previews_and_applies_selected_files() -> None:
+    path = str(Path("/tmp/zivo-command-palette-replace").resolve())
+    target_path = f"{path}/README.md"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(target_path, "README.md", "file"),
+                    DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                ),
+            )
+        }
+    )
+    text_replace_service = FakeTextReplaceService(
+        preview_results={
+            TextReplaceRequest(
+                paths=(target_path,),
+                find_text="todo",
+                replace_text="done",
+            ): TextReplacePreviewResult(
+                request=TextReplaceRequest(
+                    paths=(target_path,),
+                    find_text="todo",
+                    replace_text="done",
+                ),
+                changed_entries=(
+                    TextReplacePreviewEntry(
+                        path=target_path,
+                        match_count=2,
+                        first_match_line_number=4,
+                        first_match_before="todo item",
+                        first_match_after="done item",
+                    ),
+                ),
+                total_match_count=2,
+                diff_text=(
+                    f"--- {target_path}\n"
+                    f"+++ {target_path} (replaced)\n"
+                    "@@ -1,1 +1,1 @@\n"
+                    "-todo item\n"
+                    "+done item\n"
+                ),
+            ),
+        },
+        apply_results={
+            TextReplaceRequest(
+                paths=(target_path,),
+                find_text="todo",
+                replace_text="done",
+            ): TextReplaceResult(
+                request=TextReplaceRequest(
+                    paths=(target_path,),
+                    find_text="todo",
+                    replace_text="done",
+                ),
+                changed_paths=(target_path,),
+                total_match_count=2,
+                message="Replaced 2 match(es) in 1 file(s)",
+            ),
+        },
+    )
+    app = create_app(
+        snapshot_loader=loader,
+        text_replace_service=text_replace_service,
+        initial_path=path,
+    )
+
+    async with app.run_test() as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("space")
+        await pilot.press(":")
+        await pilot.press("r", "e", "p", "l", "a", "c", "e")
+        await pilot.press("enter")
+        await pilot.press("t", "o", "d", "o")
+        await pilot.press("tab")
+        await pilot.press("d", "o", "n", "e")
+
+        await _wait_for_predicate(
+            lambda: len(text_replace_service.preview_requests) >= 1,
+            timeout=0.5,
+            message="text replace preview was not requested",
+        )
+        await _wait_for_predicate(
+            lambda: (
+                app.app_state.command_palette is not None
+                and len(app.app_state.command_palette.replace_preview_results) == 1
+            ),
+            timeout=0.5,
+            message="replace preview results did not appear",
+        )
+
+        palette_state = select_command_palette_state(app.app_state)
+        assert palette_state is not None
+        assert palette_state.items == ()
+
+        child_pane = select_shell_data(app.app_state).child_pane
+        assert child_pane.preview_title == "Replace Preview"
+        assert child_pane.preview_content is not None
+        assert "--- " in child_pane.preview_content
+        assert "+++ " in child_pane.preview_content
+        assert "-todo item" in child_pane.preview_content
+        assert "+done item" in child_pane.preview_content
+
+        await pilot.press("enter")
+
+        await _wait_for_predicate(
+            lambda: len(text_replace_service.apply_requests) == 1,
+            timeout=0.5,
+            message="text replace apply was not requested",
+        )
+        await _wait_for_predicate(
+            lambda: (
+                app.app_state.notification is not None
+                and app.app_state.notification.message == "Replaced 2 match(es) in 1 file(s)"
+            ),
+            timeout=0.5,
+            message="replacement completion notification did not appear",
+        )
         assert app.app_state.ui_mode == "BROWSING"
 
 
