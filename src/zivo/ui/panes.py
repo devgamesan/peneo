@@ -414,7 +414,7 @@ class ChildPane(Vertical):
             id=self.preview_scroll_id,
             classes="pane-preview-scroll",
         )
-        preview_scroll.can_focus = True
+        preview_scroll.can_focus = False
         preview_scroll.display = self._state.is_preview
         list_content.display = not self._state.is_preview
         yield list_content
