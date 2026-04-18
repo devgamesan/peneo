@@ -232,6 +232,27 @@ def test_live_browser_snapshot_loader_truncates_large_text_preview(tmp_path) -> 
     assert snapshot.child_pane.preview_content == "a" * (64 * 1024)
 
 
+def test_live_browser_snapshot_loader_uses_configured_preview_limit(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    readme = project / "README.md"
+    readme.write_text("a" * (128 * 1024), encoding="utf-8")
+
+    loader = LiveBrowserSnapshotLoader()
+
+    snapshot = loader.load_browser_snapshot(str(project), cursor_path=str(readme))
+    custom_pane = loader.load_child_pane_snapshot(
+        str(project),
+        str(readme),
+        preview_max_bytes=128 * 1024,
+    )
+
+    assert snapshot.child_pane.preview_truncated is True
+    assert len(snapshot.child_pane.preview_content or "") == 64 * 1024
+    assert custom_pane.preview_truncated is False
+    assert len(custom_pane.preview_content or "") == 128 * 1024
+
+
 def test_live_browser_snapshot_loader_returns_empty_parent_pane_for_root_path() -> None:
     filesystem = StubFilesystemAdapter(
         entries_by_path={

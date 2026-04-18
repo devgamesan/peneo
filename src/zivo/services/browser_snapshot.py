@@ -200,6 +200,8 @@ class BrowserSnapshotLoader(Protocol):
         self,
         current_path: str,
         cursor_path: str | None,
+        *,
+        preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     ) -> PaneState: ...
 
     def load_grep_preview(
@@ -208,6 +210,7 @@ class BrowserSnapshotLoader(Protocol):
         result: GrepSearchResultState,
         *,
         context_lines: int = 3,
+        preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     ) -> PaneState: ...
 
     def invalidate_directory_listing_cache(
@@ -275,6 +278,8 @@ class LiveBrowserSnapshotLoader:
         self,
         current_path: str,
         cursor_path: str | None,
+        *,
+        preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     ) -> PaneState:
         if cursor_path is None:
             return PaneState(directory_path=current_path, entries=())
@@ -301,7 +306,7 @@ class LiveBrowserSnapshotLoader:
             except OSError:
                 return PaneState(directory_path=current_path, entries=())
 
-        preview = _load_text_preview(child_path)
+        preview = _load_text_preview(child_path, preview_max_bytes=preview_max_bytes)
         if preview.kind != "unavailable":
             return PaneState(
                 directory_path=current_path,
@@ -321,9 +326,15 @@ class LiveBrowserSnapshotLoader:
         result: GrepSearchResultState,
         *,
         context_lines: int = 3,
+        preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     ) -> PaneState:
         child_path = Path(result.path).expanduser().resolve()
-        preview = _load_grep_context_preview(child_path, result.line_number, context_lines)
+        preview = _load_grep_context_preview(
+            child_path,
+            result.line_number,
+            context_lines,
+            preview_max_bytes=preview_max_bytes,
+        )
         return PaneState(
             directory_path=current_path,
             entries=(),
@@ -439,6 +450,8 @@ class FakeBrowserSnapshotLoader:
         self,
         current_path: str,
         cursor_path: str | None,
+        *,
+        preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     ) -> PaneState:
         key = (current_path, cursor_path)
         self.executed_child_pane_requests.append(key)
@@ -461,6 +474,7 @@ class FakeBrowserSnapshotLoader:
         result: GrepSearchResultState,
         *,
         context_lines: int = 3,
+        preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     ) -> PaneState:
         key = (current_path, result.path, result.line_number)
         self.executed_grep_preview_requests.append(key)
@@ -557,20 +571,25 @@ def _normalize_directory_cache_path(path: str) -> str:
     return str(Path(path).expanduser().resolve())
 
 
-def _load_text_preview(path: Path) -> "FilePreviewState":
+def _load_text_preview(
+    path: Path,
+    *,
+    preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
+) -> "FilePreviewState":
+    preview_limit = max(1, preview_max_bytes)
     try:
         with path.open("rb") as handle:
-            chunk = handle.read(TEXT_PREVIEW_MAX_BYTES + 1)
+            chunk = handle.read(preview_limit + 1)
     except PermissionError:
         return FilePreviewState.permission_denied()
     except OSError:
         return FilePreviewState.error()
 
-    if b"\x00" in chunk[:TEXT_PREVIEW_MAX_BYTES]:
+    if b"\x00" in chunk[:preview_limit]:
         return FilePreviewState.unsupported()
 
-    truncated = len(chunk) > TEXT_PREVIEW_MAX_BYTES
-    preview_bytes = chunk[:TEXT_PREVIEW_MAX_BYTES]
+    truncated = len(chunk) > preview_limit
+    preview_bytes = chunk[:preview_limit]
     try:
         preview_text = preview_bytes.decode("utf-8")
     except UnicodeDecodeError:
@@ -583,16 +602,19 @@ def _load_grep_context_preview(
     path: Path,
     line_number: int,
     context_lines: int,
+    *,
+    preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
 ) -> "ContextPreviewState":
+    preview_limit = max(1, preview_max_bytes)
     try:
         with path.open("rb") as handle:
-            sample = handle.read(TEXT_PREVIEW_MAX_BYTES + 1)
+            sample = handle.read(preview_limit + 1)
     except PermissionError:
         return ContextPreviewState.with_message(PREVIEW_PERMISSION_DENIED_MESSAGE)
     except OSError:
         return ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE)
 
-    if b"\x00" in sample[:TEXT_PREVIEW_MAX_BYTES]:
+    if b"\x00" in sample[:preview_limit]:
         return ContextPreviewState.with_message(PREVIEW_UNSUPPORTED_MESSAGE)
 
     try:
@@ -732,3 +754,5 @@ def _is_preview_candidate(path: Path) -> bool:
 
     # 新規：拡張子がない、またはリストにないファイルはヒューリスティック判定
     return _is_text_content(path)
+def preview_max_bytes_from_kib(preview_max_kib: int) -> int:
+    return max(1, preview_max_kib) * 1024

@@ -55,6 +55,7 @@ ReducerFn = Callable[[AppState, Action], ReduceResult]
 CONFIG_SORT_FIELDS = ("name", "modified", "size")
 CONFIG_THEMES = SUPPORTED_APP_THEMES
 CONFIG_PREVIEW_SYNTAX_THEMES = SUPPORTED_PREVIEW_SYNTAX_THEMES
+CONFIG_PREVIEW_MAX_KIB = (64, 128, 256, 512, 1024)
 CONFIG_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 CONFIG_PASTE_ACTIONS = ("prompt", "overwrite", "skip", "rename")
 CONFIG_EDITOR_COMMANDS = (None, "nvim", "vim", "nano", "hx", "micro", "emacs -nw")
@@ -581,6 +582,7 @@ def sync_child_pane(
             request_id=request_id,
             current_path=state.current_path,
             cursor_path=entry.path,
+            preview_max_bytes=state.config.display.preview_max_kib * 1024,
         ),
     )
 
@@ -717,6 +719,18 @@ def cycle_config_editor_value(config: AppConfig, cursor_index: int, delta: int) 
                 ),
             ),
         )
+    if field_id == "display.preview_max_kib":
+        return replace(
+            config,
+            display=replace(
+                config.display,
+                preview_max_kib=cycle_choice(
+                    CONFIG_PREVIEW_MAX_KIB,
+                    config.display.preview_max_kib,
+                    delta,
+                ),
+            ),
+        )
     if field_id == "display.default_sort_field":
         return replace(
             config,
@@ -821,6 +835,7 @@ def config_editor_field_ids() -> tuple[str, ...]:
         "display.show_directory_sizes",
         "display.show_preview",
         "display.preview_syntax_theme",
+        "display.preview_max_kib",
         "display.show_help_bar",
         "display.default_sort_field",
         "display.default_sort_descending",
@@ -841,6 +856,7 @@ def config_editor_labels() -> tuple[str, ...]:
         "Show directory sizes",
         "Show preview",
         "Preview syntax theme",
+        "Preview max KiB",
         "Show help bar",
         "Default sort field",
         "Default sort descending",
@@ -855,10 +871,10 @@ def config_editor_labels() -> tuple[str, ...]:
 
 CONFIG_EDITOR_CATEGORIES: tuple[tuple[str, tuple[int, ...]], ...] = (
     ("External", (0,)),
-    ("Display", (2, 5, 1, 3, 4, 6, 10, 11)),
-    ("Sorting", (7, 8, 9)),
-    ("Behavior", (12, 13)),
-    ("Logging", (14,)),
+    ("Display", (2, 5, 1, 3, 4, 6, 7, 11, 12)),
+    ("Sorting", (8, 9, 10)),
+    ("Behavior", (13, 14)),
+    ("Logging", (15,)),
 )
 
 

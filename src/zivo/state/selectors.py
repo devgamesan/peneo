@@ -1325,6 +1325,8 @@ def _config_field_value(field_index: int, config: "AppConfig") -> str:  # type: 
         return _format_bool(config.display.show_preview)
     if field_id == "display.preview_syntax_theme":
         return config.display.preview_syntax_theme
+    if field_id == "display.preview_max_kib":
+        return f"{config.display.preview_max_kib} KiB"
     if field_id == "display.show_help_bar":
         return _format_bool(config.display.show_help_bar)
     if field_id == "display.default_sort_field":

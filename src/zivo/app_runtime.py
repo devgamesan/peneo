@@ -303,6 +303,7 @@ def start_child_pane_snapshot(app: Any, effect: LoadChildPaneSnapshotEffect) -> 
         app._snapshot_loader.load_child_pane_snapshot,
         effect.current_path,
         effect.cursor_path,
+        preview_max_bytes=effect.preview_max_bytes,
     )
     if effect.grep_result is not None:
         loader = partial(
@@ -310,6 +311,7 @@ def start_child_pane_snapshot(app: Any, effect: LoadChildPaneSnapshotEffect) -> 
             effect.current_path,
             effect.grep_result,
             context_lines=effect.grep_context_lines,
+            preview_max_bytes=effect.preview_max_bytes,
         )
     _run_worker(
         app,

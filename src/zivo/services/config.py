@@ -45,6 +45,7 @@ _VALID_PREVIEW_SYNTAX_THEMES = frozenset(SUPPORTED_PREVIEW_SYNTAX_THEMES)
 _VALID_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 _VALID_PASTE_ACTIONS = frozenset({"overwrite", "skip", "rename", "prompt"})
 _VALID_SPLIT_TERMINAL_POSITIONS = frozenset({"bottom", "right", "overlay"})
+_VALID_PREVIEW_MAX_KIB = frozenset({64, 128, 256, 512, 1024})
 _VALID_TERMINAL_EDITOR_NAMES = frozenset(
     {"emacs", "helix", "hx", "kak", "micro", "nano", "nvim", "vi", "vim"}
 )
@@ -252,6 +253,14 @@ def _load_display_config(section: object, warnings: list[str]) -> DisplayConfig:
             valid_display=SUPPORTED_PREVIEW_SYNTAX_THEME_DISPLAY,
             section_name="display",
             warnings=warnings,
+        ),
+        preview_max_kib=_read_int(
+            validated,
+            key="preview_max_kib",
+            default=config.preview_max_kib,
+            valid_values=_VALID_PREVIEW_MAX_KIB,
+            warnings=warnings,
+            section_name="display",
         ),
         default_sort_field=_read_enum(
             validated,
@@ -504,11 +513,21 @@ def _read_int(
     key: str,
     default: int,
     minimum: int = 0,
+    valid_values: frozenset[int] | None = None,
     warnings: list[str],
     section_name: str,
 ) -> int:
     value = section.get(key, default)
     if isinstance(value, int) and not isinstance(value, bool):
+        if valid_values is not None:
+            if value in valid_values:
+                return value
+            if key in section:
+                valid_display = ", ".join(str(item) for item in sorted(valid_values))
+                warnings.append(
+                    f"{section_name}.{key} must be one of {valid_display}; using default."
+                )
+            return default
         if value >= minimum:
             return value
         if key in section:
@@ -585,6 +604,7 @@ def _render_display_section(config: AppConfig) -> str:
         f"show_preview = {_render_bool(config.display.show_preview)}\n"
         f'theme = "{config.display.theme}"\n'
         f'preview_syntax_theme = "{config.display.preview_syntax_theme}"\n'
+        f"preview_max_kib = {config.display.preview_max_kib}\n"
         f'default_sort_field = "{config.display.default_sort_field}"\n'
         f"default_sort_descending = {_render_bool(config.display.default_sort_descending)}\n"
         f"directories_first = {_render_bool(config.display.directories_first)}\n"
