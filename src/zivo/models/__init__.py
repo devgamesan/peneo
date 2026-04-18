@@ -13,6 +13,7 @@ from .config import (
     HelpBarConfig,
     LoggingConfig,
     PasteConflictAction,
+    PreviewMaxKiB,
     PreviewSyntaxTheme,
     TerminalConfig,
 )
@@ -129,6 +130,7 @@ __all__ = [
     "MutationResultLevel",
     "PaneEntry",
     "PasteConflictAction",
+    "PreviewMaxKiB",
     "PreviewSyntaxTheme",
     "SplitTerminalViewState",
     "PasteConflict",

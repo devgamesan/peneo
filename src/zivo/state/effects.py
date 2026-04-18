@@ -36,6 +36,7 @@ class LoadChildPaneSnapshotEffect:
     request_id: int
     current_path: str
     cursor_path: str
+    preview_max_bytes: int = 64 * 1024
     grep_result: GrepSearchResultState | None = None
     grep_context_lines: int = 3
 

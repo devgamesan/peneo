@@ -38,6 +38,7 @@ def test_loader_creates_default_config_when_missing(tmp_path) -> None:
     assert '# command = "nvim -u NONE"' in written
     assert 'theme = "textual-dark"' in written
     assert 'preview_syntax_theme = "auto"' in written
+    assert "preview_max_kib = 64" in written
     assert "show_directory_sizes = true" in written
     assert "show_preview = true" in written
     assert 'default_sort_field = "name"' in written
@@ -64,6 +65,7 @@ def test_loader_reads_valid_config_values(tmp_path) -> None:
         show_preview = false
         theme = "dracula"
         preview_syntax_theme = "one-dark"
+        preview_max_kib = 256
         default_sort_field = "modified"
         default_sort_descending = true
         directories_first = false
@@ -94,6 +96,7 @@ def test_loader_reads_valid_config_values(tmp_path) -> None:
     assert result.config.display.show_preview is False
     assert result.config.display.theme == "dracula"
     assert result.config.display.preview_syntax_theme == "one-dark"
+    assert result.config.display.preview_max_kib == 256
     assert result.config.display.default_sort_field == "modified"
     assert result.config.display.default_sort_descending is True
     assert result.config.display.directories_first is False
@@ -125,6 +128,7 @@ def test_loader_keeps_valid_values_and_warns_for_invalid_entries(tmp_path) -> No
         show_preview = "yes"
         theme = "bad-theme"
         preview_syntax_theme = "bad-preview-style"
+        preview_max_kib = 42
         default_sort_field = "invalid"
         grep_preview_context_lines = -1
 
@@ -151,13 +155,14 @@ def test_loader_keeps_valid_values_and_warns_for_invalid_entries(tmp_path) -> No
     assert result.config.display.show_preview is True
     assert result.config.display.theme == "textual-dark"
     assert result.config.display.preview_syntax_theme == "auto"
+    assert result.config.display.preview_max_kib == 64
     assert result.config.display.default_sort_field == "name"
     assert result.config.behavior.confirm_delete is True
     assert result.config.behavior.paste_conflict_action == "prompt"
     assert result.config.logging.enabled is True
     assert result.config.logging.path is None
     assert result.config.bookmarks.paths == ()
-    assert len(result.warnings) == 14
+    assert len(result.warnings) == 15
 
 
 def test_loader_warns_for_invalid_editor_command_syntax(tmp_path) -> None:
@@ -193,6 +198,7 @@ def test_config_save_service_writes_normalized_config_file(tmp_path) -> None:
                 show_preview=False,
                 theme="tokyo-night",
                 preview_syntax_theme="one-dark",
+                preview_max_kib=512,
                 default_sort_field="size",
                 default_sort_descending=True,
                 directories_first=False,
@@ -221,6 +227,7 @@ def test_config_save_service_writes_normalized_config_file(tmp_path) -> None:
     assert "show_preview = false" in written
     assert 'theme = "tokyo-night"' in written
     assert 'preview_syntax_theme = "one-dark"' in written
+    assert "preview_max_kib = 512" in written
     assert 'default_sort_field = "size"' in written
     assert "confirm_delete = false" in written
     assert 'paste_conflict_action = "rename"' in written
@@ -300,6 +307,38 @@ def test_loader_rejects_non_integer_grep_preview_context_lines(tmp_path) -> None
         "display.grep_preview_context_lines must be an integer" in w
         for w in result.warnings
     )
+
+
+def test_loader_reads_preview_max_kib(tmp_path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+        [display]
+        preview_max_kib = 1024
+        """,
+        encoding="utf-8",
+    )
+
+    result = AppConfigLoader(config_path_resolver=lambda: config_path).load()
+
+    assert result.warnings == ()
+    assert result.config.display.preview_max_kib == 1024
+
+
+def test_loader_rejects_invalid_preview_max_kib(tmp_path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+        [display]
+        preview_max_kib = 96
+        """,
+        encoding="utf-8",
+    )
+
+    result = AppConfigLoader(config_path_resolver=lambda: config_path).load()
+
+    assert result.config.display.preview_max_kib == 64
+    assert any("display.preview_max_kib" in warning for warning in result.warnings)
 
 
 def test_loader_accepts_zero_grep_preview_context_lines(tmp_path) -> None:
