@@ -2558,6 +2558,97 @@ def test_set_grep_search_field_builds_include_and_exclude_globs() -> None:
     )
 
 
+def test_set_grep_search_filename_filter_updates_palette_and_requests_search() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = _reduce_state(state, SetCommandPaletteQuery("todo"))
+
+    result = reduce_app_state(state, SetGrepSearchField(field="filename", value="readme"))
+
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.grep_search_filename_filter == "readme"
+    assert result.effects == (
+        RunGrepSearchEffect(
+            request_id=2,
+            root_path="/home/tadashi/develop/zivo",
+            query="todo",
+            show_hidden=False,
+            include_globs=(),
+            exclude_globs=(),
+        ),
+    )
+
+
+def test_grep_search_completed_filters_results_by_filename() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            grep_search_keyword="todo",
+            grep_search_filename_filter="readme",
+        ),
+        pending_grep_search_request_id=4,
+    )
+    results = (
+        GrepSearchResultState(
+            path="/home/tadashi/develop/zivo/README.md",
+            display_path="README.md",
+            line_number=1,
+            line_text="TODO",
+        ),
+        GrepSearchResultState(
+            path="/home/tadashi/develop/zivo/docs/guide.md",
+            display_path="docs/guide.md",
+            line_number=2,
+            line_text="TODO",
+        ),
+    )
+
+    result = reduce_app_state(
+        state,
+        GrepSearchCompleted(request_id=4, query="todo", results=results),
+    )
+
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.grep_search_results == (results[0],)
+    assert result.state.pending_grep_search_request_id is None
+
+
+def test_grep_search_completed_filters_results_by_filename_regex() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            grep_search_keyword="todo",
+            grep_search_filename_filter="re:^docs/.+\\.md$",
+        ),
+        pending_grep_search_request_id=4,
+    )
+    results = (
+        GrepSearchResultState(
+            path="/home/tadashi/develop/zivo/README.md",
+            display_path="README.md",
+            line_number=1,
+            line_text="TODO",
+        ),
+        GrepSearchResultState(
+            path="/home/tadashi/develop/zivo/docs/guide.md",
+            display_path="docs/guide.md",
+            line_number=2,
+            line_text="TODO",
+        ),
+    )
+
+    result = reduce_app_state(
+        state,
+        GrepSearchCompleted(request_id=4, query="todo", results=results),
+    )
+
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.grep_search_results == (results[1],)
+
+
 def test_set_grep_search_field_rejects_conflicting_extensions() -> None:
     state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
     state = _reduce_state(state, SetCommandPaletteQuery("todo"))

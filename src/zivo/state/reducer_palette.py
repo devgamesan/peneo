@@ -110,7 +110,7 @@ from .reducer_common import (
 )
 from .selectors import select_target_paths, select_visible_current_entry_states
 
-_GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "include", "exclude")
+_GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "filename", "include", "exclude")
 _REPLACE_FIELDS: tuple[ReplaceFieldId, ...] = ("find", "replace")
 _FIND_REPLACE_FIELDS: tuple[FindReplaceFieldId, ...] = ("filename", "find", "replace")
 _GREP_REPLACE_FIELDS: tuple[GrepReplaceFieldId, ...] = (
@@ -130,6 +130,8 @@ def _grep_field_value(
 ) -> str:
     if field == "keyword":
         return palette.grep_search_keyword
+    if field == "filename":
+        return palette.grep_search_filename_filter
     if field == "include":
         return palette.grep_search_include_extensions
     return palette.grep_search_exclude_extensions
@@ -143,6 +145,8 @@ def _replace_grep_field(
 ) -> CommandPaletteState:
     if field == "keyword":
         return replace(palette, query=value, grep_search_keyword=value)
+    if field == "filename":
+        return replace(palette, grep_search_filename_filter=value)
     if field == "include":
         return replace(palette, grep_search_include_extensions=value)
     return replace(palette, grep_search_exclude_extensions=value)
@@ -238,6 +242,19 @@ def _validate_grep_search_filters(
             f"Extensions cannot be included and excluded at the same time: {formatted}"
         )
     return include_globs, exclude_globs
+
+
+def _filter_grep_results_by_filename(
+    results: tuple[GrepSearchResultState, ...],
+    filename_query: str,
+) -> tuple[GrepSearchResultState, ...]:
+    if not filename_query.strip():
+        return results
+    if is_regex_file_search_query(filename_query):
+        pattern = re.compile(filename_query[3:], re.IGNORECASE)
+        return tuple(result for result in results if pattern.search(result.display_path))
+    lowered = filename_query.casefold()
+    return tuple(result for result in results if lowered in result.display_path.casefold())
 
 
 def _notify(
@@ -1684,7 +1701,10 @@ def _handle_grep_search_completed(
             state,
             command_palette=replace(
                 state.command_palette,
-                grep_search_results=action.results,
+                grep_search_results=_filter_grep_results_by_filename(
+                    action.results,
+                    state.command_palette.grep_search_filename_filter,
+                ),
                 grep_search_error_message=None,
                 cursor_index=0,
             ),
@@ -2369,13 +2389,7 @@ def _filter_grf_by_filename(
     results: tuple[GrepSearchResultState, ...],
     filename_query: str,
 ) -> tuple[GrepSearchResultState, ...]:
-    if not filename_query.strip():
-        return results
-    if is_regex_file_search_query(filename_query):
-        pattern = re.compile(filename_query[3:], re.IGNORECASE)
-        return tuple(r for r in results if pattern.search(r.display_path))
-    lowered = filename_query.casefold()
-    return tuple(r for r in results if lowered in r.display_path.casefold())
+    return _filter_grep_results_by_filename(results, filename_query)
 
 
 def _handle_grf_grep_search_completed(

@@ -3422,7 +3422,7 @@ async def test_app_grep_search_passes_include_and_exclude_extensions(tmp_path) -
         await _wait_for_snapshot_loaded(app, path)
         await pilot.press("g")
         await pilot.press("t", "o", "d", "o")
-        await pilot.press("tab", "m", "d")
+        await pilot.press("tab", "tab", "m", "d")
         await pilot.press("tab", "l", "o", "g")
 
         await _wait_for_request_count(grep_search_service, 1, timeout=1.0)
@@ -3433,6 +3433,40 @@ async def test_app_grep_search_passes_include_and_exclude_extensions(tmp_path) -
             ("*.log",),
             False,
         )
+
+
+@pytest.mark.asyncio
+async def test_app_grep_search_filters_results_by_filename(tmp_path) -> None:
+    path = str(tmp_path)
+    (tmp_path / "README.md").write_text("TODO: readme\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("TODO: notes\n", encoding="utf-8")
+    grep_search_service = FakeGrepSearchService(
+        results_by_query={
+            (path, "todo", (), (), False): (
+                GrepSearchResultState(
+                    path=f"{path}/README.md",
+                    display_path="README.md",
+                    line_number=1,
+                    line_text="TODO: readme",
+                ),
+                GrepSearchResultState(
+                    path=f"{path}/notes.txt",
+                    display_path="notes.txt",
+                    line_number=1,
+                    line_text="TODO: notes",
+                ),
+            )
+        }
+    )
+    app = create_app(grep_search_service=grep_search_service, initial_path=path)
+
+    async with app.run_test() as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await pilot.press("g")
+        await pilot.press("t", "o", "d", "o")
+        await pilot.press("tab", "R", "E", "A", "D")
+
+        await _wait_for_request_count(grep_search_service, 1, timeout=1.0)
         assert app.app_state.command_palette is not None
         assert [
             result.display_label for result in app.app_state.command_palette.grep_search_results

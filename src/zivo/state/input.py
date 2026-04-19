@@ -498,6 +498,8 @@ def _active_grep_field_value(state: AppState) -> str:
     field = state.command_palette.grep_search_active_field
     if field == "keyword":
         return state.command_palette.grep_search_keyword or state.command_palette.query
+    if field == "filename":
+        return state.command_palette.grep_search_filename_filter
     if field == "include":
         return state.command_palette.grep_search_include_extensions
     return state.command_palette.grep_search_exclude_extensions

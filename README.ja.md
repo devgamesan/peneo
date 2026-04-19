@@ -52,7 +52,7 @@ Overlay表示:
 
   ![](docs/resources/screen-find-command.png)
 
-- カレントディレクトリ配下を対象とした再帰 grep 検索が可能です。検索結果から該当ファイルへジャンプできます。差分箇所の前後数行をプレビューでき、目的のファイルを簡単に見つけることができます。また、ターミナルエディタで該当箇所を直接開くこともできます。
+- カレントディレクトリ配下を対象とした再帰 grep 検索が可能です。検索結果から該当ファイルへジャンプできます。差分箇所の前後数行をプレビューでき、目的のファイルを簡単に見つけることができます。パレットには `Filter: Filename`、`Filter: Include`、`Filter: Exclude` があり、開く前に対象を絞り込めます。また、ターミナルエディタで該当箇所を直接開くこともできます。
 
   ![](docs/resources/screen-grep-command.png)
 
@@ -339,7 +339,7 @@ zivo-cd
 | `Previous tab` | 2 タブ以上開いているとき | 前のブラウズタブへ切り替えます。`shift+tab` でも実行できます。 |
 | `Close current tab` | 2 タブ以上開いているとき | アクティブなブラウズタブを閉じます。最後の 1 タブは閉じられません。`w` でも実行できます。 |
 | `Find files` | 常に表示 | 再帰ファイル検索を開きます。 |
-| `Grep search` | 常に表示 | 再帰 grep 検索を開きます（`ripgrep` / `rg` が `PATH` 上に必要）。 |
+| `Grep search` | 常に表示 | 再帰 grep 検索を開きます（`ripgrep` / `rg` が `PATH` 上に必要）。keyword / filename / include extension / exclude extension の各フィルタを利用できます。 |
 | `History search` | 常に表示 | ディレクトリ履歴リストを開き、選択したディレクトリへ移動します。 |
 | `Show bookmarks` | 常に表示 | 保存済みのブックマークリストを開き、選択したディレクトリへ移動します。 |
 | `Go back` | ディレクトリ履歴に戻り先があるとき | 履歴を一つ戻ります。 |
