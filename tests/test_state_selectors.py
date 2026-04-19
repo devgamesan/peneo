@@ -1782,6 +1782,7 @@ def test_select_command_palette_state_shows_replace_text_for_selected_files() ->
     assert [item.label for item in palette_state.items] == [
         "Replace text in selected files",
         "Replace text in found files",
+        "Replace text in grep results",
     ]
     assert palette_state.items[0].enabled is True
 
@@ -1805,6 +1806,7 @@ def test_select_command_palette_state_shows_replace_text_for_cursor_file() -> No
     assert [item.label for item in palette_state.items] == [
         "Replace text in selected files",
         "Replace text in found files",
+        "Replace text in grep results",
     ]
     assert palette_state.items[0].enabled is True
 

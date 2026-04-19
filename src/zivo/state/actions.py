@@ -30,6 +30,7 @@ from .models import (
     BrowserSnapshot,
     FileSearchResultState,
     FindReplaceFieldId,
+    GrepReplaceFieldId,
     GrepSearchFieldId,
     GrepSearchResultState,
     NotificationState,
@@ -144,6 +145,11 @@ class BeginFindAndReplace:
 
 
 @dataclass(frozen=True)
+class BeginGrepReplace:
+    """Open the command palette in grep-and-replace mode."""
+
+
+@dataclass(frozen=True)
 class BeginCommandPalette:
     """Open the command palette."""
 
@@ -233,6 +239,21 @@ class SetFindReplaceField:
 @dataclass(frozen=True)
 class CycleFindReplaceField:
     """Move focus between find-and-replace input fields."""
+
+    delta: int
+
+
+@dataclass(frozen=True)
+class SetGrepReplaceField:
+    """Update one grep-and-replace input field."""
+
+    field: GrepReplaceFieldId
+    value: str
+
+
+@dataclass(frozen=True)
+class CycleGrepReplaceField:
+    """Move focus between grep-and-replace input fields."""
 
     delta: int
 
@@ -1037,6 +1058,7 @@ Action = (
     | BeginBookmarkSearch
     | BeginTextReplace
     | BeginFindAndReplace
+    | BeginGrepReplace
     | BeginCommandPalette
     | OpenNewTab
     | ActivateNextTab
@@ -1052,6 +1074,8 @@ Action = (
     | CycleReplaceField
     | SetFindReplaceField
     | CycleFindReplaceField
+    | SetGrepReplaceField
+    | CycleGrepReplaceField
     | SubmitCommandPalette
     | DismissConfigEditor
     | MoveConfigEditorCursor

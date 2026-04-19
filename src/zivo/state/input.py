@@ -43,6 +43,7 @@ from .actions import (
     CutTargets,
     CycleConfigEditorValue,
     CycleFindReplaceField,
+    CycleGrepReplaceField,
     CycleGrepSearchField,
     CycleReplaceField,
     DeletePendingInputForward,
@@ -79,6 +80,7 @@ from .actions import (
     SetCommandPaletteQuery,
     SetFilterQuery,
     SetFindReplaceField,
+    SetGrepReplaceField,
     SetGrepSearchField,
     SetNotification,
     SetPendingInputCursor,
@@ -101,6 +103,7 @@ from .models import (
     AppState,
     DirectoryEntryState,
     FindReplaceFieldId,
+    GrepReplaceFieldId,
     GrepSearchFieldId,
     NotificationState,
     ReplaceFieldId,
@@ -520,9 +523,26 @@ def _active_find_replace_field_value(state: AppState) -> str:
     return state.command_palette.rff_replacement_text
 
 
+def _active_grep_replace_field_value(state: AppState) -> str:
+    if state.command_palette is None:
+        return ""
+    field = state.command_palette.grf_active_field
+    if field == "keyword":
+        return state.command_palette.grf_keyword or state.command_palette.query
+    if field == "include":
+        return state.command_palette.grf_include_extensions
+    if field == "exclude":
+        return state.command_palette.grf_exclude_extensions
+    if field == "find":
+        return state.command_palette.grf_find_text
+    return state.command_palette.grf_replacement_text
+
+
 def _palette_extra_rows(palette_source: str | None) -> int:
     if palette_source == "replace_in_found_files":
         return 3
+    if palette_source == "replace_in_grep_files":
+        return 5
     if palette_source in {"grep_search", "replace_text"}:
         return 2
     return 0
@@ -580,6 +600,12 @@ def _dispatch_command_palette_input(
     if key == "shift+tab" and palette_source == "replace_in_found_files":
         return _supported(CycleFindReplaceField(delta=-1))
 
+    if key == "tab" and palette_source == "replace_in_grep_files":
+        return _supported(CycleGrepReplaceField(delta=1))
+
+    if key == "shift+tab" and palette_source == "replace_in_grep_files":
+        return _supported(CycleGrepReplaceField(delta=-1))
+
     if key == "up" or (key == "k" and not search_palette):
         return _supported(MoveCommandPaletteCursor(delta=-1))
 
@@ -633,6 +659,13 @@ def _dispatch_command_palette_input(
                     value=_active_find_replace_field_value(state)[:-1],
                 )
             )
+        if palette_source == "replace_in_grep_files":
+            return _supported(
+                SetGrepReplaceField(
+                    field=state.command_palette.grf_active_field,
+                    value=_active_grep_replace_field_value(state)[:-1],
+                )
+            )
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(current_query[:-1]))
 
@@ -667,6 +700,14 @@ def _dispatch_command_palette_input(
                     value=f"{_active_find_replace_field_value(state)}{character}",
                 )
             )
+        if palette_source == "replace_in_grep_files":
+            active_field_grf: GrepReplaceFieldId = state.command_palette.grf_active_field
+            return _supported(
+                SetGrepReplaceField(
+                    field=active_field_grf,
+                    value=f"{_active_grep_replace_field_value(state)}{character}",
+                )
+            )
         current_query = state.command_palette.query if state.command_palette is not None else ""
         return _supported(SetCommandPaletteQuery(f"{current_query}{character}"))
 
@@ -679,6 +720,9 @@ def _dispatch_command_palette_input(
         return _warn("Use Tab/Shift+Tab, type, arrows or Ctrl+n/p, Enter to apply, or Esc")
 
     if palette_source == "replace_in_found_files":
+        return _warn("Use Tab/Shift+Tab, type, arrows or Ctrl+n/p, Enter to apply, or Esc")
+
+    if palette_source == "replace_in_grep_files":
         return _warn("Use Tab/Shift+Tab, type, arrows or Ctrl+n/p, Enter to apply, or Esc")
 
     return _warn("Use arrows, type to filter, Enter to run, or Esc to cancel")
