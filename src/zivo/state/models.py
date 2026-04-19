@@ -352,6 +352,7 @@ class CommandPaletteState:
     source: CommandPaletteSource = "commands"
     query: str = ""
     grep_search_keyword: str = ""
+    grep_search_filename_filter: str = ""
     grep_search_include_extensions: str = ""
     grep_search_exclude_extensions: str = ""
     grep_search_active_field: GrepSearchFieldId = "keyword"

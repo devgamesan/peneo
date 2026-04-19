@@ -827,13 +827,19 @@ def _build_grep_search_input_fields(
             active=palette.grep_search_active_field == "keyword",
         ),
         CommandPaletteInputFieldViewState(
-            label="Include",
+            label="Filter: Filename",
+            value=palette.grep_search_filename_filter,
+            placeholder="pattern or re:pattern",
+            active=palette.grep_search_active_field == "filename",
+        ),
+        CommandPaletteInputFieldViewState(
+            label="Filter: Include",
             value=palette.grep_search_include_extensions,
             placeholder="all extensions",
             active=palette.grep_search_active_field == "include",
         ),
         CommandPaletteInputFieldViewState(
-            label="Exclude",
+            label="Filter: Exclude",
             value=palette.grep_search_exclude_extensions,
             placeholder="none",
             active=palette.grep_search_active_field == "exclude",

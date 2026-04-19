@@ -852,6 +852,25 @@ def test_grep_palette_printable_key_updates_include_field() -> None:
     )
 
 
+def test_grep_palette_printable_key_updates_filename_field() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            grep_search_active_field="filename",
+            grep_search_filename_filter="READ",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="m", character="m")
+
+    assert actions == (
+        SetNotification(None),
+        SetGrepSearchField(field="filename", value="READm"),
+    )
+
+
 def test_commands_palette_j_key_moves_cursor() -> None:
     state = replace(
         build_initial_app_state(),

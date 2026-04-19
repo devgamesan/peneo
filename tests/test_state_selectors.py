@@ -1506,6 +1506,7 @@ def test_select_command_palette_state_for_grep_search_includes_input_fields() ->
             source="grep_search",
             query="todo",
             grep_search_keyword="todo",
+            grep_search_filename_filter="main",
             grep_search_include_extensions="py,ts",
             grep_search_exclude_extensions="log",
             grep_search_active_field="exclude",
@@ -1517,11 +1518,12 @@ def test_select_command_palette_state_for_grep_search_includes_input_fields() ->
     assert palette_state is not None
     assert [field.label for field in palette_state.input_fields] == [
         "Keyword",
-        "Include",
-        "Exclude",
+        "Filter: Filename",
+        "Filter: Include",
+        "Filter: Exclude",
     ]
-    assert [field.value for field in palette_state.input_fields] == ["todo", "py,ts", "log"]
-    assert [field.active for field in palette_state.input_fields] == [False, False, True]
+    assert [field.value for field in palette_state.input_fields] == ["todo", "main", "py,ts", "log"]
+    assert [field.active for field in palette_state.input_fields] == [False, False, False, True]
 
 
 def test_select_command_palette_state_for_text_replace_includes_input_fields() -> None:
