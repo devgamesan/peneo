@@ -46,7 +46,7 @@ CommandPaletteSource = Literal[
     "replace_in_found_files",
     "replace_in_grep_files",
 ]
-GrepSearchFieldId = Literal["keyword", "include", "exclude"]
+GrepSearchFieldId = Literal["keyword", "filename", "include", "exclude"]
 ReplaceFieldId = Literal["find", "replace"]
 FindReplaceFieldId = Literal["filename", "find", "replace"]
 GrepReplaceFieldId = Literal["keyword", "replace", "filename", "include", "exclude"]
@@ -352,6 +352,7 @@ class CommandPaletteState:
     source: CommandPaletteSource = "commands"
     query: str = ""
     grep_search_keyword: str = ""
+    grep_search_filename_filter: str = ""
     grep_search_include_extensions: str = ""
     grep_search_exclude_extensions: str = ""
     grep_search_active_field: GrepSearchFieldId = "keyword"

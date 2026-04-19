@@ -595,9 +595,7 @@ def test_select_shell_data_emits_size_delta_updates_for_directory_size_changes()
     assert [
         (update.path, update.size_label, update.row_index)
         for update in shell.current_pane_update.size_updates
-    ] == [
-        ("/home/tadashi/develop/zivo/docs", "4.1KiB", row_index)
-    ]
+    ] == [("/home/tadashi/develop/zivo/docs", "4.1KiB", row_index)]
 
 
 def test_select_shell_data_emits_row_delta_updates_for_selection_changes() -> None:
@@ -625,9 +623,7 @@ def test_select_shell_data_emits_row_delta_updates_for_selection_changes() -> No
     assert [
         (update.path, update.entry.selected, update.row_index)
         for update in shell.current_pane_update.row_updates
-    ] == [
-        (path, True, row_index)
-    ]
+    ] == [(path, True, row_index)]
 
 
 def test_select_shell_data_emits_row_delta_updates_for_cut_changes() -> None:
@@ -652,9 +648,7 @@ def test_select_shell_data_emits_row_delta_updates_for_cut_changes() -> None:
     assert [
         (update.path, update.entry.cut, update.row_index)
         for update in shell.current_pane_update.row_updates
-    ] == [
-        (path, True, row_index)
-    ]
+    ] == [(path, True, row_index)]
 
 
 def test_select_shell_data_keeps_full_refresh_when_sorting_by_size() -> None:
@@ -1025,8 +1019,7 @@ def test_select_shell_data_reuses_current_entries_when_only_cursor_changes() -> 
 def test_select_shell_data_viewport_projection_limits_rendered_entries() -> None:
     path = "/tmp/zivo-viewport-selector"
     current_entries = tuple(
-        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}")
-        for index in range(12)
+        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}") for index in range(12)
     )
     state = replace(
         build_initial_app_state(current_pane_projection_mode="viewport"),
@@ -1045,12 +1038,12 @@ def test_select_shell_data_viewport_projection_limits_rendered_entries() -> None
     assert shell.current_summary.item_count == len(current_entries)
 
 
-def test_select_shell_data_viewport_projection_reuses_window_for_cursor_move_inside_window(
-) -> None:
+def test_select_shell_data_viewport_projection_reuses_window_for_cursor_move_inside_window() -> (
+    None
+):
     path = "/tmp/zivo-viewport-selector"
     current_entries = tuple(
-        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}")
-        for index in range(12)
+        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}") for index in range(12)
     )
     state = replace(
         build_initial_app_state(current_pane_projection_mode="viewport"),
@@ -1068,8 +1061,7 @@ def test_select_shell_data_viewport_projection_reuses_window_for_cursor_move_ins
 def test_select_shell_data_viewport_projection_shifts_window_after_cursor_crosses_edge() -> None:
     path = "/tmp/zivo-viewport-selector"
     current_entries = tuple(
-        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}")
-        for index in range(12)
+        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}") for index in range(12)
     )
     state = replace(
         build_initial_app_state(current_pane_projection_mode="viewport"),
@@ -1094,8 +1086,7 @@ def test_select_shell_data_viewport_projection_shifts_window_after_cursor_crosse
 def test_select_shell_data_viewport_projection_skips_offscreen_row_delta_updates() -> None:
     path = "/tmp/zivo-viewport-selector"
     current_entries = tuple(
-        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}")
-        for index in range(12)
+        entry(f"{path}/item_{index:02d}", name=f"item_{index:02d}") for index in range(12)
     )
     offscreen_path = current_entries[-1].path
     state = replace(
@@ -1418,9 +1409,7 @@ def test_select_help_bar_state_for_history_palette() -> None:
 
     help_bar = select_help_bar_state(state)
 
-    assert help_bar.lines == (
-        "type path | ↑↓ or Ctrl+n/p select | enter jump | esc cancel",
-    )
+    assert help_bar.lines == ("type path | ↑↓ or Ctrl+n/p select | enter jump | esc cancel",)
 
 
 def test_select_help_bar_state_for_bookmarks_palette() -> None:
@@ -1432,9 +1421,7 @@ def test_select_help_bar_state_for_bookmarks_palette() -> None:
 
     help_bar = select_help_bar_state(state)
 
-    assert help_bar.lines == (
-        "type path | ↑↓ or Ctrl+n/p select | enter jump | esc cancel",
-    )
+    assert help_bar.lines == ("type path | ↑↓ or Ctrl+n/p select | enter jump | esc cancel",)
 
 
 def test_select_help_bar_state_for_file_search_palette() -> None:
@@ -1461,8 +1448,7 @@ def test_select_help_bar_state_for_grep_search_palette() -> None:
     help_bar = select_help_bar_state(state)
 
     assert help_bar.lines == (
-        "type text / tab fields / ↑↓ or Ctrl+n/p select | "
-        "enter jump | Ctrl+e edit | esc cancel",
+        "type text / tab fields / ↑↓ or Ctrl+n/p select | enter jump | Ctrl+e edit | esc cancel",
     )
 
 
@@ -1475,9 +1461,7 @@ def test_select_help_bar_state_for_command_palette() -> None:
 
     help_bar = select_help_bar_state(state)
 
-    assert help_bar.lines == (
-        "type command | ↑↓ or Ctrl+n/p select | enter run | esc cancel",
-    )
+    assert help_bar.lines == ("type command | ↑↓ or Ctrl+n/p select | enter run | esc cancel",)
 
 
 def test_select_help_bar_state_for_config_editor() -> None:
@@ -1506,6 +1490,7 @@ def test_select_command_palette_state_for_grep_search_includes_input_fields() ->
             source="grep_search",
             query="todo",
             grep_search_keyword="todo",
+            grep_search_filename_filter="main",
             grep_search_include_extensions="py,ts",
             grep_search_exclude_extensions="log",
             grep_search_active_field="exclude",
@@ -1517,11 +1502,12 @@ def test_select_command_palette_state_for_grep_search_includes_input_fields() ->
     assert palette_state is not None
     assert [field.label for field in palette_state.input_fields] == [
         "Keyword",
-        "Include",
-        "Exclude",
+        "Filter: Filename",
+        "Filter: Include",
+        "Filter: Exclude",
     ]
-    assert [field.value for field in palette_state.input_fields] == ["todo", "py,ts", "log"]
-    assert [field.active for field in palette_state.input_fields] == [False, False, True]
+    assert [field.value for field in palette_state.input_fields] == ["todo", "main", "py,ts", "log"]
+    assert [field.active for field in palette_state.input_fields] == [False, False, False, True]
 
 
 def test_select_command_palette_state_for_text_replace_includes_input_fields() -> None:
@@ -1633,11 +1619,7 @@ def test_select_command_palette_state_switches_bookmark_command_label() -> None:
     )
 
     bookmarked_state = build_initial_app_state(
-        config=AppConfig(
-            bookmarks=BookmarkConfig(
-                paths=("/home/tadashi/develop/zivo",)
-            )
-        )
+        config=AppConfig(bookmarks=BookmarkConfig(paths=("/home/tadashi/develop/zivo",)))
     )
     bookmarked_palette_state = select_command_palette_state(
         replace(
@@ -1702,9 +1684,7 @@ def test_select_command_palette_state_shows_extract_archive_for_supported_file()
         build_initial_app_state(),
         current_pane=PaneState(
             directory_path="/home/tadashi/develop/zivo",
-            entries=(
-                DirectoryEntryState(archive_path, "archive.tar.gz", "file"),
-            ),
+            entries=(DirectoryEntryState(archive_path, "archive.tar.gz", "file"),),
             cursor_path=archive_path,
         ),
     )
@@ -1976,8 +1956,9 @@ def test_select_command_palette_state_for_file_search_results() -> None:
     assert [item.label for item in palette_state.items] == ["README.md"]
 
 
-def test_select_command_palette_state_shows_searching_message_while_file_search_is_pending(
-) -> None:
+def test_select_command_palette_state_shows_searching_message_while_file_search_is_pending() -> (
+    None
+):
     state = _reduce_state(build_initial_app_state(), BeginCommandPalette())
     state = replace(
         state,
@@ -2567,7 +2548,6 @@ class TestSelectCommandPaletteWindow:
         assert 12 in visible_indices
         assert 13 in visible_indices
         assert result[-1][0] == 13  # 最後のアイテムが表示されている
-
 
 
 class TestCommandPaletteDynamicWindow:

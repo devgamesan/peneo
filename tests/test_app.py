@@ -483,9 +483,7 @@ class BlockingGrepSearchService:
     ) -> None:
         self.results_by_query = results_by_query or {}
         self.blocked_queries = set(blocked_queries)
-        self.executed_requests: list[
-            tuple[str, str, tuple[str, ...], tuple[str, ...], bool]
-        ] = []
+        self.executed_requests: list[tuple[str, str, tuple[str, ...], tuple[str, ...], bool]] = []
         self.cancelled_queries: list[str] = []
         self.release_event = threading.Event()
 
@@ -619,10 +617,7 @@ async def _wait_for_child_preview(
         if child_title is not None and preview is not None and preview.display:
             code = getattr(preview.renderable, "code", None)
             rendered_text = code if code is not None else str(preview.renderable)
-            if (
-                str(child_title.renderable) == expected_title
-                and expected_snippet in rendered_text
-            ):
+            if str(child_title.renderable) == expected_title and expected_snippet in rendered_text:
                 return
         if asyncio.get_running_loop().time() >= deadline:
             raise AssertionError(
@@ -747,11 +742,7 @@ async def test_app_loads_directory_sizes_when_enabled() -> None:
         }
     )
     directory_size_service = FakeDirectorySizeService(
-        results_by_paths={
-            (f"{path}/docs",): (
-                (f"{path}/docs", 4_200),
-            )
-        }
+        results_by_paths={(f"{path}/docs",): ((f"{path}/docs", 4_200),)}
     )
     app = create_app(
         snapshot_loader=loader,
@@ -789,17 +780,14 @@ async def test_app_applies_directory_size_updates_without_full_current_pane_refr
             )
         }
     )
+
     class SlowDirectorySizeService(FakeDirectorySizeService):
         def calculate_sizes(self, paths, *, is_cancelled=None):
             time.sleep(0.05)
             return super().calculate_sizes(paths, is_cancelled=is_cancelled)
 
     directory_size_service = SlowDirectorySizeService(
-        results_by_paths={
-            (f"{path}/docs",): (
-                (f"{path}/docs", 4_200),
-            )
-        }
+        results_by_paths={(f"{path}/docs",): ((f"{path}/docs", 4_200),)}
     )
     set_entries_calls = 0
     apply_size_updates_calls = 0
@@ -857,15 +845,9 @@ async def test_app_keeps_successful_directory_sizes_when_some_paths_fail() -> No
         }
     )
     directory_size_service = FakeDirectorySizeService(
-        results_by_paths={
-            (f"{path}/docs", f"{path}/private"): (
-                (f"{path}/docs", 4_200),
-            )
-        },
+        results_by_paths={(f"{path}/docs", f"{path}/private"): ((f"{path}/docs", 4_200),)},
         failures_by_paths={
-            (f"{path}/docs", f"{path}/private"): (
-                (f"{path}/private", "permission denied"),
-            )
+            (f"{path}/docs", f"{path}/private"): ((f"{path}/private", "permission denied"),)
         },
     )
     app = create_app(
@@ -2402,9 +2384,7 @@ async def test_app_default_viewport_projection_pages_and_jumps_without_losing_cu
         visible_paths = tuple(entry.path for entry in current_entries)
         await _wait_for_row_count(app, visible_window, timeout=2.0)
 
-        await app.dispatch_actions(
-            (MoveCursor(delta=visible_window, visible_paths=visible_paths),)
-        )
+        await app.dispatch_actions((MoveCursor(delta=visible_window, visible_paths=visible_paths),))
         await _wait_for_cursor_path(app, current_entries[visible_window].path, timeout=2.0)
         await _wait_for_table_cell(app, "file_0002.txt", 0, 1, timeout=2.0)
         assert app.app_state.current_pane_window_start == 2
@@ -2457,9 +2437,7 @@ async def test_app_default_viewport_projection_recalculates_window_after_resize(
         visible_paths = tuple(entry.path for entry in current_entries)
         await _wait_for_row_count(app, visible_window, timeout=2.0)
 
-        await app.dispatch_actions(
-            (MoveCursor(delta=visible_window, visible_paths=visible_paths),)
-        )
+        await app.dispatch_actions((MoveCursor(delta=visible_window, visible_paths=visible_paths),))
         await _wait_for_cursor_path(app, current_entries[visible_window].path, timeout=2.0)
 
         await app.dispatch_actions((SetTerminalHeight(height=12),))
@@ -3422,7 +3400,7 @@ async def test_app_grep_search_passes_include_and_exclude_extensions(tmp_path) -
         await _wait_for_snapshot_loaded(app, path)
         await pilot.press("g")
         await pilot.press("t", "o", "d", "o")
-        await pilot.press("tab", "m", "d")
+        await pilot.press("tab", "tab", "m", "d")
         await pilot.press("tab", "l", "o", "g")
 
         await _wait_for_request_count(grep_search_service, 1, timeout=1.0)
@@ -4036,9 +4014,7 @@ async def test_app_config_dialog_save_updates_preview_syntax_theme() -> None:
                 current_path=path,
                 parent_pane=PaneState(
                     directory_path="/tmp",
-                    entries=(
-                        DirectoryEntryState(path, Path(path).name, "dir"),
-                    ),
+                    entries=(DirectoryEntryState(path, Path(path).name, "dir"),),
                     cursor_path=path,
                 ),
                 current_pane=PaneState(
@@ -4107,8 +4083,7 @@ async def test_app_config_dialog_save_updates_preview_syntax_theme() -> None:
         _saved_path, saved_config = config_save_service.saved_requests[0]
         assert saved_config.display.preview_syntax_theme == SUPPORTED_PREVIEW_SYNTAX_THEMES[1]
         assert (
-            app.app_state.config.display.preview_syntax_theme
-            == SUPPORTED_PREVIEW_SYNTAX_THEMES[1]
+            app.app_state.config.display.preview_syntax_theme == SUPPORTED_PREVIEW_SYNTAX_THEMES[1]
         )
         assert (
             select_shell_data(app.app_state).child_pane.syntax_theme
@@ -4523,6 +4498,7 @@ async def test_app_split_terminal_focus_routes_input_to_session() -> None:
 
         session = split_terminal_service.sessions[0]
         assert session.writes == ["a", "\r"]
+
 
 @pytest.mark.asyncio
 async def test_app_split_terminal_focus_sends_tab() -> None:

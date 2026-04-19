@@ -338,7 +338,7 @@ The tab strip is only shown when two or more browser tabs are open.
 | `Previous tab` | Two or more tabs are open | Activates the previous browser tab. Also available with `shift+tab`. |
 | `Close current tab` | Two or more tabs are open | Closes the active browser tab. The last remaining tab cannot be closed. Also available with `w`. |
 | `Find files` | Always | Opens recursive file search. |
-| `Grep search` | Always | Opens recursive grep search (`ripgrep` / `rg` required on `PATH`). |
+| `Grep search` | Always | Opens a four-field grep search palette (keyword, filter: filename, filter: include extensions, filter: exclude extensions). `Tab` / `Shift+Tab` cycle between fields. |
 | `History search` | Always | Opens directory history list and jump to a selected directory. |
 | `Show bookmarks` | Always | Opens the saved bookmark list and jumps to the selected directory. |
 | `Go back` | Directory history has a previous entry | Moves to the previous directory in history. |

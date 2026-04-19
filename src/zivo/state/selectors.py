@@ -207,11 +207,7 @@ def _select_child_pane_for_cursor(
         _select_active_app_theme(state),
         _select_active_preview_syntax_theme(state),
     )
-    permissions_label = (
-        _format_permissions_detail_label(cursor_entry)
-        if cursor_entry
-        else ""
-    )
+    permissions_label = _format_permissions_detail_label(cursor_entry) if cursor_entry else ""
     palette_preview = _select_command_palette_preview_pane(state, syntax_theme)
     if palette_preview is not None:
         return palette_preview
@@ -221,20 +217,14 @@ def _select_child_pane_for_cursor(
 
     is_archive = cursor_entry.kind == "file" and is_supported_archive_path(cursor_entry.path)
     if cursor_entry.kind == "dir" or is_archive:
-        if (
-            state.child_pane.mode == "preview"
-            and state.child_pane.preview_message is not None
-        ):
+        if state.child_pane.mode == "preview" and state.child_pane.preview_message is not None:
             pass
         elif (
             state.child_pane.mode != "entries"
             or cursor_entry.path != state.child_pane.directory_path
         ):
             return _build_child_entries_view((), syntax_theme, permissions_label)
-    elif (
-        state.child_pane.mode != "preview"
-        or cursor_entry.path != state.child_pane.preview_path
-    ):
+    elif state.child_pane.mode != "preview" or cursor_entry.path != state.child_pane.preview_path:
         return _build_child_entries_view((), syntax_theme, permissions_label)
 
     if state.child_pane.mode == "preview" and state.child_pane.preview_content is not None:
@@ -429,10 +419,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
         return HelpBarState(("type in terminal | ctrl+q close",))
     if state.ui_mode == "CONFIRM":
         if state.delete_confirmation is not None:
-            if (
-                state.delete_confirmation.mode == "trash"
-                and state.config.help_bar.confirm_delete
-            ):
+            if state.delete_confirmation.mode == "trash" and state.config.help_bar.confirm_delete:
                 return HelpBarState(state.config.help_bar.confirm_delete)
             if state.delete_confirmation.mode == "permanent":
                 return HelpBarState(("enter confirm permanent delete | esc cancel",))
@@ -709,9 +696,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
             ),
             empty_message=_find_replace_empty_message(state),
             input_fields=_build_find_replace_input_fields(state.command_palette),
-            has_more_items=(
-                len(state.command_palette.rff_preview_results) > len(visible_results)
-            ),
+            has_more_items=(len(state.command_palette.rff_preview_results) > len(visible_results)),
         )
     if state.command_palette.source == "replace_in_grep_files":
         visible_results, title = _select_find_replace_preview_window(
@@ -733,9 +718,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
             ),
             empty_message=_grep_replace_empty_message(state),
             input_fields=_build_grep_replace_input_fields(state.command_palette),
-            has_more_items=(
-                len(state.command_palette.grf_preview_results) > len(visible_results)
-            ),
+            has_more_items=(len(state.command_palette.grf_preview_results) > len(visible_results)),
         )
     if state.command_palette.source == "history":
         return _build_command_palette_items_view(
@@ -827,13 +810,19 @@ def _build_grep_search_input_fields(
             active=palette.grep_search_active_field == "keyword",
         ),
         CommandPaletteInputFieldViewState(
-            label="Include",
+            label="Filter: Filename",
+            value=palette.grep_search_filename_filter,
+            placeholder="pattern or re:pattern",
+            active=palette.grep_search_active_field == "filename",
+        ),
+        CommandPaletteInputFieldViewState(
+            label="Filter: Include",
             value=palette.grep_search_include_extensions,
             placeholder="all extensions",
             active=palette.grep_search_active_field == "include",
         ),
         CommandPaletteInputFieldViewState(
-            label="Exclude",
+            label="Filter: Exclude",
             value=palette.grep_search_exclude_extensions,
             placeholder="none",
             active=palette.grep_search_active_field == "exclude",
@@ -953,8 +942,7 @@ def select_conflict_dialog_state(state: AppState) -> ConflictDialogState | None:
         confirmation = state.empty_trash_confirmation
         platform_name = "Linux" if confirmation.platform == "linux" else "macOS"
         message = (
-            f"Permanently delete all items from the {platform_name} trash? "
-            "This cannot be undone."
+            f"Permanently delete all items from the {platform_name} trash? This cannot be undone."
         )
         return ConflictDialogState(
             title="Empty Trash Confirmation",
@@ -1082,14 +1070,16 @@ def select_config_dialog_state(state: AppState) -> ConfigDialogState | None:
                 )
             )
 
-    lines_list.extend([
-        "",
-        _format_custom_editor_hint(config.editor.command),
-        "Terminal launch templates: edit config.toml with e",
-        f"  Linux templates: {len(config.terminal.linux)}",
-        f"  macOS templates: {len(config.terminal.macos)}",
-        f"  Windows templates: {len(config.terminal.windows)}",
-    ])
+    lines_list.extend(
+        [
+            "",
+            _format_custom_editor_hint(config.editor.command),
+            "Terminal launch templates: edit config.toml with e",
+            f"  Linux templates: {len(config.terminal.linux)}",
+            f"  macOS templates: {len(config.terminal.macos)}",
+            f"  Windows templates: {len(config.terminal.windows)}",
+        ]
+    )
 
     title = "Config Editor"
     if state.config_editor.dirty:
@@ -1625,9 +1615,8 @@ def _build_command_palette_items_view(
                 shortcut=item.shortcut,
                 enabled=item.enabled,
                 selected=(
-                    (
-                        selected_override if selected_override is not None else True
-                    ) and index == cursor_index
+                    (selected_override if selected_override is not None else True)
+                    and index == cursor_index
                 ),
             )
             for index, item in visible_items
@@ -1650,7 +1639,10 @@ def _select_file_search_window(
 ) -> tuple[tuple[tuple[int, FileSearchResultState], ...], str]:
     visible_window = compute_search_visible_window(state.terminal_height)
     return _select_search_window(
-        results, cursor_index, title="Find File", visible_window=visible_window,
+        results,
+        cursor_index,
+        title="Find File",
+        visible_window=visible_window,
     )
 
 
@@ -1664,7 +1656,10 @@ def _select_grep_search_window(
         extra_rows=_GREP_SEARCH_EXTRA_INPUT_ROWS,
     )
     return _select_search_window(
-        results, cursor_index, title="Grep", visible_window=visible_window,
+        results,
+        cursor_index,
+        title="Grep",
+        visible_window=visible_window,
     )
 
 

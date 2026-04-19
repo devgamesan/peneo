@@ -339,7 +339,7 @@ zivo-cd
 | `Previous tab` | 2 タブ以上開いているとき | 前のブラウズタブへ切り替えます。`shift+tab` でも実行できます。 |
 | `Close current tab` | 2 タブ以上開いているとき | アクティブなブラウズタブを閉じます。最後の 1 タブは閉じられません。`w` でも実行できます。 |
 | `Find files` | 常に表示 | 再帰ファイル検索を開きます。 |
-| `Grep search` | 常に表示 | 再帰 grep 検索を開きます（`ripgrep` / `rg` が `PATH` 上に必要）。 |
+| `Grep search` | 常に表示 | 4 フィールドの grep 検索パレット（keyword, filter: filename, filter: include extensions, filter: exclude extensions）を開きます。`Tab` / `Shift+Tab` でフィールドを切り替えられます。 |
 | `History search` | 常に表示 | ディレクトリ履歴リストを開き、選択したディレクトリへ移動します。 |
 | `Show bookmarks` | 常に表示 | 保存済みのブックマークリストを開き、選択したディレクトリへ移動します。 |
 | `Go back` | ディレクトリ履歴に戻り先があるとき | 履歴を一つ戻ります。 |

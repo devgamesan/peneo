@@ -878,6 +878,7 @@ def test_search_palette_down_moves_cursor() -> None:
 
 def test_palette_ctrl_e_opens_grep_result_in_editor() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -894,6 +895,7 @@ def test_palette_ctrl_e_opens_grep_result_in_editor() -> None:
 
 def test_palette_ctrl_e_opens_find_result_in_editor() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -910,6 +912,7 @@ def test_palette_ctrl_e_opens_find_result_in_editor() -> None:
 
 def test_palette_e_key_does_not_open_editor_for_other_sources() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -927,6 +930,7 @@ def test_palette_e_key_does_not_open_editor_for_other_sources() -> None:
 
 def test_palette_ctrl_n_moves_cursor_down_in_grep_palette() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -943,6 +947,7 @@ def test_palette_ctrl_n_moves_cursor_down_in_grep_palette() -> None:
 
 def test_palette_ctrl_p_moves_cursor_up_in_grep_palette() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -959,6 +964,7 @@ def test_palette_ctrl_p_moves_cursor_up_in_grep_palette() -> None:
 
 def test_palette_ctrl_n_moves_cursor_down_in_file_search_palette() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -975,6 +981,7 @@ def test_palette_ctrl_n_moves_cursor_down_in_file_search_palette() -> None:
 
 def test_palette_ctrl_p_moves_cursor_up_in_file_search_palette() -> None:
     from zivo.state.models import CommandPaletteState
+
     state = replace(
         build_initial_app_state(),
         ui_mode="PALETTE",
@@ -1116,7 +1123,7 @@ def test_grep_palette_pageup_accounts_for_extra_input_rows() -> None:
 
     actions = dispatch_key_input(state, key="pageup")
 
-    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=-12))
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=-11))
 
 
 def test_grep_palette_pagedown_accounts_for_extra_input_rows() -> None:
@@ -1128,7 +1135,7 @@ def test_grep_palette_pagedown_accounts_for_extra_input_rows() -> None:
 
     actions = dispatch_key_input(state, key="pagedown")
 
-    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=12))
+    assert actions == (SetNotification(None), MoveCommandPaletteCursor(delta=11))
 
 
 def test_palette_unbound_key_shows_guidance() -> None:
@@ -1189,6 +1196,7 @@ def test_split_terminal_focus_sends_navigation_sequences() -> None:
         SetNotification(None),
         SendSplitTerminalInput("\x1b[6~"),
     )
+
 
 def test_split_terminal_focus_sends_tab() -> None:
     state = _focused_split_terminal_state()
@@ -1872,8 +1880,6 @@ def test_browsing_close_brace_dispatches_go_forward() -> None:
     actions = dispatch_key_input(state, key="}")
 
     assert actions == (SetNotification(None), GoForward())
-
-
 
 
 # ---------------------------------------------------------------------------

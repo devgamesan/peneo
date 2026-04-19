@@ -137,6 +137,7 @@ def _noop_browsing_handler(_state: AppState, _ctx: _BrowsingCtx) -> DispatchedAc
 
     return ()
 
+
 BROWSING_KEYMAP = {
     "up": "cursor_up",
     "shift+up": "cursor_up_selecting",
@@ -349,9 +350,7 @@ def iter_bound_keys() -> tuple[str, ...]:
                 *PALETTE_EXTRA_KEYS,
                 *tuple(
                     dict.fromkeys(
-                        key
-                        for sequence in _MULTI_KEY_COMMAND_DISPATCH
-                        for key in sequence
+                        key for sequence in _MULTI_KEY_COMMAND_DISPATCH for key in sequence
                     )
                 ),
             )
@@ -543,7 +542,9 @@ def _palette_extra_rows(palette_source: str | None) -> int:
         return 3
     if palette_source == "replace_in_grep_files":
         return 5
-    if palette_source in {"grep_search", "replace_text"}:
+    if palette_source == "grep_search":
+        return 3
+    if palette_source == "replace_text":
         return 2
     return 0
 
@@ -1028,27 +1029,19 @@ def _dispatch_pending_multi_key_input(
 # --- Parameterized handlers (Category B) ---
 
 
-def _handle_cursor_up_selecting(
-    _state: AppState, ctx: _BrowsingCtx
-) -> DispatchedActions:
+def _handle_cursor_up_selecting(_state: AppState, ctx: _BrowsingCtx) -> DispatchedActions:
     return _supported(MoveCursorAndSelectRange(delta=-1, visible_paths=ctx.visible_paths))
 
 
-def _handle_cursor_down_selecting(
-    _state: AppState, ctx: _BrowsingCtx
-) -> DispatchedActions:
+def _handle_cursor_down_selecting(_state: AppState, ctx: _BrowsingCtx) -> DispatchedActions:
     return _supported(MoveCursorAndSelectRange(delta=1, visible_paths=ctx.visible_paths))
 
 
-def _handle_jump_cursor_start(
-    _state: AppState, ctx: _BrowsingCtx
-) -> DispatchedActions:
+def _handle_jump_cursor_start(_state: AppState, ctx: _BrowsingCtx) -> DispatchedActions:
     return _supported(JumpCursor(position="start", visible_paths=ctx.visible_paths))
 
 
-def _handle_jump_cursor_end(
-    _state: AppState, ctx: _BrowsingCtx
-) -> DispatchedActions:
+def _handle_jump_cursor_end(_state: AppState, ctx: _BrowsingCtx) -> DispatchedActions:
     return _supported(JumpCursor(position="end", visible_paths=ctx.visible_paths))
 
 
@@ -1156,9 +1149,7 @@ def _handle_delete_targets(_state: AppState, ctx: _BrowsingCtx) -> DispatchedAct
     return _supported(BeginDeleteTargets(ctx.target_paths, mode="trash"))
 
 
-def _handle_permanent_delete_targets(
-    _state: AppState, ctx: _BrowsingCtx
-) -> DispatchedActions:
+def _handle_permanent_delete_targets(_state: AppState, ctx: _BrowsingCtx) -> DispatchedActions:
     if not ctx.target_paths:
         return _warn("Nothing to permanently delete")
     return _supported(BeginDeleteTargets(ctx.target_paths, mode="permanent"))

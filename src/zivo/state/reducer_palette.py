@@ -110,7 +110,7 @@ from .reducer_common import (
 )
 from .selectors import select_target_paths, select_visible_current_entry_states
 
-_GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "include", "exclude")
+_GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "filename", "include", "exclude")
 _REPLACE_FIELDS: tuple[ReplaceFieldId, ...] = ("find", "replace")
 _FIND_REPLACE_FIELDS: tuple[FindReplaceFieldId, ...] = ("filename", "find", "replace")
 _GREP_REPLACE_FIELDS: tuple[GrepReplaceFieldId, ...] = (
@@ -130,6 +130,8 @@ def _grep_field_value(
 ) -> str:
     if field == "keyword":
         return palette.grep_search_keyword
+    if field == "filename":
+        return palette.grep_search_filename_filter
     if field == "include":
         return palette.grep_search_include_extensions
     return palette.grep_search_exclude_extensions
@@ -143,6 +145,8 @@ def _replace_grep_field(
 ) -> CommandPaletteState:
     if field == "keyword":
         return replace(palette, query=value, grep_search_keyword=value)
+    if field == "filename":
+        return replace(palette, grep_search_filename_filter=value)
     if field == "include":
         return replace(palette, grep_search_include_extensions=value)
     return replace(palette, grep_search_exclude_extensions=value)
@@ -453,6 +457,9 @@ def _handle_set_grep_search_field(
     field: GrepSearchFieldId,
     value: str,
 ) -> ReduceResult:
+    if field == "filename":
+        return _handle_set_grep_search_filename(state, value)
+
     next_palette = replace(
         _replace_grep_field(state.command_palette, field=field, value=value),
         grep_search_error_message=None,
@@ -506,6 +513,31 @@ def _handle_set_grep_search_field(
             include_globs=include_globs,
             exclude_globs=exclude_globs,
         ),
+    )
+
+
+def _handle_set_grep_search_filename(
+    state: AppState,
+    value: str,
+) -> ReduceResult:
+    next_palette = replace(
+        state.command_palette,
+        grep_search_filename_filter=value,
+        grep_search_error_message=None,
+        cursor_index=0,
+    )
+    results = _filter_grep_by_filename(state.command_palette.grep_search_results, value)
+    return _sync_grep_preview(
+        replace(
+            state,
+            command_palette=replace(
+                next_palette,
+                grep_search_results=results,
+                grep_search_error_message=None,
+            ),
+            pending_grep_search_request_id=None,
+            pending_child_pane_request_id=None,
+        )
     )
 
 
@@ -1276,8 +1308,7 @@ def _run_replace_text_command(
             next_state,
             level="warning",
             message=(
-                "Replace text requires a selected file or file selection "
-                "in the current directory"
+                "Replace text requires a selected file or file selection in the current directory"
             ),
         )
     return reduce_state(next_state, BeginTextReplace(target_paths=target_paths))
@@ -1673,10 +1704,7 @@ def _handle_grep_search_completed(
     ):
         return _handle_grf_grep_search_completed(state, action)
 
-    if (
-        state.command_palette is None
-        or state.command_palette.source != "grep_search"
-    ):
+    if state.command_palette is None or state.command_palette.source != "grep_search":
         return finalize(state)
 
     return _sync_grep_preview(
@@ -2363,6 +2391,13 @@ def _trigger_grf_preview(
         ),
         RunTextReplacePreviewEffect(request_id=request_id, request=request),
     )
+
+
+def _filter_grep_by_filename(
+    results: tuple[GrepSearchResultState, ...],
+    filename_query: str,
+) -> tuple[GrepSearchResultState, ...]:
+    return _filter_grf_by_filename(results, filename_query)
 
 
 def _filter_grf_by_filename(
