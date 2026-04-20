@@ -868,6 +868,7 @@ def _handle_parent_child_loaded(
         next_state,
         notification=state.post_reload_notification,
         post_reload_notification=None,
+        pending_browser_snapshot_request_id=None,
     )
 
     # Request directory sizes for the new entries
@@ -899,6 +900,7 @@ def _handle_parent_child_failed(
             next_state,
             notification=NotificationState(level="error", message=action.message),
             post_reload_notification=None,
+            pending_browser_snapshot_request_id=None,
         )
     )
 
