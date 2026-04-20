@@ -457,6 +457,8 @@ class BrowserTabState:
     current_pane_delta: CurrentPaneDeltaState = CurrentPaneDeltaState()
     pending_browser_snapshot_request_id: int | None = None
     pending_child_pane_request_id: int | None = None
+    parent_pane_loading: bool = False  # Track parent pane loading in progressive mode
+    child_pane_loading: bool = False  # Track child pane loading in progressive mode
 
 
 @dataclass(frozen=True)

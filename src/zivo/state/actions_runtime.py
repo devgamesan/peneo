@@ -30,6 +30,7 @@ class RequestBrowserSnapshot:
     cursor_path: str | None = None
     blocking: bool = False
     invalidate_paths: tuple[str, ...] = ()
+    progressive: bool = True  # Enable progressive loading (current pane first)
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,33 @@ class ChildPaneSnapshotLoaded:
 @dataclass(frozen=True)
 class ChildPaneSnapshotFailed:
     """Apply an error raised while loading the child pane."""
+
+    request_id: int
+    message: str
+
+
+@dataclass(frozen=True)
+class CurrentPaneSnapshotLoaded:
+    """Apply a loaded current pane snapshot (Phase 1 of progressive loading)."""
+
+    request_id: int
+    current_path: str
+    current_pane: PaneState
+    parent_pane: PaneState
+
+
+@dataclass(frozen=True)
+class ParentChildSnapshotLoaded:
+    """Apply loaded parent/child panes (Phase 2 of progressive loading)."""
+
+    request_id: int
+    parent_pane: PaneState
+    child_pane: PaneState
+
+
+@dataclass(frozen=True)
+class ParentChildSnapshotFailed:
+    """Apply an error raised while loading parent/child panes."""
 
     request_id: int
     message: str
