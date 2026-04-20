@@ -7,7 +7,8 @@
 1. [スモークテスト（既存）](#スモークテスト既存)
 2. [Issue #304 viewport-aware projection スパイク](#issue-304-viewport-aware-projection-スパイク)
 3. [Issue #646 ディレクトリ一覧メタデータ遅延取得](#issue-646-ディレクトリ一覧メタデータ遅延取得)
-4. [現在の方針](#現在の方針)
+4. [Issue #647 ブラウザスナップショット段階ロード](#issue-647-ブラウザスナップショット段階ロード)
+5. [現在の方針](#現在の方針)
 
 ---
 
@@ -162,6 +163,63 @@ uv run python scripts/benchmark_directory_listing.py --files 8000 --dirs 2000 --
 
 ---
 
+## Issue #647 ブラウザスナップショット段階ロード
+
+### 実施日
+
+- 2026-04-20
+
+### 追加したもの
+
+- `scripts/benchmark_progressive_loading.py`
+  - blocking モード（既存の同期ロード）と progressive モード（新しい段階ロード）を比較する手動ベンチマーク
+- `src/zivo/state/actions_runtime.py`
+  - `CurrentPaneSnapshotLoaded`, `ParentChildSnapshotLoaded`, `ParentChildSnapshotFailed` アクション
+  - `RequestBrowserSnapshot` に `progressive` フィールドを追加
+- `src/zivo/state/effects.py`
+  - `LoadCurrentPaneEffect`, `LoadParentChildEffect` エフェクト
+- `src/zivo/state/models.py`
+  - `BrowserTabState` に `parent_pane_loading`, `child_pane_loading` フィールドを追加
+- `src/zivo/services/browser_snapshot.py`
+  - `load_current_pane_snapshot()`, `load_parent_child_panes()` メソッド
+- `src/zivo/app_runtime_search.py`
+  - `schedule_progressive_browser_snapshot()`, `schedule_parent_child_update()` スケジューラ
+- `src/zivo/state/reducer_navigation.py`
+  - `_handle_current_pane_loaded()`, `_handle_parent_child_loaded()`, `_handle_parent_child_failed()` ハンドラー
+
+### 再実行コマンド
+
+```bash
+uv run python scripts/benchmark_progressive_loading.py --files 100 --dirs 100 --iterations 10
+```
+
+### 観察結果
+
+#### 100 files × 100 directories
+
+| mode | operation | mean_ms | p95_ms |
+| --- | --- | ---: | ---: |
+| blocking | baseline | 1.68 | 8.86 |
+| progressive | phase1 (first paint) | 0.04 | 0.04 |
+| progressive | phase2 (parent+child) | 0.07 | 0.08 |
+| progressive | total (phase1+2) | 0.11 | 0.12 |
+
+**First Paint 改善**:
+- blocking: 1.68 ms
+- progressive: 0.04 ms
+- **改善率: 42.45x 高速化**
+- **削減時間: 1.64 ms**
+
+### 判断メモ
+
+- current pane を先に表示し、parent/child はバックグラウンドで非同期ロードする段階ロードを実装した
+- First Paint レイテンシが **42.45x** に大幅改善された
+- 完全なスナップショット（phase1+2）でも blocking モードより高速化されている
+- 既存の `blocking=True` 動作は維持されている
+- 比較は同じコマンドを別 commit や branch で再実行して確認する
+
+---
+
 ## 現在の方針
 
 - 自動ベンチマークは削除した
@@ -178,4 +236,5 @@ uv run pytest tests/test_app.py -k main_flow_round_trip_on_live_filesystem -q
 uv run pytest tests/test_state_selectors.py -q
 uv run python scripts/benchmark_current_pane_projection.py --entries 10000 --iterations 200
 uv run python scripts/benchmark_directory_listing.py --files 8000 --dirs 2000 --iterations 10
+uv run python scripts/benchmark_progressive_loading.py --files 100 --dirs 100 --iterations 10
 ```

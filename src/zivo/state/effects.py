@@ -15,7 +15,7 @@ from zivo.models import (
     UndoEntry,
 )
 
-from .models import AppState, GrepSearchResultState
+from .models import AppState, GrepSearchResultState, PaneState
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,26 @@ class LoadChildPaneSnapshotEffect:
     preview_max_bytes: int = 64 * 1024
     grep_result: GrepSearchResultState | None = None
     grep_context_lines: int = 3
+
+
+@dataclass(frozen=True)
+class LoadCurrentPaneEffect:
+    """Request current pane load (Phase 1 of progressive loading)."""
+
+    request_id: int
+    path: str
+    cursor_path: str | None
+    invalidate_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LoadParentChildEffect:
+    """Request parent/child panes load (Phase 2 of progressive loading)."""
+
+    request_id: int
+    path: str
+    cursor_path: str | None
+    current_pane: PaneState
 
 
 @dataclass(frozen=True)
@@ -203,6 +223,8 @@ class RunShellCommandEffect:
 Effect = (
     LoadBrowserSnapshotEffect
     | LoadChildPaneSnapshotEffect
+    | LoadCurrentPaneEffect
+    | LoadParentChildEffect
     | RunDirectorySizeEffect
     | RunAttributeInspectionEffect
     | RunClipboardPasteEffect
