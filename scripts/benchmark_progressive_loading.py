@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from statistics import mean
 
-from zivo.adapters import LocalFilesystemAdapter
 from zivo.services import LiveBrowserSnapshotLoader
 
 
@@ -40,7 +39,6 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    adapter = LocalFilesystemAdapter()
     loader = LiveBrowserSnapshotLoader()
 
     with tempfile.TemporaryDirectory(prefix="zivo-benchmark-progressive-") as tmp_dir:
@@ -75,7 +73,9 @@ def main() -> None:
         # Calculate first paint improvement
         blocking_mean = mean(blocking_timings)
         progressive_phase1_mean = mean(progressive_phase1_timings)
-        improvement_ratio = blocking_mean / progressive_phase1_mean if progressive_phase1_mean > 0 else 0
+        improvement_ratio = (
+            blocking_mean / progressive_phase1_mean if progressive_phase1_mean > 0 else 0
+        )
         time_saved_ms = blocking_mean - progressive_phase1_mean
 
         print(

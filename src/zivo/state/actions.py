@@ -296,6 +296,9 @@ Action = (
     | BrowserSnapshotFailed
     | ChildPaneSnapshotLoaded
     | ChildPaneSnapshotFailed
+    | CurrentPaneSnapshotLoaded
+    | ParentChildSnapshotLoaded
+    | ParentChildSnapshotFailed
     | DirectorySizesLoaded
     | DirectorySizesFailed
     | ClipboardPasteNeedsResolution
