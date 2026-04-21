@@ -58,6 +58,8 @@ SplitTerminalStatus = Literal["closed", "starting", "running"]
 SplitTerminalFocusTarget = Literal["browser", "terminal"]
 DirectorySizeStatus = Literal["pending", "ready", "failed"]
 CurrentPaneProjectionMode = Literal["full", "viewport"]
+LayoutMode = Literal["browser", "transfer"]
+TransferPaneId = Literal["left", "right"]
 ConfigFieldId = Literal[
     "editor.command",
     "display.show_hidden_files",
@@ -460,6 +462,17 @@ class BrowserSnapshot:
 
 
 @dataclass(frozen=True)
+class TransferPaneState:
+    """Directory pane state used by the two-pane transfer layout."""
+
+    pane: PaneState
+    current_path: str
+    current_pane_window_start: int = 0
+    current_pane_delta: CurrentPaneDeltaState = CurrentPaneDeltaState()
+    pending_snapshot_request_id: int | None = None
+
+
+@dataclass(frozen=True)
 class BrowserTabState:
     """Per-tab browser state that can be swapped into the active app view."""
 
@@ -498,6 +511,10 @@ class AppState:
     clipboard: ClipboardState = ClipboardState()
     history: HistoryState = HistoryState()
     ui_mode: UiMode = "BROWSING"
+    layout_mode: LayoutMode = "browser"
+    active_transfer_pane: TransferPaneId = "left"
+    transfer_left: TransferPaneState | None = None
+    transfer_right: TransferPaneState | None = None
     notification: NotificationState | None = None
     pending_input: PendingInputState | None = None
     pending_key_sequence: PendingKeySequenceState | None = None

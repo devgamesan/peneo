@@ -48,29 +48,64 @@ def build_split_terminal_layer(
 
 
 def build_body(shell: ThreePaneShellData, *, terminal_position: str = "bottom") -> Vertical:
-    browser_row_children: list[Any] = [
-        SidePane(
+    if shell.layout_mode == "transfer" and shell.transfer_left and shell.transfer_right:
+        parent_pane = SidePane(
             "Parent Directory",
-            shell.parent_entries,
+            (),
             id="parent-pane",
             classes="pane side-pane",
-        ),
-        MainPane(
-            "Current Directory",
-            shell.current_entries or (),
-            summary=shell.current_summary,
-            cursor_index=shell.current_cursor_index,
-            cursor_visible=shell.current_cursor_visible,
-            context_input=shell.current_context_input,
-            id="current-pane",
-            classes="pane main-pane",
-        ),
-        ChildPane(
-            shell.child_pane,
-            id="child-pane",
-            classes="pane side-pane",
-        ),
-    ]
+        )
+        parent_pane.display = False
+        child_pane = ChildPane(shell.child_pane, id="child-pane", classes="pane side-pane")
+        child_pane.display = False
+        browser_row_children: list[Any] = [
+            parent_pane,
+            MainPane(
+                _format_transfer_title(shell.transfer_left),
+                shell.transfer_left.entries,
+                summary=shell.transfer_left.summary,
+                cursor_index=shell.transfer_left.cursor_index,
+                cursor_visible=shell.transfer_left.cursor_visible,
+                context_input=None,
+                id="current-pane",
+                classes=_transfer_pane_classes(shell.transfer_left.active),
+            ),
+            MainPane(
+                _format_transfer_title(shell.transfer_right),
+                shell.transfer_right.entries,
+                summary=shell.transfer_right.summary,
+                cursor_index=shell.transfer_right.cursor_index,
+                cursor_visible=shell.transfer_right.cursor_visible,
+                context_input=None,
+                id="transfer-right-pane",
+                classes=_transfer_pane_classes(shell.transfer_right.active),
+            ),
+            child_pane,
+        ]
+    else:
+        browser_row_children = [
+            SidePane(
+                "Parent Directory",
+                shell.parent_entries,
+                id="parent-pane",
+                classes="pane side-pane",
+            ),
+            MainPane(
+                "Current Directory",
+                shell.current_entries or (),
+                summary=shell.current_summary,
+                cursor_index=shell.current_cursor_index,
+                cursor_visible=shell.current_cursor_visible,
+                context_input=shell.current_context_input,
+                id="current-pane",
+                classes="pane main-pane",
+            ),
+            ChildPane(
+                shell.child_pane,
+                id="child-pane",
+                classes="pane side-pane",
+            ),
+        ]
     if terminal_position == "right":
         browser_row_children.append(
             SplitTerminalPane(
@@ -87,6 +122,17 @@ def build_body(shell: ThreePaneShellData, *, terminal_position: str = "bottom") 
             SplitTerminalPane(shell.split_terminal, id="split-terminal")
         )
     return Vertical(*body_children, id="body")
+
+
+def _format_transfer_title(pane: Any) -> str:
+    marker = "*" if pane.active else " "
+    return f"{marker} {pane.title}: {pane.path}"
+
+
+def _transfer_pane_classes(active: bool) -> str:
+    if active:
+        return "pane main-pane transfer-pane active-transfer-pane"
+    return "pane main-pane transfer-pane"
 
 
 async def refresh_shell(
@@ -204,7 +250,35 @@ async def refresh_shell(
 
     tab_bar.set_state(shell.tab_bar)
     current_path_bar.set_path(shell.current_path)
-    if shell.current_pane_update.mode == "size_delta":
+    if shell.layout_mode == "transfer" and shell.transfer_left and shell.transfer_right:
+        current_pane.set_entries(shell.transfer_left.entries, shell.transfer_left.cursor_index)
+        current_pane.set_cursor_state(
+            shell.transfer_left.cursor_index,
+            shell.transfer_left.cursor_visible,
+            force_sync=True,
+        )
+        current_pane.set_summary(shell.transfer_left.summary)
+        current_pane.set_context_input(None)
+        current_pane.query_one("Label").update(_format_transfer_title(shell.transfer_left))
+        try:
+            transfer_right_pane = app.query_one("#transfer-right-pane", MainPane)
+            transfer_right_pane.set_entries(
+                shell.transfer_right.entries,
+                shell.transfer_right.cursor_index,
+            )
+            transfer_right_pane.set_cursor_state(
+                shell.transfer_right.cursor_index,
+                shell.transfer_right.cursor_visible,
+                force_sync=True,
+            )
+            transfer_right_pane.set_summary(shell.transfer_right.summary)
+            transfer_right_pane.set_context_input(None)
+            transfer_right_pane.query_one("Label").update(
+                _format_transfer_title(shell.transfer_right)
+            )
+        except NoMatches:
+            pass
+    elif shell.current_pane_update.mode == "size_delta":
         current_pane.apply_size_updates(shell.current_pane_update.size_updates)
     elif shell.current_pane_update.mode == "row_delta":
         current_pane.apply_row_updates(shell.current_pane_update.row_updates)
@@ -219,7 +293,10 @@ async def refresh_shell(
     await parent_pane.set_entries(shell.parent_entries)
     await child_pane.set_state(shell.child_pane)
     terminal_position = app_state.config.display.split_terminal_position
-    if terminal_position == "right":
+    if app_state.layout_mode == "transfer":
+        parent_pane.display = False
+        child_pane.display = False
+    elif terminal_position == "right":
         child_pane.display = not app_state.split_terminal.visible
     split_terminal_layer.display = (
         terminal_position == "overlay" and shell.split_terminal.visible

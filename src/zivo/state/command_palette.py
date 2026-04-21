@@ -257,6 +257,16 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
             enabled=tab_count > 1,
         ),
         CommandPaletteItem(
+            id="toggle_transfer_mode",
+            label=(
+                "Close transfer mode"
+                if state.layout_mode == "transfer"
+                else "Toggle transfer mode"
+            ),
+            shortcut="2",
+            enabled=True,
+        ),
+        CommandPaletteItem(
             id="toggle_split_terminal",
             label="Toggle split terminal",
             shortcut="t",

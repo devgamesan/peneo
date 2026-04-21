@@ -306,6 +306,11 @@ class zivoApp(App[None]):
             and self._app_state.split_terminal.visible
         )
 
+        if self._app_state.layout_mode == "transfer":
+            parent_pane.display = False
+            child_pane.display = False
+            return
+
         if width >= self._PANE_VISIBILITY_MEDIUM_THRESHOLD:
             parent_pane.display = True
         elif width >= self._PANE_VISIBILITY_NARROW_THRESHOLD:
@@ -536,6 +541,7 @@ class zivoApp(App[None]):
         layout_changed = (
             previous_state.config.display.split_terminal_position
             != self._app_state.config.display.split_terminal_position
+            or previous_state.layout_mode != self._app_state.layout_mode
         )
         if theme_changed:
             self.theme = next_theme

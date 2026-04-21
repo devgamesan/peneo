@@ -23,7 +23,7 @@ zivo aims to be usable by everyone without complex configuration, plugin install
 
 ## Features
 
-- Simple three-pane layout for parent / current / right panes. When the cursor is on a directory, the right pane shows its children. When the cursor is on a common text file, the right pane shows a syntax-highlighted text preview. You can navigate directories, multi-select items, copy, cut, paste, undo recent file operations, move items to trash, delete files, copy paths, rename, create files or directories, extract archives, create zip archives, replace text across selected files with a preview, replace text in files found by file search or grep search, search for files, run grep searches, and execute one-line shell commands entirely from the keyboard. Common actions stay visible in the help bar at the bottom.
+- Simple three-pane layout for parent / current / right panes. When the cursor is on a directory, the right pane shows its children. When the cursor is on a common text file, the right pane shows a syntax-highlighted text preview. You can switch to a two-pane transfer layout for side-by-side directory copy and move workflows. You can navigate directories, multi-select items, copy, cut, paste, undo recent file operations, move items to trash, delete files, copy paths, rename, create files or directories, extract archives, create zip archives, replace text across selected files with a preview, replace text in files found by file search or grep search, search for files, run grep searches, and execute one-line shell commands entirely from the keyboard. Common actions stay visible in the help bar at the bottom.
 
   ![](docs/resources/screen-entire-screen.png)
 
@@ -253,6 +253,28 @@ When a file is focused, press `e` to switch into a terminal editor in the curren
 | `]` | Scroll the right-pane text preview down by a page |
 | `{` | Go back in history |
 | `}` | Go forward in history |
+| `2` | Toggle two-pane transfer mode |
+
+### Transfer Mode
+
+| Key | Action |
+| --- | ------ |
+| `2` | Return to normal mode |
+| `[` / `]` | Focus the left/right transfer pane |
+| `j` / `↓` | Move down in the focused pane |
+| `k` / `↑` | Move up in the focused pane |
+| `PageUp` / `PageDown` | Move by page in the focused pane |
+| `Home` / `End` | Jump to first/last visible entry in the focused pane |
+| `h` / `←` | Go to parent directory in the focused pane |
+| `l` / `→` / `Enter` | Enter directory in the focused pane |
+| `Space` | Toggle selection and move down in the focused pane |
+| `Shift+↑` / `Shift+↓` | Extend selection in the focused pane |
+| `a` | Select all visible entries in the focused pane |
+| `Esc` | Clear selection in the focused pane |
+| `y` | Copy focused-pane targets to the opposite pane |
+| `M` | Move focused-pane targets to the opposite pane |
+| `c` / `x` / `v` | Copy, cut, or paste using the focused pane |
+| `Tab` / `Shift+Tab` | Switch browser tabs, same as normal mode |
 
 ### Split Terminal Mode
 
@@ -347,6 +369,7 @@ The tab strip is only shown when two or more browser tabs are open.
 | `Go to path` | Always | Opens go-to-path input to navigate to a specific path, shows matching directories, and supports `Tab` completion for the selected candidate. |
 | `Go to home directory` | Always | Navigates to the home directory. |
 | `Reload directory` | Always | Reloads the current directory. |
+| `Toggle transfer mode` / `Close transfer mode` | Always | Switches between the normal three-pane browser and the two-pane transfer layout. Also available with `2`. |
 | `Undo last file operation` | Undo history is not empty | Reverses the most recent undoable rename, paste, or trash operation. Also available with `z`. Trash restore is currently Linux-only. |
 | `Toggle split terminal` | Always | Opens or closes the embedded split terminal. |
 | `Select all` | Current directory has at least one visible entry | Selects every currently visible entry in the current directory, respecting hidden-file visibility and any active filter. |
