@@ -5,6 +5,7 @@ from .actions import (
     ActivatePreviousTab,
     BeginBookmarkSearch,
     BeginCreateInput,
+    BeginDeleteTargets,
     BeginGoToPath,
     BeginHistorySearch,
     ClearTransferSelection,
@@ -33,6 +34,7 @@ TRANSFER_KEYMAP = {
     "2",
     "G",
     "N",
+    "d",
     "q",
     "~",
     "[",
@@ -149,6 +151,19 @@ def dispatch_transfer_input(
     if key == "N":
         return supported(BeginCreateInput("dir"))
 
+    if key == "d":
+        selected_paths = tuple(
+            path
+            for path in visible_paths
+            if path in transfer.pane.selected_paths
+        )
+        target_paths = selected_paths if selected_paths else (
+            (transfer.pane.cursor_path,) if transfer.pane.cursor_path else ()
+        )
+        if not target_paths:
+            return warn("Nothing to delete")
+        return supported(BeginDeleteTargets(target_paths, mode="trash"))
+
     if key == "G":
         return supported(BeginGoToPath())
 
@@ -156,7 +171,7 @@ def dispatch_transfer_input(
         return supported(BeginHistorySearch())
 
     return warn(
-        "Use [], space, y copy, m move, z undo, b bookmarks, "
+        "Use [], space, y copy, m move, d delete, z undo, b bookmarks, "
         "H history, . hidden, or q/2 to close"
     )
 
