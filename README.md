@@ -276,6 +276,7 @@ When a file is focused, press `e` to switch into a terminal editor in the curren
 | `m` | Move focused-pane targets to the opposite pane |
 | `z` | Undo the last file operation |
 | `.` | Toggle hidden files |
+| `N` | Create new directory in the focused pane |
 | `b` | Show bookmarks |
 | `H` | Show history |
 | `Tab` / `Shift+Tab` | Switch browser tabs, same as normal mode |

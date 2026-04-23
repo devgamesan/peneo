@@ -4,6 +4,7 @@ from .actions import (
     ActivateNextTab,
     ActivatePreviousTab,
     BeginBookmarkSearch,
+    BeginCreateInput,
     BeginGoToPath,
     BeginHistorySearch,
     ClearTransferSelection,
@@ -31,6 +32,7 @@ from .selectors import compute_current_pane_visible_window
 TRANSFER_KEYMAP = {
     "2",
     "G",
+    "N",
     "q",
     "~",
     "[",
@@ -143,6 +145,9 @@ def dispatch_transfer_input(
         return supported(UndoLastOperation())
     if key == "b":
         return supported(BeginBookmarkSearch())
+
+    if key == "N":
+        return supported(BeginCreateInput("dir"))
 
     if key == "G":
         return supported(BeginGoToPath())
