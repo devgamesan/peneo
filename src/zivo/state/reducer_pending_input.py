@@ -106,8 +106,22 @@ def build_file_mutation_request(
             new_name=state.pending_input.value,
         )
     if state.ui_mode == "CREATE" and state.pending_input.create_kind is not None:
+        # Use the active transfer pane's directory path in transfer mode
+        if state.layout_mode == "transfer":
+            active_pane = (
+                state.transfer_left
+                if state.active_transfer_pane == "left"
+                else state.transfer_right
+            )
+            parent_dir = (
+                active_pane.directory_path
+                if active_pane
+                else state.current_pane.directory_path
+            )
+        else:
+            parent_dir = state.current_pane.directory_path
         return CreatePathRequest(
-            parent_dir=state.current_pane.directory_path,
+            parent_dir=parent_dir,
             name=state.pending_input.value,
             kind=state.pending_input.create_kind,
         )

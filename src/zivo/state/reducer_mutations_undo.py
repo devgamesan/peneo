@@ -74,6 +74,9 @@ def _handle_file_mutation_completed(state, action, reduce_state):
         ),
         ui_mode="BROWSING",
     )
+    # In transfer mode, reload both transfer panes
+    if state.layout_mode == "transfer":
+        return request_all_transfer_pane_snapshots(next_state)
     return request_snapshot_refresh(
         next_state,
         cursor_path=cursor_path_after_file_mutation(state, action.result),
