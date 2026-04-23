@@ -3,6 +3,7 @@ from zivo.state import NotificationState, build_initial_app_state, dispatch_key_
 from zivo.state.actions import (
     ActivateNextTab,
     ActivatePreviousTab,
+    BeginDeleteTargets,
     BeginGoToPath,
     BeginHistorySearch,
     FocusTransferPane,
@@ -78,7 +79,7 @@ def test_transfer_mode_does_not_use_clipboard_style_keys() -> None:
             NotificationState(
                 level="warning",
                 message=(
-                    "Use [], space, y copy, m move, z undo, b bookmarks, "
+                    "Use [], space, y copy, m move, d delete, z undo, b bookmarks, "
                     "H history, . hidden, or q/2 to close"
                 ),
             )
@@ -104,3 +105,41 @@ def test_transfer_mode_G_begins_go_to_path() -> None:
         SetNotification(None),
         BeginGoToPath(),
     )
+
+
+def test_transfer_mode_d_deletes_targets() -> None:
+    state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
+
+    result = dispatch_key_input(state, key="d")
+    assert len(result) == 2
+    assert result[0] == SetNotification(None)
+    assert isinstance(result[1], BeginDeleteTargets)
+    # カーソル位置のファイルがターゲットになる
+    assert len(result[1].paths) == 1
+    assert result[1].paths[0].endswith("/docs")
+
+
+def test_transfer_mode_d_warns_when_no_targets() -> None:
+    from dataclasses import replace
+
+    state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
+    # カーソルをクリアしてターゲットがない状態を作る
+    updated_left_pane = replace(
+        state.transfer_left.pane,
+        cursor_path=None,
+        selected_paths=(),
+    )
+    updated_right_pane = replace(
+        state.transfer_right.pane,
+        cursor_path=None,
+        selected_paths=(),
+    )
+    transfer_left = replace(state.transfer_left, pane=updated_left_pane)
+    transfer_right = replace(state.transfer_right, pane=updated_right_pane)
+    state = replace(state, transfer_left=transfer_left, transfer_right=transfer_right)
+
+    result = dispatch_key_input(state, key="d")
+    assert len(result) == 1
+    assert isinstance(result[0], SetNotification)
+    assert result[0].notification.message == "Nothing to delete"
+
