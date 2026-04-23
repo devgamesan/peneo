@@ -114,7 +114,7 @@ def build_file_mutation_request(
                 else state.transfer_right
             )
             parent_dir = (
-                active_pane.directory_path
+                active_pane.current_path
                 if active_pane
                 else state.current_pane.directory_path
             )
