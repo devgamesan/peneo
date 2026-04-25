@@ -44,6 +44,9 @@ from .selectors_shared import (
 )
 
 # Preview file type extensions
+IMAGE_PREVIEW_EXTENSIONS = frozenset(
+    {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".tif", ".tiff", ".webp"}
+)
 PDF_PREVIEW_EXTENSIONS = frozenset({".pdf"})
 OFFICE_PREVIEW_EXTENSIONS = frozenset({".docx", ".xlsx", ".pptx"})
 
@@ -177,6 +180,7 @@ def select_child_pane_for_cursor(
         preview_disabled_message = _detect_preview_disabled_message(
             cursor_entry,
             state.config.display.enable_text_preview,
+            state.config.display.enable_image_preview,
             state.config.display.enable_pdf_preview,
             state.config.display.enable_office_preview,
         )
@@ -193,6 +197,7 @@ def select_child_pane_for_cursor(
             state.child_pane.preview_title,
             preview_path,
             state.child_pane.preview_content,
+            state.child_pane.preview_kind,
             state.child_pane.preview_message,
             state.child_pane.preview_truncated,
             state.child_pane.preview_start_line,
@@ -206,6 +211,7 @@ def select_child_pane_for_cursor(
             state.child_pane.preview_title,
             preview_path,
             state.child_pane.preview_content,
+            state.child_pane.preview_kind,
             state.child_pane.preview_message,
             state.child_pane.preview_truncated,
             state.child_pane.preview_start_line,
@@ -279,6 +285,7 @@ def _select_file_search_preview_pane(
         state.child_pane.preview_title,
         state.child_pane.preview_path or selected_result.path,
         state.child_pane.preview_content,
+        state.child_pane.preview_kind,
         state.child_pane.preview_message,
         state.child_pane.preview_truncated,
         state.child_pane.preview_start_line,
@@ -312,6 +319,7 @@ def _select_grep_preview_pane(
         state.child_pane.preview_title,
         state.child_pane.preview_path or selected_result.path,
         state.child_pane.preview_content,
+        state.child_pane.preview_kind,
         state.child_pane.preview_message,
         state.child_pane.preview_truncated,
         state.child_pane.preview_start_line,
@@ -349,6 +357,7 @@ def _select_replace_preview_pane(
         state.child_pane.preview_title,
         state.child_pane.preview_path or selected_result.path,
         state.child_pane.preview_content,
+        state.child_pane.preview_kind,
         state.child_pane.preview_message,
         state.child_pane.preview_truncated,
         state.child_pane.preview_start_line,
@@ -556,6 +565,7 @@ def _build_child_preview_view(
     preview_title: str | None,
     preview_path: str,
     preview_content: str | None,
+    preview_kind: str,
     preview_message: str | None,
     preview_truncated: bool,
     preview_start_line: int | None,
@@ -568,6 +578,7 @@ def _build_child_preview_view(
         preview_path=preview_path,
         preview_title=preview_title,
         preview_content=preview_content,
+        preview_kind=preview_kind,
         preview_message=preview_message,
         preview_truncated=preview_truncated,
         preview_start_line=preview_start_line,
@@ -611,6 +622,7 @@ def _select_cut_paths(state: AppState) -> frozenset[str]:
 def _detect_preview_disabled_message(
     cursor_entry: DirectoryEntryState | None,
     enable_text_preview: bool,
+    enable_image_preview: bool,
     enable_pdf_preview: bool,
     enable_office_preview: bool,
 ) -> str | None:
@@ -634,13 +646,17 @@ def _detect_preview_disabled_message(
     # If all previews are disabled, return generic message
     if (
         not enable_text_preview
+        and not enable_image_preview
         and not enable_pdf_preview
         and not enable_office_preview
     ):
         return "Preview is disabled"
 
     # Check specific file types
-    if ext in PDF_PREVIEW_EXTENSIONS:
+    if ext in IMAGE_PREVIEW_EXTENSIONS:
+        if not enable_image_preview:
+            return "Image preview is disabled"
+    elif ext in PDF_PREVIEW_EXTENSIONS:
         if not enable_pdf_preview:
             return "PDF preview is disabled"
     elif ext in OFFICE_PREVIEW_EXTENSIONS:
@@ -651,4 +667,3 @@ def _detect_preview_disabled_message(
         return "Text preview is disabled"
 
     return None
-

@@ -37,6 +37,16 @@ class StubDocumentPreviewLoader:
         return self.previews_by_path.get(str(path))
 
 
+@dataclass
+class StubImagePreviewLoader:
+    previews_by_path: dict[str, FilePreviewState] = field(default_factory=dict)
+    calls: list[str] = field(default_factory=list)
+
+    def load_preview(self, path: Path, *, preview_columns: int) -> FilePreviewState | None:
+        self.calls.append(f"{path}:{preview_columns}")
+        return self.previews_by_path.get(str(path))
+
+
 def _build_stub_filesystem(*paths: str) -> StubFilesystemAdapter:
     live_filesystem = LocalFilesystemAdapter()
     filesystem = StubFilesystemAdapter()
@@ -174,6 +184,73 @@ def test_live_browser_snapshot_loader_uses_document_preview_for_supported_docume
     assert snapshot.child_pane.preview_path == str(report)
     assert snapshot.child_pane.preview_content == "# Report\n\nConverted\n"
     assert preview_loader.calls == [f"{report}:{64 * 1024}"]
+
+
+def test_live_browser_snapshot_loader_uses_chafa_preview_for_supported_images(
+    tmp_path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    image = project / "preview.png"
+    image.write_bytes(b"png")
+    preview_loader = StubImagePreviewLoader(
+        previews_by_path={
+            str(image): FilePreviewState.with_content(
+                "\x1b[31m@@\x1b[0m\n",
+                False,
+                content_kind="image",
+            ),
+        }
+    )
+    loader = LiveBrowserSnapshotLoader(image_preview_loader=preview_loader)
+
+    snapshot = loader.load_browser_snapshot(str(project), cursor_path=str(image))
+
+    assert snapshot.child_pane.mode == "preview"
+    assert snapshot.child_pane.preview_path == str(image)
+    assert snapshot.child_pane.preview_content == "\x1b[31m@@\x1b[0m\n"
+    assert snapshot.child_pane.preview_kind == "image"
+    assert preview_loader.calls == [f"{image}:80"]
+
+
+def test_live_browser_snapshot_loader_skips_image_preview_when_disabled(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    image = project / "preview.png"
+    image.write_bytes(b"png")
+    preview_loader = StubImagePreviewLoader(
+        previews_by_path={
+            str(image): FilePreviewState.with_content("@@\n", False, content_kind="image"),
+        }
+    )
+    loader = LiveBrowserSnapshotLoader(image_preview_loader=preview_loader)
+
+    pane = loader.load_child_pane_snapshot(
+        str(project),
+        str(image),
+        enable_image_preview=False,
+    )
+
+    assert pane.mode == "entries"
+    assert pane.entries == ()
+    assert preview_loader.calls == []
+
+
+def test_live_browser_snapshot_loader_marks_missing_chafa_for_images(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    image = project / "preview.png"
+    image.write_bytes(b"png")
+    loader = LiveBrowserSnapshotLoader(image_preview_loader=StubImagePreviewLoader())
+
+    snapshot = loader.load_browser_snapshot(str(project), cursor_path=str(image))
+
+    assert snapshot.child_pane.mode == "preview"
+    assert snapshot.child_pane.preview_path == str(image)
+    assert snapshot.child_pane.preview_content is None
+    assert snapshot.child_pane.preview_message == (
+        "Preview unavailable: install `chafa` for image preview"
+    )
 
 
 def test_live_browser_snapshot_loader_skips_office_preview_when_disabled(tmp_path) -> None:

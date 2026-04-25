@@ -533,6 +533,15 @@ class ChildPane(Vertical):
     def _permissions_widget(self) -> Static:
         return self.query_one(f"#{self.permissions_id}", Static)
 
+    def preview_render_width(self) -> int:
+        """Return the currently available preview width in terminal cells."""
+
+        try:
+            widget = self._preview_widget()
+        except NoMatches:
+            return 0
+        return max(0, widget.size.width - self.PREVIEW_HORIZONTAL_PADDING)
+
     @staticmethod
     def _render_preview(state: ChildPaneViewState, render_width: int):
         if state.preview_message is not None:
@@ -540,6 +549,14 @@ class ChildPane(Vertical):
 
         if state.preview_content is None:
             return Text()
+
+        if state.preview_kind == "image":
+            return Text.from_ansi(
+                state.preview_content,
+                no_wrap=True,
+                overflow="ignore",
+                end="",
+            )
 
         lexer = "text"
         if state.preview_path is not None:
@@ -586,6 +603,7 @@ class ChildPane(Vertical):
             state.preview_path,
             state.preview_title,
             state.preview_content,
+            state.preview_kind,
             state.preview_message,
             state.preview_start_line,
             state.preview_highlight_line,
@@ -599,6 +617,7 @@ class ChildPane(Vertical):
                 state.preview_path,
                 state.preview_title,
                 state.preview_content,
+                state.preview_kind,
                 state.preview_message,
                 state.preview_start_line,
                 state.preview_highlight_line,

@@ -66,6 +66,7 @@ ConfigFieldId = Literal[
     "display.show_hidden_files",
     "display.show_directory_sizes",
     "display.enable_text_preview",
+    "display.enable_image_preview",
     "display.enable_pdf_preview",
     "display.enable_office_preview",
     "display.theme",
@@ -112,6 +113,7 @@ class PaneState:
     preview_path: str | None = None
     preview_title: str | None = None
     preview_content: str | None = None
+    preview_kind: Literal["text", "image"] = "text"
     preview_message: str | None = None
     preview_truncated: bool = False
     preview_start_line: int | None = None

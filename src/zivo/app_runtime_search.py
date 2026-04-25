@@ -5,6 +5,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from textual.css.query import NoMatches
+
 from zivo.app_runtime_core import (
     SearchRuntimeConfig,
     TrackingConfig,
@@ -82,6 +84,7 @@ def schedule_browser_snapshot(app: Any, effect: LoadBrowserSnapshotEffect) -> No
             app._snapshot_loader.load_browser_snapshot,
             effect.path,
             effect.cursor_path,
+            enable_image_preview=effect.enable_image_preview,
             enable_pdf_preview=effect.enable_pdf_preview,
             enable_office_preview=effect.enable_office_preview,
         ),
@@ -120,8 +123,10 @@ def start_child_pane_snapshot(app: Any, effect: LoadChildPaneSnapshotEffect) -> 
         effect.cursor_path,
         preview_max_bytes=effect.preview_max_bytes,
         enable_text_preview=effect.enable_text_preview,
+        enable_image_preview=effect.enable_image_preview,
         enable_pdf_preview=effect.enable_pdf_preview,
         enable_office_preview=effect.enable_office_preview,
+        preview_columns=_child_preview_columns(app),
     )
     if effect.grep_result is not None:
         loader = partial(
@@ -177,6 +182,7 @@ def schedule_parent_child_update(app: Any, effect: LoadParentChildEffect) -> Non
             effect.cursor_path,
             effect.current_pane,
             enable_text_preview=effect.enable_text_preview,
+            enable_image_preview=effect.enable_image_preview,
             enable_pdf_preview=effect.enable_pdf_preview,
             enable_office_preview=effect.enable_office_preview,
         ),
@@ -267,6 +273,17 @@ def _child_pane_debounce_seconds(effect: LoadChildPaneSnapshotEffect) -> float:
     ):
         return DOCUMENT_PREVIEW_DEBOUNCE_SECONDS
     return CHILD_PANE_DEBOUNCE_SECONDS
+
+
+def _child_preview_columns(app: Any) -> int:
+    try:
+        from zivo.ui import ChildPane
+
+        child_pane = app.query_one("#child-pane", ChildPane)
+    except (NoMatches, Exception):
+        return 80
+    width = child_pane.preview_render_width()
+    return width if width > 0 else 80
 
 
 def _is_document_preview_path(path: str | None) -> bool:

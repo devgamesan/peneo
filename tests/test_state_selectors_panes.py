@@ -182,6 +182,9 @@ test_detect_preview_disabled_message_for_office_file = (
 test_detect_preview_disabled_message_for_text_file = (
     cases.test_detect_preview_disabled_message_for_text_file
 )
+test_detect_preview_disabled_message_for_image_file = (
+    cases.test_detect_preview_disabled_message_for_image_file
+)
 test_detect_preview_disabled_message_for_all_previews_disabled = (
     cases.test_detect_preview_disabled_message_for_all_previews_disabled
 )

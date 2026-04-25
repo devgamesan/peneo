@@ -11,10 +11,15 @@ from .entry_state_helpers import current_entry_for_path, visible_current_entry_s
 from .models import DirectoryEntryState, DirectorySizeCacheEntry, PaneState
 from .reducer_requests import ReducerFn
 
+IMAGE_PREVIEW_EXTENSIONS = frozenset(
+    {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".tif", ".tiff", ".webp"}
+)
+
 
 def _any_file_preview_enabled(state) -> bool:
     return (
         state.config.display.enable_text_preview
+        or state.config.display.enable_image_preview
         or state.config.display.enable_pdf_preview
         or state.config.display.enable_office_preview
     )
@@ -24,10 +29,13 @@ def _is_preview_enabled_for_path(
     path: str,
     *,
     enable_text_preview: bool,
+    enable_image_preview: bool,
     enable_pdf_preview: bool,
     enable_office_preview: bool,
 ) -> bool:
     suffix = Path(path).suffix.casefold()
+    if suffix in IMAGE_PREVIEW_EXTENSIONS:
+        return enable_image_preview
     if suffix == ".pdf":
         return enable_pdf_preview
     if suffix in {".docx", ".xlsx", ".pptx"}:
@@ -121,6 +129,7 @@ def sync_child_pane(
         if not _is_preview_enabled_for_path(
             entry.path,
             enable_text_preview=state.config.display.enable_text_preview,
+            enable_image_preview=state.config.display.enable_image_preview,
             enable_pdf_preview=state.config.display.enable_pdf_preview,
             enable_office_preview=state.config.display.enable_office_preview,
         ):
@@ -158,6 +167,7 @@ def sync_child_pane(
             cursor_path=entry.path,
             preview_max_bytes=state.config.display.preview_max_kib * 1024,
             enable_text_preview=state.config.display.enable_text_preview,
+            enable_image_preview=state.config.display.enable_image_preview,
             enable_pdf_preview=state.config.display.enable_pdf_preview,
             enable_office_preview=state.config.display.enable_office_preview,
         ),
@@ -169,6 +179,7 @@ def normalize_child_pane_for_display(
     child_pane: PaneState,
     *,
     enable_text_preview: bool,
+    enable_image_preview: bool,
     enable_pdf_preview: bool,
     enable_office_preview: bool,
 ) -> PaneState:
@@ -177,6 +188,7 @@ def normalize_child_pane_for_display(
     if child_pane.preview_path is not None and _is_preview_enabled_for_path(
         child_pane.preview_path,
         enable_text_preview=enable_text_preview,
+        enable_image_preview=enable_image_preview,
         enable_pdf_preview=enable_pdf_preview,
         enable_office_preview=enable_office_preview,
     ):

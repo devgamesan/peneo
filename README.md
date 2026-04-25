@@ -14,7 +14,7 @@ zivo aims to be usable by everyone without complex configuration, plugin install
 
 - **No memorization needed**: Common actions are always visible in the help bar
 - **Never get lost**: All actions can be called from the command palette
-- **Clear 3-pane layout**: Parent, current, and right panes displayed side by side, with text and document preview for focused files
+- **Clear 3-pane layout**: Parent, current, and right panes displayed side by side, with text, image, and document preview for focused files
 - **Transfer mode**: Put two directories side by side to copy or move files with ease
 - **Tabbed browsing**: Keep multiple browser workspaces open inside one TUI and switch between them quickly
 - **Embedded terminal**: Seamlessly switch between browsing and shell with `t`
@@ -24,7 +24,7 @@ zivo aims to be usable by everyone without complex configuration, plugin install
 
 ## Features
 
-- Simple three-pane layout for parent / current / right panes. When the cursor is on a directory, the right pane shows its children. When the cursor is on a common text file, the right pane shows a syntax-highlighted text preview. `pdf`, `docx`, `xlsx`, and `pptx` files can also be previewed in the right pane. You can switch to a two-pane transfer layout for side-by-side directory copy and move workflows. You can navigate directories, multi-select items, copy, cut, paste, undo recent file operations, move items to trash, delete files, copy paths, rename, create files or directories, extract archives, create zip archives, replace text across selected files with a preview, replace text in files found by file search or grep search, search for files, run grep searches, and execute one-line shell commands entirely from the keyboard. Common actions stay visible in the help bar at the bottom.
+- Simple three-pane layout for parent / current / right panes. When the cursor is on a directory, the right pane shows its children. When the cursor is on a common text file, the right pane shows a syntax-highlighted text preview. Common image formats can be previewed as character art through `chafa`, and `pdf`, `docx`, `xlsx`, and `pptx` files can also be previewed in the right pane. You can switch to a two-pane transfer layout for side-by-side directory copy and move workflows. You can navigate directories, multi-select items, copy, cut, paste, undo recent file operations, move items to trash, delete files, copy paths, rename, create files or directories, extract archives, create zip archives, replace text across selected files with a preview, replace text in files found by file search or grep search, search for files, run grep searches, and execute one-line shell commands entirely from the keyboard. Common actions stay visible in the help bar at the bottom.
 
   ![](docs/resources/screen-entire-screen.png)
 
@@ -128,6 +128,7 @@ zivo itself can be installed and started with `uv`, but some features depend on 
 | Feature | Ubuntu / Debian | Ubuntu (WSL) | macOS |
 | --- | --- | --- | --- |
 | Document preview (`docx` / `xlsx` / `pptx`) | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ |
+| Image preview (`png` / `jpg` / `gif` / `webp` / etc.) | `chafa` | `chafa` | `chafa` |
 | PDF preview (`pdf`) | `poppler-utils` | `poppler-utils` | `poppler` |
 | Grep search (`g`) | `ripgrep` | `ripgrep` | `ripgrep` |
 | Copy path (`C`) | X11: `xclip` / Wayland: `wl-clipboard` | Usually none (`clip.exe`), optional: `xclip` / `wl-clipboard` | None (`pbcopy` built in) |
@@ -139,16 +140,16 @@ Install example:
 
 ```bash
 # Ubuntu / Debian (X11)
-sudo apt install pandoc poppler-utils ripgrep xclip
+sudo apt install chafa pandoc poppler-utils ripgrep xclip
 
 # Ubuntu / Debian (Wayland)
-sudo apt install pandoc poppler-utils ripgrep wl-clipboard
+sudo apt install chafa pandoc poppler-utils ripgrep wl-clipboard
 
 # Ubuntu (WSL)
-sudo apt install pandoc poppler-utils ripgrep wslu
+sudo apt install chafa pandoc poppler-utils ripgrep wslu
 
 # macOS
-brew install pandoc poppler ripgrep
+brew install chafa pandoc poppler ripgrep
 ```
 
 Windows is not supported at this time, so native Windows dependency guidance is out of scope.
@@ -382,7 +383,7 @@ The tab strip is only shown when two or more browser tabs are open.
 | `Run shell command` | Always | Opens a one-line shell command dialog, runs the command in the current directory in the background, and returns the first output line or failure summary in the status bar. Also available with `!`. |
 | `Bookmark this directory` / `Remove bookmark` | Always | Saves or removes the current directory in `[bookmarks].paths`. The label reflects whether the current directory is already bookmarked. Also available with `B`. |
 | `Show hidden files` / `Hide hidden files` | Always | Toggles hidden-file visibility for the browser panes. The label reflects the current visibility state. Also available with `.`. |
-| `Edit config` | Always | Opens the settings overlay for startup defaults. You can edit the preferred terminal editor, external terminal launch mode, hidden-file visibility, directory-size visibility, text preview visibility, PDF preview visibility, Office preview visibility, preview size limit, theme, sorting, default paste-conflict behavior, and delete confirmation. The overlay also explains what the selected setting changes so you do not need to cross-reference the README while browsing options. Theme changes are previewed immediately. Use `↑` / `↓` or `Ctrl+n` / `Ctrl+p` to move, `←` / `→` / `Enter` to change values, `s` to save `config.toml`, and `e` to open the raw config file in a terminal editor. |
+| `Edit config` | Always | Opens the settings overlay for startup defaults. You can edit the preferred terminal editor, external terminal launch mode, hidden-file visibility, directory-size visibility, text preview visibility, image preview visibility, PDF preview visibility, Office preview visibility, preview size limit, theme, sorting, default paste-conflict behavior, and delete confirmation. The overlay also explains what the selected setting changes so you do not need to cross-reference the README while browsing options. Theme changes are previewed immediately. Use `↑` / `↓` or `Ctrl+n` / `Ctrl+p` to move, `←` / `→` / `Enter` to change values, `s` to save `config.toml`, and `e` to open the raw config file in a terminal editor. |
 | `Create file` | Always | Starts the inline create-file flow in the current directory. |
 | `Create directory` | Always | Starts the inline create-directory flow in the current directory. |
 
@@ -407,6 +408,7 @@ The supported settings are:
 | `display` | `show_hidden_files` | `true` / `false` | Default hidden-file visibility when the app starts. |
 | `display` | `show_directory_sizes` | `true` / `false` | Shows recursive directory sizes in the current pane. Defaults to `true`. Large directories can be expensive to scan. zivo also calculates sizes automatically while the main pane is sorted by `size`. |
 | `display` | `enable_text_preview` | `true` / `false` | Shows text-file previews in the right pane. Defaults to `true`. grep result context preview follows the same setting. |
+| `display` | `enable_image_preview` | `true` / `false` | Shows image-file previews in the right pane through `chafa`. Defaults to `true`. When `chafa` is missing, zivo shows a dependency message instead of failing. |
 | `display` | `enable_pdf_preview` | `true` / `false` | Enables PDF preview conversion through `pdftotext`. Defaults to `true`. When disabled, PDF files fall back to the usual unsupported-file message. |
 | `display` | `enable_office_preview` | `true` / `false` | Enables `pandoc`-based preview conversion for `docx`, `xlsx`, and `pptx` files. Defaults to `true`. When disabled, those formats fall back to the usual unsupported-file message. |
 | `display` | `show_help_bar` | `true` / `false` | Shows the help bar at the bottom of the screen. Defaults to `true`. The help bar is always shown when the command palette or split terminal is open, regardless of this setting. |
@@ -441,6 +443,7 @@ command = "nvim -u NONE"
 show_hidden_files = false
 show_directory_sizes = true
 enable_text_preview = true
+enable_image_preview = true
 enable_pdf_preview = true
 enable_office_preview = true
 show_help_bar = true

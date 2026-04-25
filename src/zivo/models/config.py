@@ -39,6 +39,7 @@ class DisplayConfig:
     show_hidden_files: bool = False
     show_directory_sizes: bool = True
     enable_text_preview: bool = True
+    enable_image_preview: bool = True
     enable_pdf_preview: bool = True
     enable_office_preview: bool = True
     show_help_bar: bool = True
