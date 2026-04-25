@@ -27,6 +27,7 @@ class LoadBrowserSnapshotEffect:
     cursor_path: str | None = None
     blocking: bool = False
     invalidate_paths: tuple[str, ...] = ()
+    enable_image_preview: bool = True
     enable_pdf_preview: bool = True
     enable_office_preview: bool = True
 
@@ -40,8 +41,10 @@ class LoadChildPaneSnapshotEffect:
     cursor_path: str
     preview_max_bytes: int = 64 * 1024
     enable_text_preview: bool = True
+    enable_image_preview: bool = True
     enable_pdf_preview: bool = True
     enable_office_preview: bool = True
+    preview_columns: int = 80
     grep_result: GrepSearchResultState | None = None
     grep_context_lines: int = 3
 
@@ -65,6 +68,7 @@ class LoadParentChildEffect:
     cursor_path: str | None
     current_pane: PaneState
     enable_text_preview: bool = True
+    enable_image_preview: bool = True
     enable_pdf_preview: bool = True
     enable_office_preview: bool = True
 

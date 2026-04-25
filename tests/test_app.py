@@ -200,6 +200,22 @@ async def _wait_for_predicate(predicate, *, timeout: float = 0.5, message: str) 
         await asyncio.sleep(0.01)
 
 
+async def _select_config_setting(
+    pilot,
+    app,
+    expected_line: str,
+    *,
+    max_steps: int = 24,
+) -> None:
+    for _ in range(max_steps):
+        dialog = await _wait_for_config_dialog(app)
+        lines = dialog.query_one("#config-dialog-lines", Static)
+        if expected_line in str(lines.renderable):
+            return
+        await pilot.press("down")
+    raise AssertionError(f"config setting was not selected: {expected_line}")
+
+
 async def _wait_for_current_path_bar(app, timeout: float = 0.5) -> CurrentPathBar:
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
@@ -4069,8 +4085,11 @@ async def test_app_command_palette_opens_config_dialog_and_saves_changes() -> No
         assert "Path: /tmp/zivo/config.toml" in str(lines.renderable)
         assert "> Editor command: system default" in str(lines.renderable)
 
-        for _ in range(4):
-            await pilot.press("down")
+        await _select_config_setting(
+            pilot,
+            app,
+            "> Show hidden files: false",
+        )
         await pilot.press("enter")
         await pilot.press("s")
         await _wait_for_notification_message(app, "Config saved: /tmp/zivo/config.toml")
@@ -4335,8 +4354,11 @@ async def test_app_config_dialog_save_updates_preview_syntax_theme() -> None:
         await pilot.press("enter")
         await _wait_for_config_dialog(app)
 
-        for _ in range(3):
-            await pilot.press("down")
+        await _select_config_setting(
+            pilot,
+            app,
+            "> Preview syntax theme: auto",
+        )
         await pilot.press("enter")
 
         assert (

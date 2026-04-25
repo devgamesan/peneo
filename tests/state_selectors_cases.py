@@ -1992,6 +1992,7 @@ def test_select_config_dialog_state_formats_editor_lines() -> None:
     assert "  Preview syntax theme: auto" in dialog.lines
     assert "  Preview max KiB: 64 KiB" in dialog.lines
     assert "  Text preview: true" in dialog.lines
+    assert "  Image preview: true" in dialog.lines
     assert "  ── Sorting ──" in dialog.lines
     assert "  Default sort field: name" in dialog.lines
     assert "  ── Selected Setting ──" in dialog.lines
@@ -2906,6 +2907,7 @@ def test_detect_preview_disabled_message_returns_none_for_directory() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=False,
+        enable_image_preview=False,
         enable_pdf_preview=False,
         enable_office_preview=False,
     )
@@ -2919,6 +2921,7 @@ def test_detect_preview_disabled_message_returns_none_for_null_cursor() -> None:
     message = _detect_preview_disabled_message(
         None,
         enable_text_preview=False,
+        enable_image_preview=False,
         enable_pdf_preview=False,
         enable_office_preview=False,
     )
@@ -2933,6 +2936,7 @@ def test_detect_preview_disabled_message_for_pdf_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=False,
         enable_office_preview=True,
     )
@@ -2950,6 +2954,7 @@ def test_detect_preview_disabled_message_for_office_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=False,
     )
@@ -2962,6 +2967,7 @@ def test_detect_preview_disabled_message_for_office_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=False,
     )
@@ -2974,6 +2980,7 @@ def test_detect_preview_disabled_message_for_office_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=False,
     )
@@ -2988,10 +2995,25 @@ def test_detect_preview_disabled_message_for_text_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=False,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=True,
     )
     assert message == "Text preview is disabled"
+
+
+def test_detect_preview_disabled_message_for_image_file() -> None:
+    from zivo.state.selectors_panes import _detect_preview_disabled_message
+
+    entry = DirectoryEntryState("/home/tadashi/docs/test.png", "test.png", "file")
+    message = _detect_preview_disabled_message(
+        entry,
+        enable_text_preview=True,
+        enable_image_preview=False,
+        enable_pdf_preview=True,
+        enable_office_preview=True,
+    )
+    assert message == "Image preview is disabled"
 
 
 def test_detect_preview_disabled_message_for_all_previews_disabled() -> None:
@@ -3002,6 +3024,7 @@ def test_detect_preview_disabled_message_for_all_previews_disabled() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=False,
+        enable_image_preview=False,
         enable_pdf_preview=False,
         enable_office_preview=False,
     )
@@ -3016,6 +3039,7 @@ def test_detect_preview_disabled_message_returns_none_when_enabled() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=True,
     )

@@ -272,6 +272,7 @@ def request_snapshot_refresh(
                     state.current_path,
                     resolved_cursor_path,
                 ),
+                enable_image_preview=state.config.display.enable_image_preview,
                 enable_pdf_preview=state.config.display.enable_pdf_preview,
                 enable_office_preview=state.config.display.enable_office_preview,
             ),
