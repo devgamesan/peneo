@@ -478,6 +478,26 @@ def test_schedule_child_pane_snapshot_replaces_existing_timer() -> None:
     assert app.set_timer_calls[0]["name"] == "child-pane-snapshot-debounce:5"
     assert app._child_pane_timer is app.set_timer_calls[0]["timer"]
     assert app.run_worker_calls == []
+    assert app.set_timer_calls[0]["interval"] == 0.03
+
+
+def test_schedule_child_pane_snapshot_uses_longer_debounce_for_document_preview() -> None:
+    app = _RecordingApp(
+        _app_state=replace(build_initial_app_state(), pending_child_pane_request_id=5),
+    )
+
+    schedule_child_pane_snapshot(
+        app,
+        LoadChildPaneSnapshotEffect(
+            request_id=5,
+            current_path="/tmp/project",
+            cursor_path="/tmp/project/large.pdf",
+            enable_markitdown_preview=True,
+        ),
+    )
+
+    assert len(app.set_timer_calls) == 1
+    assert app.set_timer_calls[0]["interval"] == 0.35
 
 
 def test_start_child_pane_snapshot_passes_preview_max_bytes_to_loader() -> None:
