@@ -127,11 +127,13 @@ zivo itself can be installed and started with `uv`, but some features depend on 
 
 | Feature | Ubuntu / Debian | Ubuntu (WSL) | macOS |
 | --- | --- | --- | --- |
-| Document preview (`docx` / `xlsx` / `pptx`) | `pandoc` | `pandoc` | `pandoc` |
+| Document preview (`docx` / `xlsx` / `pptx`) | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ |
 | PDF preview (`pdf`) | `poppler-utils` | `poppler-utils` | `poppler` |
 | Grep search (`g`) | `ripgrep` | `ripgrep` | `ripgrep` |
 | Copy path (`C`) | X11: `xclip` / Wayland: `wl-clipboard` | Usually none (`clip.exe`), optional: `xclip` / `wl-clipboard` | None (`pbcopy` built in) |
 | GUI bridge commands | None | `wslu` recommended | None |
+
+**Note**: Some distributions may not provide pandoc 3.8.3+ through their package managers. If the installed version is older than 3.8.3, install the latest version manually from the official pandoc website: https://pandoc.org/installing.html
 
 Install example:
 
