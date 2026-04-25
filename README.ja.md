@@ -131,11 +131,13 @@ zivo 本体の起動は `uv` だけで行えますが、一部の機能は `PATH
 
 | 機能 | Ubuntu / Debian | Ubuntu (WSL) | macOS |
 | --- | --- | --- | --- |
-| ドキュメント preview (`docx` / `xlsx` / `pptx`) | `pandoc` | `pandoc` | `pandoc` |
+| ドキュメント preview (`docx` / `xlsx` / `pptx`) | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ |
 | PDF preview (`pdf`) | `poppler-utils` | `poppler-utils` | `poppler` |
 | grep 検索 (`g`) | `ripgrep` | `ripgrep` | `ripgrep` |
 | パスコピー (`C`) | X11: `xclip` / Wayland: `wl-clipboard` | 通常は不要 (`clip.exe`)、必要なら `xclip` / `wl-clipboard` | 不要 (`pbcopy` 組み込み) |
 | GUI 連携コマンド | 不要 | `wslu` 推奨 | 不要 |
+
+**注**: 一部のディストリビューションでは、パッケージマネージャー経由でpandoc 3.8.3以上が提供されない場合があります。インストールされたバージョンが3.8.3より古い場合は、公式pandocウェブサイトから最新版を手動でインストールしてください：https://pandoc.org/installing.html
 
 インストール例:
 
