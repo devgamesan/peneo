@@ -2270,7 +2270,7 @@ def test_select_input_bar_state_for_symlink_mode() -> None:
         build_initial_app_state(),
         ui_mode="SYMLINK",
         pending_input=PendingInputState(
-            prompt="Link to: ",
+            prompt="Create link at: ",
             value="/tmp/docs.link",
             cursor_pos=14,
             symlink_source_path="/tmp/docs",
@@ -2281,7 +2281,7 @@ def test_select_input_bar_state_for_symlink_mode() -> None:
 
     assert input_dialog is not None
     assert input_dialog.title == "Create Symlink"
-    assert input_dialog.prompt == "Link to: "
+    assert input_dialog.prompt == "Create link at: "
     assert input_dialog.hint == "tab complete | enter apply | esc cancel"
 
 

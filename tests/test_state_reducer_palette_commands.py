@@ -128,7 +128,7 @@ def test_submit_command_palette_runs_create_symlink_flow() -> None:
     assert next_state.ui_mode == "SYMLINK"
     assert next_state.command_palette is None
     assert next_state.pending_input is not None
-    assert next_state.pending_input.prompt == "Link to: "
+    assert next_state.pending_input.prompt == "Create link at: "
     assert next_state.pending_input.symlink_source_path == "/home/tadashi/develop/zivo/docs"
     assert next_state.pending_input.value.endswith("/docs.link")
 

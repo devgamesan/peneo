@@ -128,7 +128,7 @@ def _handle_begin_symlink_input(state, action, reduce_state):
             ui_mode="SYMLINK",
             notification=None,
             pending_input=PendingInputState(
-                prompt="Link to: ",
+                prompt="Create link at: ",
                 value=destination,
                 cursor_pos=len(destination),
                 symlink_source_path=action.source_path,

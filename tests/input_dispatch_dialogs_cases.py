@@ -454,7 +454,7 @@ def test_symlink_tab_completes_pending_input_path(tmp_path) -> None:
         current_pane=replace(build_initial_app_state().current_pane, directory_path=str(tmp_path)),
         ui_mode="SYMLINK",
         pending_input=PendingInputState(
-            prompt="Link to: ",
+            prompt="Create link at: ",
             value="do",
             cursor_pos=2,
             symlink_source_path=str(tmp_path / "README.md"),

@@ -70,7 +70,7 @@ def test_begin_symlink_input_sets_destination_prompt() -> None:
 
     assert next_state.ui_mode == "SYMLINK"
     assert next_state.pending_input == PendingInputState(
-        prompt="Link to: ",
+        prompt="Create link at: ",
         value="/home/tadashi/develop/zivo/docs.link",
         cursor_pos=len("/home/tadashi/develop/zivo/docs.link"),
         symlink_source_path="/home/tadashi/develop/zivo/docs",
@@ -276,7 +276,7 @@ def test_submit_pending_input_symlink_conflict_enters_confirm_mode(tmp_path) -> 
         current_path=str(tmp_path),
         current_pane=replace(build_initial_app_state().current_pane, directory_path=str(tmp_path)),
         pending_input=PendingInputState(
-            prompt="Link to: ",
+            prompt="Create link at: ",
             value=str(destination),
             cursor_pos=len(str(destination)),
             symlink_source_path=str(source),
@@ -342,7 +342,7 @@ def test_confirm_symlink_overwrite_runs_file_mutation_effect(tmp_path) -> None:
         build_initial_app_state(),
         ui_mode="CONFIRM",
         pending_input=PendingInputState(
-            prompt="Link to: ",
+            prompt="Create link at: ",
             value=str(destination),
             cursor_pos=len(str(destination)),
             symlink_source_path=str(source),
@@ -378,7 +378,7 @@ def test_cancel_symlink_overwrite_confirmation_restores_symlink_mode(tmp_path) -
         build_initial_app_state(),
         ui_mode="CONFIRM",
         pending_input=PendingInputState(
-            prompt="Link to: ",
+            prompt="Create link at: ",
             value=str(destination),
             cursor_pos=len(str(destination)),
             symlink_source_path=str(source),
