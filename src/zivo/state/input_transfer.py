@@ -36,12 +36,10 @@ from .models import AppState, PaneState, TransferPaneState
 from .selectors import compute_current_pane_visible_window
 
 TRANSFER_KEYMAP = {
-    "2",
     "G",
     "N",
     "c",
     "d",
-    "q",
     "r",
     "v",
     "x",
@@ -90,8 +88,6 @@ def dispatch_transfer_input(
         return supported(ToggleTransferMode())
     visible_paths = _visible_paths(state, transfer.pane)
 
-    if key in {"2", "q"}:
-        return supported(ToggleTransferMode())
     if key == "tab":
         return supported(ActivateNextTab())
     if key == "shift+tab":
@@ -140,7 +136,9 @@ def dispatch_transfer_input(
     if key == "a":
         return supported(SelectAllVisibleTransferEntries(paths=visible_paths))
     if key == "escape":
-        return supported(ClearTransferSelection())
+        if transfer.pane.selected_paths:
+            return supported(ClearTransferSelection())
+        return supported(ToggleTransferMode())
     if key in {"enter", "l", "right"}:
         return supported(EnterTransferDirectory())
     if key in {"h", "left"}:
@@ -224,7 +222,7 @@ def dispatch_transfer_input(
 
     return warn(
         "Use [], space, c copy, x cut, v paste, y copy-to-pane, m move-to-pane, "
-        "d delete, r rename, z undo, b bookmarks, H history, . hidden, or q/2 to close"
+        "d delete, r rename, z undo, b bookmarks, H history, . hidden, or Esc to close"
     )
 
 

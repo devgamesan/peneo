@@ -260,7 +260,7 @@ When a file is focused, press `e` to switch into a terminal editor in the curren
 
 | Key | Action |
 | --- | ------ |
-| `q` / `2` | Return to normal mode |
+| `Esc` | Return to normal mode / Clear selection |
 | `[` / `]` | Focus the left/right transfer pane |
 | `j` / `↓` | Move down in the focused pane |
 | `k` / `↑` | Move up in the focused pane |
@@ -272,7 +272,6 @@ When a file is focused, press `e` to switch into a terminal editor in the curren
 | `Space` | Toggle selection and move down in the focused pane |
 | `Shift+↑` / `Shift+↓` | Extend selection in the focused pane |
 | `a` | Select all visible entries in the focused pane |
-| `Esc` | Clear selection in the focused pane |
 | `c` | Copy selected items to clipboard |
 | `x` | Cut selected items to clipboard |
 | `v` | Paste from clipboard to focused pane |
