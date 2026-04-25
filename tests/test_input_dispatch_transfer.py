@@ -8,6 +8,7 @@ from zivo.state.actions import (
     BeginGoToPath,
     BeginHistorySearch,
     BeginRenameInput,
+    ClearTransferSelection,
     CopyTargets,
     CutTargets,
     FocusTransferPane,
@@ -34,14 +35,59 @@ def test_transfer_mode_uses_brackets_for_pane_focus() -> None:
     )
 
 
-def test_transfer_mode_q_and_2_return_to_normal_mode() -> None:
+def test_transfer_mode_escape_exits_when_no_selection() -> None:
+    """未選択時のEscでモード終了を確認"""
     state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
 
-    assert dispatch_key_input(state, key="q", character="q") == (
+    assert dispatch_key_input(state, key="escape") == (
         SetNotification(None),
         ToggleTransferMode(),
     )
-    assert dispatch_key_input(state, key="2", character="2") == (
+
+
+def test_transfer_mode_escape_clears_selection() -> None:
+    """選択時のEscで選択解除を確認"""
+    from dataclasses import replace
+
+    state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
+    # 選択状態を作る
+    updated_left_pane = replace(
+        state.transfer_left.pane,
+        selected_paths=(state.transfer_left.pane.cursor_path,),
+    )
+    transfer_left = replace(state.transfer_left, pane=updated_left_pane)
+    state = replace(state, transfer_left=transfer_left)
+
+    assert dispatch_key_input(state, key="escape") == (
+        SetNotification(None),
+        ClearTransferSelection(),
+    )
+
+
+def test_transfer_mode_double_escape_exits_with_selection() -> None:
+    """選択時の2回のEscでモード終了を確認"""
+    from dataclasses import replace
+
+    state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
+    # 選択状態を作る
+    updated_left_pane = replace(
+        state.transfer_left.pane,
+        selected_paths=(state.transfer_left.pane.cursor_path,),
+    )
+    transfer_left = replace(state.transfer_left, pane=updated_left_pane)
+    state = replace(state, transfer_left=transfer_left)
+
+    # 1回目のEscで選択解除
+    actions = dispatch_key_input(state, key="escape")
+    assert len(actions) == 2
+    assert actions[0] == SetNotification(None)
+    assert isinstance(actions[1], ClearTransferSelection)
+
+    # 選択解除後の状態を再現
+    state = _reduce_state(state, actions[1])
+
+    # 2回目のEscでモード終了
+    assert dispatch_key_input(state, key="escape") == (
         SetNotification(None),
         ToggleTransferMode(),
     )
