@@ -1,4 +1,5 @@
 import builtins
+import importlib
 import os
 
 import pytest
@@ -88,18 +89,12 @@ def test_local_filesystem_adapter_inspect_entry_returns_none_owner_group_when_un
     tmp_path,
     monkeypatch,
 ) -> None:
+    filesystem_module = importlib.import_module("zivo.adapters.filesystem")
     readme = tmp_path / "README.md"
     readme.write_text("plain\n", encoding="utf-8")
     adapter = LocalFilesystemAdapter()
-
-    original_import = builtins.__import__
-
-    def _import_with_missing_posix_modules(name, globals=None, locals=None, fromlist=(), level=0):
-        if name in {"grp", "pwd"}:
-            raise ImportError(f"No module named {name}")
-        return original_import(name, globals, locals, fromlist, level)
-
-    monkeypatch.setattr("builtins.__import__", _import_with_missing_posix_modules)
+    monkeypatch.setattr(filesystem_module, "_resolve_user_name", lambda _uid: None)
+    monkeypatch.setattr(filesystem_module, "_resolve_group_name", lambda _gid: None)
 
     entry = adapter.inspect_entry(str(readme))
 
