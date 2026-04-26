@@ -1,6 +1,5 @@
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import pytest
 
@@ -10,7 +9,7 @@ from zivo.services.trash_operations import WindowsTrashService
 
 
 def _absolute(path: str) -> str:
-    return str(Path(path).resolve())
+    return os.path.abspath(os.path.expanduser(path))
 
 
 @dataclass
