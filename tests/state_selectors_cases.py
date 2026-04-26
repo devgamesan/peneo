@@ -1960,6 +1960,7 @@ def test_select_attribute_dialog_state_formats_selected_entry() -> None:
     assert dialog.title == "Attributes: README.md"
     assert "Name: README.md" in dialog.lines
     assert "Type: File" in dialog.lines
+    assert "Symlink: No" in dialog.lines
     assert "Path: /home/tadashi/develop/zivo/README.md" in dialog.lines
     assert "Size: 2.1KiB" in dialog.lines
     assert "Hidden: No" in dialog.lines
@@ -1992,6 +1993,7 @@ def test_select_config_dialog_state_formats_editor_lines() -> None:
     assert "  Preview syntax theme: auto" in dialog.lines
     assert "  Preview max KiB: 64 KiB" in dialog.lines
     assert "  Text preview: true" in dialog.lines
+    assert "  Image preview: true" in dialog.lines
     assert "  ── Sorting ──" in dialog.lines
     assert "  Default sort field: name" in dialog.lines
     assert "  ── Selected Setting ──" in dialog.lines
@@ -2050,7 +2052,7 @@ def test_select_config_dialog_state_formats_directories_first_detail() -> None:
         config_editor=ConfigEditorState(
             path="/tmp/zivo/config.toml",
             draft=AppConfig(display=DisplayConfig(directories_first=False)),
-            cursor_index=11,
+            cursor_index=14,
         ),
     )
 
@@ -2262,6 +2264,26 @@ def test_select_input_bar_state_for_create_mode() -> None:
     assert input_dialog.prompt == "New file: "
     assert input_dialog.value == "notes.txt"
     assert input_dialog.hint == "enter apply | esc cancel"
+
+
+def test_select_input_bar_state_for_symlink_mode() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="SYMLINK",
+        pending_input=PendingInputState(
+            prompt="Create link at: ",
+            value="/tmp/docs.link",
+            cursor_pos=14,
+            symlink_source_path="/tmp/docs",
+        ),
+    )
+
+    input_dialog = select_input_dialog_state(state)
+
+    assert input_dialog is not None
+    assert input_dialog.title == "Create Symlink"
+    assert input_dialog.prompt == "Create link at: "
+    assert input_dialog.hint == "tab complete | enter apply | esc cancel"
 
 
 def test_select_input_bar_state_for_filter_mode() -> None:
@@ -2906,6 +2928,7 @@ def test_detect_preview_disabled_message_returns_none_for_directory() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=False,
+        enable_image_preview=False,
         enable_pdf_preview=False,
         enable_office_preview=False,
     )
@@ -2919,6 +2942,7 @@ def test_detect_preview_disabled_message_returns_none_for_null_cursor() -> None:
     message = _detect_preview_disabled_message(
         None,
         enable_text_preview=False,
+        enable_image_preview=False,
         enable_pdf_preview=False,
         enable_office_preview=False,
     )
@@ -2933,6 +2957,7 @@ def test_detect_preview_disabled_message_for_pdf_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=False,
         enable_office_preview=True,
     )
@@ -2950,6 +2975,7 @@ def test_detect_preview_disabled_message_for_office_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=False,
     )
@@ -2962,6 +2988,7 @@ def test_detect_preview_disabled_message_for_office_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=False,
     )
@@ -2974,6 +3001,7 @@ def test_detect_preview_disabled_message_for_office_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=False,
     )
@@ -2988,10 +3016,25 @@ def test_detect_preview_disabled_message_for_text_file() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=False,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=True,
     )
     assert message == "Text preview is disabled"
+
+
+def test_detect_preview_disabled_message_for_image_file() -> None:
+    from zivo.state.selectors_panes import _detect_preview_disabled_message
+
+    entry = DirectoryEntryState("/home/tadashi/docs/test.png", "test.png", "file")
+    message = _detect_preview_disabled_message(
+        entry,
+        enable_text_preview=True,
+        enable_image_preview=False,
+        enable_pdf_preview=True,
+        enable_office_preview=True,
+    )
+    assert message == "Image preview is disabled"
 
 
 def test_detect_preview_disabled_message_for_all_previews_disabled() -> None:
@@ -3002,6 +3045,7 @@ def test_detect_preview_disabled_message_for_all_previews_disabled() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=False,
+        enable_image_preview=False,
         enable_pdf_preview=False,
         enable_office_preview=False,
     )
@@ -3016,6 +3060,7 @@ def test_detect_preview_disabled_message_returns_none_when_enabled() -> None:
     message = _detect_preview_disabled_message(
         entry,
         enable_text_preview=True,
+        enable_image_preview=True,
         enable_pdf_preview=True,
         enable_office_preview=True,
     )

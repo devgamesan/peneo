@@ -49,6 +49,7 @@ def test_loader_creates_default_config_when_missing(tmp_path) -> None:
     assert "preview_max_kib = 64" in written
     assert "show_directory_sizes = true" in written
     assert "enable_text_preview = true" in written
+    assert "enable_image_preview = true" in written
     assert "enable_pdf_preview = true" in written
     assert "enable_office_preview = true" in written
     assert 'default_sort_field = "name"' in written
@@ -74,6 +75,7 @@ def test_loader_reads_valid_config_values(tmp_path) -> None:
         show_hidden_files = true
         show_directory_sizes = true
         enable_text_preview = false
+        enable_image_preview = false
         enable_pdf_preview = false
         enable_office_preview = false
         theme = "dracula"
@@ -108,6 +110,7 @@ def test_loader_reads_valid_config_values(tmp_path) -> None:
     assert result.config.display.show_hidden_files is True
     assert result.config.display.show_directory_sizes is True
     assert result.config.display.enable_text_preview is False
+    assert result.config.display.enable_image_preview is False
     assert result.config.display.enable_pdf_preview is False
     assert result.config.display.enable_office_preview is False
     assert result.config.display.theme == "dracula"
@@ -143,6 +146,7 @@ def test_loader_keeps_valid_values_and_warns_for_invalid_entries(tmp_path) -> No
         show_hidden_files = true
         show_directory_sizes = "yes"
         enable_text_preview = "yes"
+        enable_image_preview = "yes"
         enable_pdf_preview = "yes"
         enable_office_preview = "yes"
         theme = "bad-theme"
@@ -173,6 +177,7 @@ def test_loader_keeps_valid_values_and_warns_for_invalid_entries(tmp_path) -> No
     assert result.config.display.show_hidden_files is True
     assert result.config.display.show_directory_sizes is True
     assert result.config.display.enable_text_preview is True
+    assert result.config.display.enable_image_preview is True
     assert result.config.display.enable_pdf_preview is True
     assert result.config.display.enable_office_preview is True
     assert result.config.display.theme == "textual-dark"
@@ -184,7 +189,7 @@ def test_loader_keeps_valid_values_and_warns_for_invalid_entries(tmp_path) -> No
     assert result.config.logging.enabled is True
     assert result.config.logging.path is None
     assert result.config.bookmarks.paths == ()
-    assert len(result.warnings) == 18
+    assert len(result.warnings) == 19
 
 
 def test_loader_warns_for_invalid_editor_command_syntax(tmp_path) -> None:
@@ -221,6 +226,7 @@ def test_config_save_service_writes_normalized_config_file(tmp_path) -> None:
                 show_hidden_files=True,
                 show_directory_sizes=True,
                 enable_text_preview=False,
+                enable_image_preview=False,
                 enable_pdf_preview=False,
                 enable_office_preview=False,
                 theme="tokyo-night",
@@ -253,6 +259,7 @@ def test_config_save_service_writes_normalized_config_file(tmp_path) -> None:
     assert "show_hidden_files = true" in written
     assert "show_directory_sizes = true" in written
     assert "enable_text_preview = false" in written
+    assert "enable_image_preview = false" in written
     assert "enable_pdf_preview = false" in written
     assert "enable_office_preview = false" in written
     assert 'theme = "tokyo-night"' in written
@@ -452,6 +459,7 @@ def test_render_app_config_round_trips_full_config(tmp_path) -> None:
             show_hidden_files=True,
             show_directory_sizes=False,
             enable_text_preview=False,
+            enable_image_preview=False,
             enable_pdf_preview=False,
             enable_office_preview=False,
             theme="tokyo-night",

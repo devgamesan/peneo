@@ -69,6 +69,14 @@ def cycle_config_editor_value(config: AppConfig, cursor_index: int, delta: int) 
                 enable_text_preview=not config.display.enable_text_preview,
             ),
         )
+    if field_id == "display.enable_image_preview":
+        return replace(
+            config,
+            display=replace(
+                config.display,
+                enable_image_preview=not config.display.enable_image_preview,
+            ),
+        )
     if field_id == "display.enable_pdf_preview":
         return replace(
             config,
@@ -248,6 +256,7 @@ def config_editor_field_ids() -> tuple[str, ...]:
         "display.theme",
         "display.show_directory_sizes",
         "display.enable_text_preview",
+        "display.enable_image_preview",
         "display.enable_pdf_preview",
         "display.enable_office_preview",
         "display.preview_syntax_theme",
@@ -273,6 +282,7 @@ def config_editor_labels() -> tuple[str, ...]:
         "Theme",
         "Show directory sizes",
         "Text preview",
+        "Image preview",
         "PDF preview",
         "Office preview",
         "Preview syntax theme",
@@ -338,6 +348,12 @@ def config_editor_field_description(field_index: int, config: AppConfig) -> tupl
             "Controls text-file preview in the right pane and grep context preview windows.",
             "Current behavior: text preview is "
             f"{'enabled' if config.display.enable_text_preview else 'disabled'} on startup.",
+        )
+    if field_id == "display.enable_image_preview":
+        return (
+            "Controls image-file preview in the right pane using `chafa` output.",
+            "Current behavior: image preview is "
+            f"{'enabled' if config.display.enable_image_preview else 'disabled'} on startup.",
         )
     if field_id == "display.enable_pdf_preview":
         return (
@@ -497,6 +513,8 @@ def format_config_field_value(field_index: int, config: AppConfig) -> str:
         return _format_bool(config.display.show_directory_sizes)
     if field_id == "display.enable_text_preview":
         return _format_bool(config.display.enable_text_preview)
+    if field_id == "display.enable_image_preview":
+        return _format_bool(config.display.enable_image_preview)
     if field_id == "display.enable_pdf_preview":
         return _format_bool(config.display.enable_pdf_preview)
     if field_id == "display.enable_office_preview":

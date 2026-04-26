@@ -29,6 +29,7 @@ from .actions import (
     BeginRenameInput,
     BeginSelectedFilesGrep,
     BeginShellCommandInput,
+    BeginSymlinkInput,
     BeginTextReplace,
     BeginZipCompressInput,
     CancelCommandPalette,
@@ -473,6 +474,7 @@ def _run_show_attributes_command(state: AppState) -> ReduceResult:
                 name=entry.name,
                 kind=entry.kind,
                 path=entry.path,
+                symlink=entry.symlink,
                 size_bytes=entry.size_bytes,
                 modified_at=entry.modified_at,
                 hidden=entry.hidden,
@@ -662,6 +664,17 @@ def _run_create_dir_command(state: AppState, reduce_state: ReducerFn) -> ReduceR
     return reduce_state(state, BeginCreateInput("dir"))
 
 
+def _run_create_symlink_command(
+    state: AppState,
+    next_state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    target_path = single_target_path(state)
+    if target_path is None:
+        return notify(next_state, level="warning", message="Select one item to create a symlink")
+    return reduce_state(next_state, BeginSymlinkInput(source_path=target_path))
+
+
 def _run_grep_replace_selected_command(
     state: AppState,
     next_state: AppState,
@@ -764,6 +777,8 @@ def _run_palette_command_item(
         return _run_copy_path_command(next_state, reduce_state)
     if item_id == "rename":
         return _run_rename_command(state, next_state, reduce_state)
+    if item_id == "create_symlink":
+        return _run_create_symlink_command(state, next_state, reduce_state)
     if item_id == "compress_as_zip":
         return _run_compress_as_zip_command(state, next_state, reduce_state)
     if item_id == "extract_archive":

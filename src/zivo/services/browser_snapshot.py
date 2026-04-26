@@ -28,6 +28,10 @@ DEFAULT_DIRECTORY_CACHE_CAPACITY = 64
 DEFAULT_TEXT_PREVIEW_CACHE_CAPACITY = 128
 DEFAULT_GREP_CONTEXT_CACHE_CAPACITY = 128
 TEXT_PREVIEW_MAX_BYTES = 64 * 1024
+DEFAULT_IMAGE_PREVIEW_COLUMNS = 80
+IMAGE_PREVIEW_EXTENSIONS = frozenset(
+    {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".tif", ".tiff", ".webp"}
+)
 PDF_PREVIEW_EXTENSIONS = frozenset({".pdf"})
 OFFICE_PREVIEW_EXTENSIONS = frozenset({".docx", ".xlsx", ".pptx"})
 TEXT_PREVIEW_EXTENSIONS = frozenset(
@@ -192,6 +196,7 @@ TEXT_PREVIEW_FILENAMES = frozenset(
 PREVIEW_PERMISSION_DENIED_MESSAGE = "Preview unavailable: permission denied"
 PREVIEW_UNSUPPORTED_MESSAGE = "Preview unavailable for this file type"
 PREVIEW_ERROR_MESSAGE = "Preview unavailable"
+IMAGE_PREVIEW_DEPENDENCY_MESSAGE = "Preview unavailable: install `chafa` for image preview"
 GREP_PREVIEW_ERROR_MESSAGE = "Preview unavailable: failed to load context"
 
 # Type alias for grep context cache key
@@ -206,6 +211,7 @@ class BrowserSnapshotLoader(Protocol):
         path: str,
         cursor_path: str | None = None,
         *,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> BrowserSnapshot: ...
@@ -217,8 +223,10 @@ class BrowserSnapshotLoader(Protocol):
         *,
         preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
         enable_text_preview: bool = True,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
+        preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
     ) -> PaneState: ...
 
     def load_current_pane_snapshot(
@@ -234,6 +242,7 @@ class BrowserSnapshotLoader(Protocol):
         current_pane: PaneState,
         *,
         enable_text_preview: bool = True,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> tuple[PaneState, PaneState]: ...
@@ -263,6 +272,7 @@ class LiveBrowserSnapshotLoader:
     text_preview_cache_capacity: int = DEFAULT_TEXT_PREVIEW_CACHE_CAPACITY
     grep_context_cache_capacity: int = DEFAULT_GREP_CONTEXT_CACHE_CAPACITY
     document_preview_loader: "DocumentPreviewLoader | None" = None
+    image_preview_loader: "ImagePreviewLoader | None" = None
     _directory_entries_cache: OrderedDict[str, tuple[DirectoryEntryState, ...]] = field(
         default_factory=OrderedDict,
         init=False,
@@ -307,12 +317,19 @@ class LiveBrowserSnapshotLoader:
         repr=False,
         compare=False,
     )
+    _image_preview_loader_lock: threading.Lock = field(
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def load_browser_snapshot(
         self,
         path: str,
         cursor_path: str | None = None,
         *,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> BrowserSnapshot:
@@ -346,6 +363,7 @@ class LiveBrowserSnapshotLoader:
             child_pane=self.load_child_pane_snapshot(
                 resolved_path,
                 resolved_cursor_path,
+                enable_image_preview=enable_image_preview,
                 enable_pdf_preview=enable_pdf_preview,
                 enable_office_preview=enable_office_preview,
             ),
@@ -358,8 +376,10 @@ class LiveBrowserSnapshotLoader:
         *,
         preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
         enable_text_preview: bool = True,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
+        preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
     ) -> PaneState:
         if cursor_path is None:
             return PaneState(directory_path=current_path, entries=())
@@ -390,8 +410,10 @@ class LiveBrowserSnapshotLoader:
             child_path,
             preview_max_bytes=preview_max_bytes,
             enable_text_preview=enable_text_preview,
+            enable_image_preview=enable_image_preview,
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
+            preview_columns=preview_columns,
         )
         if preview.kind != "unavailable":
             return PaneState(
@@ -400,6 +422,7 @@ class LiveBrowserSnapshotLoader:
                 mode="preview",
                 preview_path=str(child_path),
                 preview_content=preview.content,
+                preview_kind=preview.content_kind,
                 preview_message=preview.message,
                 preview_truncated=preview.truncated,
             )
@@ -455,6 +478,7 @@ class LiveBrowserSnapshotLoader:
         current_pane: PaneState,
         *,
         enable_text_preview: bool = True,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> tuple[PaneState, PaneState]:
@@ -489,6 +513,7 @@ class LiveBrowserSnapshotLoader:
             resolved_path,
             resolved_cursor_path,
             enable_text_preview=enable_text_preview,
+            enable_image_preview=enable_image_preview,
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
         )
@@ -612,24 +637,31 @@ class LiveBrowserSnapshotLoader:
         *,
         preview_max_bytes: int,
         enable_text_preview: bool,
+        enable_image_preview: bool,
         enable_pdf_preview: bool,
         enable_office_preview: bool,
+        preview_columns: int,
     ) -> "FilePreviewState":
         if self.text_preview_cache_capacity <= 0:
             return _load_text_preview(
                 path,
                 preview_max_bytes=preview_max_bytes,
                 enable_text_preview=enable_text_preview,
+                enable_image_preview=enable_image_preview,
                 enable_pdf_preview=enable_pdf_preview,
                 enable_office_preview=enable_office_preview,
                 document_preview_loader=self._resolve_document_preview_loader(),
+                image_preview_loader=self._resolve_image_preview_loader(),
+                preview_columns=preview_columns,
             )
         cache_key = _build_text_preview_cache_key(
             path,
             preview_max_bytes,
             enable_text_preview,
+            enable_image_preview,
             enable_pdf_preview,
             enable_office_preview,
+            preview_columns,
         )
         if isinstance(cache_key, FilePreviewState):
             return cache_key
@@ -640,9 +672,12 @@ class LiveBrowserSnapshotLoader:
             path,
             preview_max_bytes=preview_max_bytes,
             enable_text_preview=enable_text_preview,
+            enable_image_preview=enable_image_preview,
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
             document_preview_loader=self._resolve_document_preview_loader(),
+            image_preview_loader=self._resolve_image_preview_loader(),
+            preview_columns=preview_columns,
         )
         self._store_cached_text_preview(cache_key, preview)
         return preview
@@ -657,9 +692,19 @@ class LiveBrowserSnapshotLoader:
                 )
             return self.document_preview_loader
 
+    def _resolve_image_preview_loader(self) -> "ImagePreviewLoader":
+        with self._image_preview_loader_lock:
+            if self.image_preview_loader is None:
+                object.__setattr__(
+                    self,
+                    "image_preview_loader",
+                    ChafaImagePreviewLoader(),
+                )
+            return self.image_preview_loader
+
     def _get_cached_text_preview(
         self,
-        cache_key: tuple[str, int, int, int, bool, bool, bool],
+        cache_key: tuple[str, int, int, int, bool, bool, bool, bool, int],
     ) -> "FilePreviewState | None":
         with self._text_preview_cache_lock:
             preview = self._text_preview_cache.get(cache_key)
@@ -670,7 +715,7 @@ class LiveBrowserSnapshotLoader:
 
     def _store_cached_text_preview(
         self,
-        cache_key: tuple[str, int, int, int, bool, bool, bool],
+        cache_key: tuple[str, int, int, int, bool, bool, bool, bool, int],
         preview: "FilePreviewState",
     ) -> None:
         with self._text_preview_cache_lock:
@@ -728,6 +773,7 @@ class FakeBrowserSnapshotLoader:
         path: str,
         cursor_path: str | None = None,
         *,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> BrowserSnapshot:
@@ -751,8 +797,10 @@ class FakeBrowserSnapshotLoader:
         *,
         preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
         enable_text_preview: bool = True,
+        enable_image_preview: bool = True,
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
+        preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
     ) -> PaneState:
         key = (current_path, cursor_path)
         self.executed_child_pane_requests.append(key)
@@ -899,9 +947,11 @@ def _build_text_preview_cache_key(
     path: Path,
     preview_max_bytes: int,
     enable_text_preview: bool,
+    enable_image_preview: bool,
     enable_pdf_preview: bool,
     enable_office_preview: bool,
-) -> tuple[str, int, int, int, bool, bool, bool] | "FilePreviewState":
+    preview_columns: int,
+) -> tuple[str, int, int, int, bool, bool, bool, bool, int] | "FilePreviewState":
     preview_limit = max(1, preview_max_bytes)
     try:
         stat = path.stat()
@@ -915,8 +965,10 @@ def _build_text_preview_cache_key(
         stat.st_size,
         preview_limit,
         enable_text_preview,
+        enable_image_preview,
         enable_pdf_preview,
         enable_office_preview,
+        max(1, preview_columns),
     )
 
 
@@ -948,10 +1000,22 @@ def _load_text_preview(
     *,
     preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
     enable_text_preview: bool = True,
+    enable_image_preview: bool = True,
     enable_pdf_preview: bool = True,
     enable_office_preview: bool = True,
     document_preview_loader: "DocumentPreviewLoader | None" = None,
+    image_preview_loader: "ImagePreviewLoader | None" = None,
+    preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
 ) -> "FilePreviewState":
+    if _is_image_preview_candidate(path):
+        if not enable_image_preview:
+            return FilePreviewState.unavailable()
+        loader = image_preview_loader or ChafaImagePreviewLoader()
+        preview = loader.load_preview(path, preview_columns=max(1, preview_columns))
+        if preview is not None:
+            return preview
+        return FilePreviewState.with_message(IMAGE_PREVIEW_DEPENDENCY_MESSAGE)
+
     if _is_pdf_preview_candidate(path):
         if not enable_pdf_preview:
             return FilePreviewState.unavailable()
@@ -1000,6 +1064,15 @@ class DocumentPreviewLoader(Protocol):
         path: Path,
         *,
         preview_max_bytes: int,
+    ) -> "FilePreviewState | None": ...
+
+
+class ImagePreviewLoader(Protocol):
+    def load_preview(
+        self,
+        path: Path,
+        *,
+        preview_columns: int,
     ) -> "FilePreviewState | None": ...
 
 
@@ -1052,6 +1125,62 @@ class PandocDocumentPreviewLoader:
             return None
         self.pandoc_path = pandoc
         return pandoc
+
+
+@dataclass
+class ChafaImagePreviewLoader:
+    chafa_path: str | None = field(default=None, init=False, repr=False)
+    chafa_missing: bool = field(default=False, init=False, repr=False)
+
+    def load_preview(
+        self,
+        path: Path,
+        *,
+        preview_columns: int,
+    ) -> "FilePreviewState | None":
+        chafa = self._resolve_chafa()
+        if chafa is None:
+            return None
+        try:
+            result = subprocess.run(
+                [
+                    chafa,
+                    "--format",
+                    "symbols",
+                    "--colors",
+                    "full",
+                    "--animate",
+                    "off",
+                    "--fit-width",
+                    "--size",
+                    f"{max(1, preview_columns)}x",
+                    str(path),
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
+
+        try:
+            content = result.stdout.decode("utf-8")
+        except UnicodeDecodeError:
+            content = result.stdout.decode("utf-8", errors="ignore")
+        if not content.strip():
+            return None
+        return FilePreviewState.with_content(content, False, content_kind="image")
+
+    def _resolve_chafa(self) -> str | None:
+        if self.chafa_missing:
+            return None
+        if self.chafa_path is not None:
+            return self.chafa_path
+        chafa = shutil.which("chafa")
+        if chafa is None:
+            self.chafa_missing = True
+            return None
+        self.chafa_path = chafa
+        return chafa
 
 
 def _load_pdf_preview(
@@ -1143,12 +1272,28 @@ def _load_grep_context_preview(
 class FilePreviewState:
     kind: Literal["content", "message", "unavailable"]
     content: str | None = None
+    content_kind: Literal["text", "image"] = "text"
     message: str | None = None
     truncated: bool = False
 
     @classmethod
-    def with_content(cls, content: str, truncated: bool) -> "FilePreviewState":
-        return cls(kind="content", content=content, truncated=truncated)
+    def with_content(
+        cls,
+        content: str,
+        truncated: bool,
+        *,
+        content_kind: Literal["text", "image"] = "text",
+    ) -> "FilePreviewState":
+        return cls(
+            kind="content",
+            content=content,
+            content_kind=content_kind,
+            truncated=truncated,
+        )
+
+    @classmethod
+    def with_message(cls, message: str) -> "FilePreviewState":
+        return cls(kind="message", message=message)
 
     @classmethod
     def permission_denied(cls) -> "FilePreviewState":
@@ -1238,7 +1383,11 @@ def _is_text_content(path: Path, blocksize: int = 512) -> bool:
 
 
 def _is_preview_candidate(path: Path) -> bool:
-    if _is_pdf_preview_candidate(path) or _is_office_preview_candidate(path):
+    if (
+        _is_image_preview_candidate(path)
+        or _is_pdf_preview_candidate(path)
+        or _is_office_preview_candidate(path)
+    ):
         return True
 
     # 既存：拡張子ベースの判定（高速パス）
@@ -1254,6 +1403,10 @@ def _is_preview_candidate(path: Path) -> bool:
 
 def _is_pdf_preview_candidate(path: Path) -> bool:
     return path.suffix.casefold() in PDF_PREVIEW_EXTENSIONS
+
+
+def _is_image_preview_candidate(path: Path) -> bool:
+    return path.suffix.casefold() in IMAGE_PREVIEW_EXTENSIONS
 
 
 def _is_office_preview_candidate(path: Path) -> bool:

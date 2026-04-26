@@ -155,6 +155,13 @@ def load_display_config(section: object, warnings: list[str]) -> DisplayConfig:
             warnings=warnings,
             section_name="display",
         ),
+        enable_image_preview=read_bool(
+            validated,
+            key="enable_image_preview",
+            default=config.enable_image_preview,
+            warnings=warnings,
+            section_name="display",
+        ),
         enable_pdf_preview=read_bool(
             validated,
             key="enable_pdf_preview",

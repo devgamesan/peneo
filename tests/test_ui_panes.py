@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from rich.style import Style
+from rich.text import Text
 from textual.widgets import DataTable
 
 from zivo.models import ChildPaneViewState, CurrentPaneRowUpdate, CurrentSummaryState, PaneEntry
@@ -77,6 +78,22 @@ def test_pane_entry_defaults_executable_to_false() -> None:
     entry = PaneEntry("README.md", "file")
 
     assert entry.executable is False
+
+
+def test_child_pane_renders_image_preview_as_ansi() -> None:
+    renderable = ChildPane._render_preview(
+        ChildPaneViewState(
+            title="Preview: image.png",
+            preview_path="/tmp/image.png",
+            preview_content="\x1b[31m@@\x1b[0m\n",
+            preview_kind="image",
+        ),
+        40,
+    )
+
+    assert isinstance(renderable, Text)
+    assert renderable.plain == "@@"
+    assert renderable.no_wrap is True
 
 
 def test_side_pane_selected_directory_uses_text_only_highlight() -> None:

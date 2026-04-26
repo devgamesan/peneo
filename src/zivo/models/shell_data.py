@@ -5,6 +5,7 @@ from typing import Literal
 
 EntryKind = Literal["dir", "file"]
 NotificationLevel = Literal["info", "warning", "error"]
+PreviewKind = Literal["text", "image"]
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,7 @@ class ChildPaneViewState:
     preview_path: str | None = None
     preview_title: str | None = None
     preview_content: str | None = None
+    preview_kind: PreviewKind = "text"
     preview_message: str | None = None
     preview_truncated: bool = False
     preview_start_line: int | None = None

@@ -9,6 +9,7 @@ from zivo.models import (
     AppConfig,
     ConflictResolution,
     CreateKind,
+    CreateSymlinkRequest,
     CreateZipArchiveRequest,
     DeleteMode,
     ExtractArchiveRequest,
@@ -26,6 +27,7 @@ UiMode = Literal[
     "CREATE",
     "EXTRACT",
     "ZIP",
+    "SYMLINK",
     "PALETTE",
     "CONFIRM",
     "CONFIG",
@@ -66,6 +68,7 @@ ConfigFieldId = Literal[
     "display.show_hidden_files",
     "display.show_directory_sizes",
     "display.enable_text_preview",
+    "display.enable_image_preview",
     "display.enable_pdf_preview",
     "display.enable_office_preview",
     "display.theme",
@@ -112,6 +115,7 @@ class PaneState:
     preview_path: str | None = None
     preview_title: str | None = None
     preview_content: str | None = None
+    preview_kind: Literal["text", "image"] = "text"
     preview_message: str | None = None
     preview_truncated: bool = False
     preview_start_line: int | None = None
@@ -204,6 +208,13 @@ class ZipCompressConfirmationState:
 
 
 @dataclass(frozen=True)
+class SymlinkOverwriteConfirmationState:
+    """Pending confirmation dialog state for symlink destination overwrite."""
+
+    request: CreateSymlinkRequest
+
+
+@dataclass(frozen=True)
 class ZipCompressProgressState:
     """Transient progress state for zip compression."""
 
@@ -219,6 +230,7 @@ class AttributeInspectionState:
     name: str
     kind: EntryKind
     path: str
+    symlink: bool = False
     size_bytes: int | None = None
     modified_at: datetime | None = None
     hidden: bool = False
@@ -289,6 +301,8 @@ class PendingInputState:
     create_kind: CreateKind | None = None
     extract_source_path: str | None = None
     zip_source_paths: tuple[str, ...] | None = None
+    symlink_source_path: str | None = None
+    symlink_overwrite: bool = False
 
 
 @dataclass(frozen=True)
@@ -536,6 +550,7 @@ class AppState:
     archive_extract_progress: ArchiveExtractProgressState | None = None
     zip_compress_confirmation: ZipCompressConfirmationState | None = None
     zip_compress_progress: ZipCompressProgressState | None = None
+    symlink_overwrite_confirmation: SymlinkOverwriteConfirmationState | None = None
     replace_confirmation: ReplaceConfirmationState | None = None
     attribute_inspection: AttributeInspectionState | None = None
     config_editor: ConfigEditorState | None = None
