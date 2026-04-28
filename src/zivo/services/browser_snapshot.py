@@ -1342,7 +1342,10 @@ def _load_pdf_preview(
     except UnicodeDecodeError:
         content = _normalize_preview_newlines(result.stdout.decode("utf-8", errors="ignore"))
     if not content.strip():
-        return None
+        # 空のコンテンツは、画像ベースのPDFかテキストレイヤーがないPDF
+        return FilePreviewState.with_message(
+            "PDF preview: no text content found"
+        )
     return _truncate_preview_text(content, preview_max_bytes)
 
 
