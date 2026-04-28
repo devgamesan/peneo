@@ -287,12 +287,18 @@ class WindowsTrashService:
             f"$item.InvokeVerb('estore');"
             f"Write-Output '{record.original_path}'"
         )
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-Command", ps_script],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            raise OSError(
+                f"Failed to restore '{record.original_path}' from Recycle Bin: "
+                "PowerShell not available"
+            )
         if result.returncode != 0:
             raise OSError(
                 f"Failed to restore '{record.original_path}' from Recycle Bin"
@@ -309,12 +315,15 @@ class WindowsTrashService:
             "$rb = $shell.NameSpace(0xa);"
             "$rb.Items() | ForEach-Object { $_.Path }"
         )
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-Command", ps_script],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return set()
         if result.returncode != 0:
             return set()
         return {line.strip() for line in result.stdout.splitlines() if line.strip()}
