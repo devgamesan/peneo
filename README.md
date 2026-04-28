@@ -75,7 +75,7 @@ zivo aims to be usable by everyone without complex configuration, plugin install
 | Ubuntu | Supported | Primary verified environment at the moment. |
 | Ubuntu (WSL) | Supported | WSL running Ubuntu is part of the verified environments. |
 | macOS | Supported | Grant Full Disk Access to your terminal for trash operations. |
-| Windows | Partial | Native Windows supports startup, basic browsing, and `Move to trash`, but still lacks full feature parity. |
+| Windows | Supported | Drive navigation, file operations, clipboard, shell commands, external terminal, and most features. `zivo-cd` and trash restore undo are not yet available on Windows. |
 
 ## Installation
 
@@ -113,14 +113,14 @@ To update, pull the latest changes and run the same install command again.
 
 zivo itself can be installed and started with `uv`, but some features depend on external commands being available on `PATH`. The required tools vary by OS or environment.
 
-| Feature | Ubuntu / Debian | Ubuntu (WSL) | macOS |
-| --- | --- | --- | --- |
-| Document preview (`docx` / `xlsx` / `pptx`) | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ |
-| Image preview (`png` / `jpg` / `gif` / `webp` / etc.) | `chafa` | `chafa` | `chafa` |
-| PDF preview (`pdf`) | `poppler-utils` | `poppler-utils` | `poppler` |
-| Grep search (`g`) | `ripgrep` | `ripgrep` | `ripgrep` |
-| Copy path (`C`) | X11: `xclip` / Wayland: `wl-clipboard` | Usually none (`clip.exe`), optional: `xclip` / `wl-clipboard` | None (`pbcopy` built in) |
-| GUI bridge commands | None | `wslu` recommended | None |
+| Feature | Ubuntu / Debian | Ubuntu (WSL) | macOS | Windows |
+| --- | --- | --- | --- | --- |
+| Document preview (`docx` / `xlsx` / `pptx`) | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ | `pandoc` 3.8.3+ |
+| Image preview (`png` / `jpg` / `gif` / `webp` / etc.) | `chafa` | `chafa` | `chafa` | `chafa` |
+| PDF preview (`pdf`) | `poppler-utils` | `poppler-utils` | `poppler` | `poppler` (pdftotext) |
+| Grep search (`g`) | `ripgrep` | `ripgrep` | `ripgrep` | `ripgrep` |
+| Copy path (`C`) | X11: `xclip` / Wayland: `wl-clipboard` | Usually none (`clip.exe`), optional: `xclip` / `wl-clipboard` | None (`pbcopy` built in) | Built-in |
+| GUI bridge commands | None | `wslu` recommended | None | Built-in |
 
 **Note**: Some distributions may not provide pandoc 3.8.3+ through their package managers. If the installed version is older than 3.8.3, install the latest version manually from the official pandoc website: https://pandoc.org/installing.html
 
@@ -140,7 +140,19 @@ sudo apt install chafa pandoc poppler-utils ripgrep wslu
 brew install chafa pandoc poppler ripgrep
 ```
 
-On native Windows, zivo currently focuses on startup, basic browsing, and core file actions such as `Move to trash`. POSIX-oriented features such as the embedded split terminal are still unavailable there, and trash restore remains unsupported, so native Windows dependency guidance remains intentionally limited. Pressing `←` from a drive root such as `C:\` returns to a drive list so you can move to another drive without leaving zivo.
+### Windows
+
+On Windows, drive roots such as `C:\` support pressing `←` to return to the drive list so you can switch between drives without leaving zivo.
+
+Install the required dependencies with `winget`:
+
+```bash
+winget install pandoc ripgrep
+```
+
+Image preview (`chafa`) is not available via winget; install it with `scoop install chafa` or download from the [chafa releases page](https://github.com/hpjansson/chafa/releases).
+
+PDF preview requires `pdftotext`. Install `poppler` via `scoop install poppler` or download from the [poppler for Windows](https://github.com/oschwartz10612/poppler-windows/releases) page.
 
 On macOS, grant **Full Disk Access** to your terminal application. Open **System Settings > Privacy & Security > Full Disk Access** and enable the terminal app you use to run zivo (for example Terminal.app, iTerm2, or Alacritty). Without this permission, operations that access `~/.Trash` or other protected directories will fail.
 
@@ -214,7 +226,7 @@ You can open an external terminal directly from zivo. Press `t` to suspend zivo 
 | `.` | Toggle hidden files |
 | `s` | Cycle sort |
 | `R` | Reload directory |
-| `t` | Open terminal in foreground (suspend zivo, open shell in current terminal, resume on exit; not available on native Windows) |
+| `t` | Open terminal in foreground (suspend zivo, open shell in current terminal, resume on exit) |
 | `T` | Open terminal at current directory (separate window) |
 | `o` | Open new tab |
 | `w` | Close current tab |
@@ -385,7 +397,7 @@ The supported settings are:
 | --- | --- | --- | --- |
 | `terminal` | `linux` | Array of shell-style command templates | Optional terminal launch commands for Linux. Use `{path}` as the working-directory placeholder. Invalid or empty entries are ignored. |
 | `terminal` | `macos` | Array of shell-style command templates | Optional terminal launch commands for macOS, validated the same way as Linux entries. |
-| `terminal` | `windows` | Array of shell-style command templates | Optional terminal launch commands for Windows and WSL bridge workflows. Windows native `window` launch is supported; `foreground` remains unavailable there. |
+| `terminal` | `windows` | Array of shell-style command templates | Optional terminal launch commands for Windows and WSL bridge workflows. |
 | `editor` | `command` | Shell-style string, for example `nvim -u NONE` | Optional terminal editor command used by `e`. Do not include the file path; zivo appends it automatically. Unsupported GUI editors or invalid commands are ignored. |
 | `display` | `show_hidden_files` | `true` / `false` | Default hidden-file visibility when the app starts. |
 | `display` | `show_directory_sizes` | `true` / `false` | Shows recursive directory sizes in the current pane. Defaults to `true`. Large directories can be expensive to scan. zivo also calculates sizes automatically while the main pane is sorted by `size`. |
