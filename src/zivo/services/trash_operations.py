@@ -281,10 +281,19 @@ class WindowsTrashService:
         ps_script = (
             f"$shell = New-Object -ComObject Shell.Application;"
             f"$rb = $shell.NameSpace(0xa);"
-            f"$items = @($rb.Items()) | Where-Object {{ $_ -and $_.Path -eq '{escaped_path}' }};"
-            f"if ($items.Count -eq 0) {{ exit 1 }};"
-            f"$items[0].InvokeVerb('restore');"
-            f"Write-Output '{record.original_path}'"
+            f"$items = $rb.Items();"
+            f"$target = '{escaped_path}'.ToLower();"
+            f"$count = $items.Count;"
+            f"$found = $false;"
+            f"for ($i = 0; $i -lt $count; $i++) {{"
+            f"  $item = $items.Item($i);"
+            f"  if ($item.Path.ToLower() -eq $target) {{"
+            f"    $item.InvokeVerb('undelete');"
+            f"    $found = $true;"
+            f"    break;"
+            f"  }}"
+            f"}}"
+            f"if (-not $found) {{ exit 1 }}"
         )
         try:
             result = subprocess.run(
@@ -302,9 +311,6 @@ class WindowsTrashService:
             raise OSError(
                 f"Failed to restore '{record.original_path}' from Recycle Bin"
             )
-        output = result.stdout.strip()
-        if output:
-            return output
         return record.original_path
 
     @staticmethod
@@ -312,7 +318,11 @@ class WindowsTrashService:
         ps_script = (
             "$shell = New-Object -ComObject Shell.Application;"
             "$rb = $shell.NameSpace(0xa);"
-            "$rb.Items() | ForEach-Object { $_.Path }"
+            "$items = $rb.Items();"
+            "$count = $items.Count;"
+            "for ($i = 0; $i -lt $count; $i++) {"
+            "  $items.Item($i).Path"
+            "}"
         )
         try:
             result = subprocess.run(
