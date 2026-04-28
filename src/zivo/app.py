@@ -569,7 +569,6 @@ class zivoApp(App[None]):
         self._update_command_palette_geometry()
         self._update_config_dialog_geometry()
         self._update_input_dialog_geometry()
-        self._update_split_terminal_overlay_geometry()
 
 
 def create_app(
