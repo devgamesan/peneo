@@ -254,11 +254,70 @@ class WindowsTrashService:
         path: str,
         send_to_trash: Callable[[], None],
     ) -> TrashRestoreRecord | None:
+        before = self._get_recycle_bin_original_paths()
+
         send_to_trash()
-        return None
+
+        after = self._get_recycle_bin_original_paths()
+        new_paths = sorted(after - before)
+
+        resolved_original = str(Path(path).expanduser().resolve(strict=False))
+        if resolved_original in new_paths or not new_paths:
+            match = resolved_original if resolved_original in new_paths else None
+        else:
+            match = new_paths[-1]
+
+        if match is None:
+            return None
+
+        return TrashRestoreRecord(
+            original_path=match,
+            trashed_path="",
+            metadata_path="",
+        )
 
     def restore(self, record: TrashRestoreRecord) -> str:
-        raise OSError("Trash restore is not supported on Windows")
+        escaped_path = record.original_path.replace("'", "''")
+        ps_script = (
+            f"$shell = New-Object -ComObject Shell.Application;"
+            f"$rb = $shell.NameSpace(0xa);"
+            f"$items = $rb.Items() | Where-Object {{ $_.Path -eq '{escaped_path}' }};"
+            f"$item = $items | Sort-Object ModifyDate -Descending | Select-Object -First 1;"
+            f"if ($item -eq $null) {{ exit 1 }};"
+            f"$item.InvokeVerb('estore');"
+            f"Write-Output '{record.original_path}'"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise OSError(
+                f"Failed to restore '{record.original_path}' from Recycle Bin"
+            )
+        output = result.stdout.strip()
+        if output:
+            return output
+        return record.original_path
+
+    @staticmethod
+    def _get_recycle_bin_original_paths() -> set[str]:
+        ps_script = (
+            "$shell = New-Object -ComObject Shell.Application;"
+            "$rb = $shell.NameSpace(0xa);"
+            "$rb.Items() | ForEach-Object { $_.Path }"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return set()
+        return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
 @dataclass(frozen=True)
