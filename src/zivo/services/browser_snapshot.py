@@ -1326,8 +1326,9 @@ def _load_pdf_preview(
             [pdftotext, "-q", str(path), "-"],
             check=True,
             capture_output=True,
+            shell=True,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, FileNotFoundError):
         return None
     try:
         content = _normalize_preview_newlines(result.stdout.decode("utf-8"))
