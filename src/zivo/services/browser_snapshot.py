@@ -1322,13 +1322,20 @@ def _load_pdf_preview(
     if pdftotext is None:
         return None
     try:
+        # Windowsではパスをダブルクォートで囲む必要がある
+        path_str = str(path)
+        if " " in path_str:
+            path_str = f'"{path_str}"'
         result = subprocess.run(
-            [pdftotext, "-q", str(path), "-"],
+            [pdftotext, "-q", path_str, "-"],
             check=True,
             capture_output=True,
-            shell=True,
         )
-    except (OSError, subprocess.SubprocessError, FileNotFoundError):
+    except (OSError, subprocess.SubprocessError, FileNotFoundError) as e:
+        import sys
+        sys.stderr.write(f"PDF preview error: {type(e).__name__}: {e}\n")
+        if hasattr(e, 'stderr') and e.stderr:
+            sys.stderr.write(f"pdftotext stderr: {e.stderr}\n")
         return None
     try:
         content = _normalize_preview_newlines(result.stdout.decode("utf-8"))
