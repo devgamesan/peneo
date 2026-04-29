@@ -1242,6 +1242,74 @@ async def test_app_browsing_preview_scrolls_with_brackets() -> None:
 
 
 @pytest.mark.asyncio
+async def test_app_mouse_click_moves_current_cursor() -> None:
+    path = str(Path("/tmp/zivo-mouse-current").resolve())
+    docs_path = f"{path}/docs"
+    readme_path = f"{path}/README.md"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(docs_path, "docs", "dir"),
+                    DirectoryEntryState(readme_path, "README.md", "file"),
+                ),
+                child_path=docs_path,
+                child_entries=(DirectoryEntryState(f"{docs_path}/guide.md", "guide.md", "file"),),
+            )
+        }
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test(size=(120, 20)):
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 2)
+
+        assert app.app_state.current_pane.cursor_path == docs_path
+
+        await app.on_main_pane_entry_clicked(
+            MainPane.EntryClicked("current-pane", readme_path, double_click=False)
+        )
+
+        assert app.app_state.current_pane.cursor_path == readme_path
+
+
+@pytest.mark.asyncio
+async def test_app_mouse_double_click_enters_directory() -> None:
+    path = str(Path("/tmp/zivo-mouse-enter").resolve())
+    docs_path = f"{path}/docs"
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(docs_path, "docs", "dir"),
+                    DirectoryEntryState(f"{path}/README.md", "README.md", "file"),
+                ),
+                child_path=docs_path,
+                child_entries=(DirectoryEntryState(f"{docs_path}/guide.md", "guide.md", "file"),),
+            ),
+            docs_path: _build_snapshot(
+                docs_path,
+                (DirectoryEntryState(f"{docs_path}/guide.md", "guide.md", "file"),),
+                child_path=docs_path,
+            ),
+        }
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test(size=(120, 20)):
+        await _wait_for_snapshot_loaded(app, path)
+
+        await app.on_main_pane_entry_clicked(
+            MainPane.EntryClicked("current-pane", docs_path, double_click=True)
+        )
+        await _wait_for_snapshot_loaded(app, docs_path)
+
+        assert app.app_state.current_path == docs_path
+
+
+@pytest.mark.asyncio
 async def test_app_hides_text_preview_in_child_pane_when_preview_disabled() -> None:
     path = str(Path("/tmp/zivo-preview-disabled").resolve())
     readme = f"{path}/README.md"

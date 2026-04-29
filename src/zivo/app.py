@@ -10,7 +10,7 @@ from typing import Literal
 from textual import events
 from textual.app import App, ComposeResult, ScreenStackError
 from textual.binding import Binding
-from textual.containers import Container, Vertical
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.keys import Keys
 from textual.timer import Timer
@@ -76,9 +76,15 @@ from zivo.state import (
 )
 from zivo.state.actions import (
     Action,
+    EnterCursorDirectory,
+    EnterTransferDirectory,
     ExitCurrentPath,
+    FocusTransferPane,
+    OpenPathWithDefaultApp,
     RequestBrowserSnapshot,
+    SetCursorPath,
     SetTerminalHeight,
+    SetTransferCursorPath,
 )
 from zivo.ui import (
     AttributeDialog,
@@ -91,6 +97,7 @@ from zivo.ui import (
     InputDialog,
     MainPane,
     ShellCommandDialog,
+    SidePane,
     StatusBar,
 )
 
@@ -627,6 +634,30 @@ class zivoApp(App[None]):
         await self.dispatch_actions((SetTerminalHeight(height=event.size.height),))
         self._sync_overlay_layout(event.size.width)
 
+    async def on_main_pane_entry_clicked(self, message: MainPane.EntryClicked) -> None:
+        await self._handle_main_pane_click(
+            message.pane_id,
+            message.path,
+            double_click=message.double_click,
+        )
+
+    async def on_side_pane_entry_clicked(self, message: SidePane.EntryClicked) -> None:
+        if message.pane_id != "parent-pane" or not message.double_click:
+            return
+        await self.dispatch_actions((RequestBrowserSnapshot(message.path, blocking=True),))
+
+    async def on_child_pane_entry_clicked(self, message: ChildPane.EntryClicked) -> None:
+        if not message.double_click:
+            return
+        await self._open_or_enter_path(message.path)
+
+    def on_child_pane_preview_clicked(self, _message: ChildPane.PreviewClicked) -> None:
+        try:
+            preview = self.query_one("#child-pane-preview-scroll", VerticalScroll)
+        except NoMatches:
+            return
+        self.set_focus(preview)
+
     async def _refresh_shell(self, *, theme_changed: bool = False) -> None:
         try:
             await refresh_shell(
@@ -646,6 +677,59 @@ class zivoApp(App[None]):
         self._update_command_palette_geometry()
         self._update_config_dialog_geometry()
         self._update_input_dialog_geometry()
+
+    async def _handle_main_pane_click(
+        self,
+        pane_id: str | None,
+        path: str,
+        *,
+        double_click: bool,
+    ) -> None:
+        if self._app_state.layout_mode == "transfer":
+            pane = "right" if pane_id == "transfer-right-pane" else "left"
+            actions: list[Action] = []
+            if self._app_state.active_transfer_pane != pane:
+                actions.append(FocusTransferPane(pane))
+            actions.append(SetTransferCursorPath(path))
+            if double_click:
+                actions.append(EnterTransferDirectory())
+            await self.dispatch_actions(tuple(actions))
+            return
+
+        actions = [SetCursorPath(path)]
+        if double_click:
+            await self.dispatch_actions(tuple(actions))
+            await self._open_or_enter_path(path)
+            return
+        await self.dispatch_actions(tuple(actions))
+
+    async def _open_or_enter_path(self, path: str) -> None:
+        shell = select_shell_data(self._app_state)
+        current_paths = {entry.path for entry in shell.current_entries or ()}
+        child_paths = {entry.path for entry in shell.child_pane.entries}
+        if path in current_paths:
+            entry = next(
+                (entry for entry in self._app_state.current_pane.entries if entry.path == path),
+                None,
+            )
+            if entry is None:
+                return
+            if entry.kind == "dir":
+                await self.dispatch_actions((SetCursorPath(path), EnterCursorDirectory()))
+            else:
+                await self.dispatch_actions((SetCursorPath(path), OpenPathWithDefaultApp(path)))
+            return
+        if path in child_paths:
+            entry = next(
+                (entry for entry in self._app_state.child_pane.entries if entry.path == path),
+                None,
+            )
+            if entry is None:
+                return
+            if entry.kind == "dir":
+                await self.dispatch_actions((RequestBrowserSnapshot(path, blocking=True),))
+            else:
+                await self.dispatch_actions((OpenPathWithDefaultApp(path),))
 
 
 def create_app(
