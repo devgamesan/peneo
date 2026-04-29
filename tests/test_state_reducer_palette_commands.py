@@ -442,10 +442,19 @@ def test_set_command_palette_query_shows_root_directory_candidates_for_slash() -
     )
 
     next_state = _reduce_state(state, SetCommandPaletteQuery("/"))
+    expected_candidates = tuple(
+        sorted(
+            (
+                str(child.resolve())
+                for child in Path("/").iterdir()
+                if child.is_dir()
+            ),
+            key=lambda path: (Path(path).name.casefold(), path),
+        )
+    )
 
     assert next_state.command_palette is not None
-    assert "/home" in next_state.command_palette.go_to_path_candidates
-    assert "/usr" in next_state.command_palette.go_to_path_candidates
+    assert next_state.command_palette.go_to_path_candidates == expected_candidates
 
 def test_submit_go_to_path_palette_requests_snapshot(tmp_path) -> None:
     state = _reduce_state(
