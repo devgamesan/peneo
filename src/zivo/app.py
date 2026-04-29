@@ -14,6 +14,7 @@ from textual.containers import Container, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.keys import Keys
 from textual.timer import Timer
+from textual.widgets import DataTable
 from textual.worker import Worker
 
 from zivo.adapters import LocalExternalLaunchAdapter
@@ -97,7 +98,6 @@ from zivo.ui import (
     InputDialog,
     MainPane,
     ShellCommandDialog,
-    SidePane,
     StatusBar,
 )
 
@@ -136,6 +136,7 @@ _ESCAPE = "\x1b"
 _OSC_INTRODUCER = "]"
 _OSC_TERMINATOR = "\\"
 _OSC_BEL = "\x07"
+_MOUSE_DOUBLE_CLICK_SECONDS = 0.4
 
 
 def _preview_scroll_delta(state: AppState, key: str) -> int | None:
@@ -242,6 +243,8 @@ class zivoApp(App[None]):
         self._pending_terminal_response_escape = False
         self._swallowing_terminal_response = False
         self._terminal_response_escape_deadline = 0.0
+        self._last_mouse_click_key: tuple[str, str] | None = None
+        self._last_mouse_click_at = 0.0
 
     @property
     def app_state(self) -> AppState:
@@ -498,6 +501,48 @@ class zivoApp(App[None]):
             event.stop()
             event.prevent_default()
 
+    async def on_click(self, event: events.Click) -> None:
+        """Handle bubbled mouse clicks for side panes and previews."""
+
+        widget = event.widget
+        widget_id = getattr(widget, "id", None)
+        meta = event.style.meta
+
+        if widget_id == "child-pane-preview":
+            try:
+                preview = self.query_one("#child-pane-preview-scroll", VerticalScroll)
+            except NoMatches:
+                return
+            self.set_focus(preview)
+            return
+
+        entry_path = meta.get("entry_path")
+        if not isinstance(entry_path, str):
+            return
+
+        if widget_id == "parent-pane-list":
+            if self._is_double_click("parent-pane", entry_path):
+                await self.dispatch_actions((RequestBrowserSnapshot(entry_path, blocking=True),))
+            return
+
+        if widget_id == "child-pane-list" and self._is_double_click("child-pane", entry_path):
+            await self._open_or_enter_path(entry_path)
+
+    async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Sync reducer state with row clicks in the main/transfer tables."""
+
+        table = event.data_table
+        table_id = table.id or ""
+        pane_id = table_id.removesuffix("-table")
+        path = self._path_for_table_row(pane_id, event.cursor_row)
+        if path is None:
+            return
+        await self._handle_main_pane_click(
+            pane_id,
+            path,
+            double_click=self._is_double_click(pane_id, path),
+        )
+
     async def action_dispatch_bound_key(self, key: str) -> None:
         """Handle priority key bindings through the central dispatcher."""
 
@@ -634,30 +679,6 @@ class zivoApp(App[None]):
         await self.dispatch_actions((SetTerminalHeight(height=event.size.height),))
         self._sync_overlay_layout(event.size.width)
 
-    async def on_main_pane_entry_clicked(self, message: MainPane.EntryClicked) -> None:
-        await self._handle_main_pane_click(
-            message.pane_id,
-            message.path,
-            double_click=message.double_click,
-        )
-
-    async def on_side_pane_entry_clicked(self, message: SidePane.EntryClicked) -> None:
-        if message.pane_id != "parent-pane" or not message.double_click:
-            return
-        await self.dispatch_actions((RequestBrowserSnapshot(message.path, blocking=True),))
-
-    async def on_child_pane_entry_clicked(self, message: ChildPane.EntryClicked) -> None:
-        if not message.double_click:
-            return
-        await self._open_or_enter_path(message.path)
-
-    def on_child_pane_preview_clicked(self, _message: ChildPane.PreviewClicked) -> None:
-        try:
-            preview = self.query_one("#child-pane-preview-scroll", VerticalScroll)
-        except NoMatches:
-            return
-        self.set_focus(preview)
-
     async def _refresh_shell(self, *, theme_changed: bool = False) -> None:
         try:
             await refresh_shell(
@@ -730,6 +751,33 @@ class zivoApp(App[None]):
                 await self.dispatch_actions((RequestBrowserSnapshot(path, blocking=True),))
             else:
                 await self.dispatch_actions((OpenPathWithDefaultApp(path),))
+
+    def _is_double_click(self, pane_id: str, path: str) -> bool:
+        now = time.monotonic()
+        key = (pane_id, path)
+        double_click = (
+            key == self._last_mouse_click_key
+            and now - self._last_mouse_click_at <= _MOUSE_DOUBLE_CLICK_SECONDS
+        )
+        self._last_mouse_click_key = key
+        self._last_mouse_click_at = now
+        return double_click
+
+    def _path_for_table_row(self, pane_id: str, row_index: int) -> str | None:
+        if row_index < 0:
+            return None
+        shell = select_shell_data(self._app_state)
+        if self._app_state.layout_mode == "transfer":
+            transfer = (
+                shell.transfer_right if pane_id == "transfer-right-pane" else shell.transfer_left
+            )
+            if transfer is None or row_index >= len(transfer.entries):
+                return None
+            return transfer.entries[row_index].path
+        current_entries = shell.current_entries or ()
+        if row_index >= len(current_entries):
+            return None
+        return current_entries[row_index].path
 
 
 def create_app(

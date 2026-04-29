@@ -1267,9 +1267,7 @@ async def test_app_mouse_click_moves_current_cursor() -> None:
 
         assert app.app_state.current_pane.cursor_path == docs_path
 
-        await app.on_main_pane_entry_clicked(
-            MainPane.EntryClicked("current-pane", readme_path, double_click=False)
-        )
+        await app._handle_main_pane_click("current-pane", readme_path, double_click=False)
 
         assert app.app_state.current_pane.cursor_path == readme_path
 
@@ -1301,9 +1299,7 @@ async def test_app_mouse_double_click_enters_directory() -> None:
     async with app.run_test(size=(120, 20)):
         await _wait_for_snapshot_loaded(app, path)
 
-        await app.on_main_pane_entry_clicked(
-            MainPane.EntryClicked("current-pane", docs_path, double_click=True)
-        )
+        await app._handle_main_pane_click("current-pane", docs_path, double_click=True)
         await _wait_for_snapshot_loaded(app, docs_path)
 
         assert app.app_state.current_path == docs_path
@@ -2930,6 +2926,37 @@ async def test_app_transfer_mode_refreshes_left_cursor_and_focuses_right_pane() 
         assert not left_pane.has_class("active-transfer-pane")
         assert right_pane.has_class("active-transfer-pane")
         assert app.focused is right_table
+
+
+@pytest.mark.asyncio
+async def test_app_transfer_mode_mouse_click_updates_active_pane_and_cursor() -> None:
+    path = str(Path("/tmp/zivo-transfer-mouse").resolve())
+    loader = FakeBrowserSnapshotLoader(
+        snapshots={
+            path: _build_snapshot(
+                path,
+                (
+                    DirectoryEntryState(f"{path}/docs", "docs", "dir"),
+                    DirectoryEntryState(f"{path}/src", "src", "dir"),
+                    DirectoryEntryState(f"{path}/README.md", "README.md", "file"),
+                ),
+                child_path=f"{path}/docs",
+            )
+        }
+    )
+    app = create_app(snapshot_loader=loader, initial_path=path)
+
+    async with app.run_test(size=(120, 20)) as pilot:
+        await _wait_for_snapshot_loaded(app, path)
+        await _wait_for_row_count(app, 3)
+        await pilot.press("p")
+        await _wait_for_transfer_right_table(app)
+
+        await app._handle_main_pane_click("transfer-right-pane", f"{path}/src", double_click=False)
+
+        assert app.app_state.active_transfer_pane == "right"
+        assert app.app_state.transfer_right is not None
+        assert app.app_state.transfer_right.pane.cursor_path == f"{path}/src"
 
 
 @pytest.mark.asyncio
