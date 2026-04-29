@@ -414,6 +414,47 @@ def test_chafa_image_preview_loader_strips_osc_sequences(
     )
 
 
+def test_chafa_image_preview_loader_uses_full_color_mode(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from zivo.services.browser_snapshot import ChafaImagePreviewLoader
+
+    image = tmp_path / "preview.png"
+    image.write_bytes(b"png")
+    loader = ChafaImagePreviewLoader()
+
+    monkeypatch.setattr(
+        "zivo.services.previews.core.shutil.which",
+        lambda name: "/usr/bin/chafa",
+    )
+
+    class _CompletedProcess:
+        stdout = b"@@\n"
+
+    captured_args: list[str] = []
+
+    def _run(args, **kwargs):
+        captured_args.extend(args)
+        return _CompletedProcess()
+
+    monkeypatch.setattr("zivo.services.previews.core.subprocess.run", _run)
+
+    preview = loader.load_preview(image, preview_columns=40)
+
+    assert preview == FilePreviewState.with_content("@@\n", False, content_kind="image")
+    assert captured_args[:8] == [
+        "/usr/bin/chafa",
+        "--format",
+        "symbols",
+        "--colors",
+        "full",
+        "--animate",
+        "off",
+        "--fit-width",
+    ]
+
+
 def test_live_browser_snapshot_loader_detects_png_signature_without_extension(tmp_path) -> None:
     project = tmp_path / "project"
     project.mkdir()
