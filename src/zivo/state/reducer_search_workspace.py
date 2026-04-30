@@ -1,6 +1,7 @@
 """Search workspace reducers and helpers."""
 
 from dataclasses import replace
+
 from .effects import ReduceResult
 from .models import (
     AppState,
