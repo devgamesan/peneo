@@ -116,6 +116,11 @@ def select_single_target_entry(state: AppState) -> DirectoryEntryState | None:
 def select_target_file_paths(state: AppState) -> tuple[str, ...]:
     """Return visible file targets, preserving selection-before-cursor behavior."""
 
+    def normalize_paths(paths: tuple[str, ...]) -> tuple[str, ...]:
+        if state.search_workspace is None or state.search_workspace.kind != "grep":
+            return paths
+        return tuple(dict.fromkeys(path.rsplit("\x00", 1)[0] for path in paths))
+
     visible_entries = select_visible_current_entry_states(state)
     selected_files = tuple(
         entry.path
@@ -123,12 +128,12 @@ def select_target_file_paths(state: AppState) -> tuple[str, ...]:
         if entry.path in state.current_pane.selected_paths and entry.kind == "file"
     )
     if state.current_pane.selected_paths:
-        return selected_files
+        return normalize_paths(selected_files)
 
     cursor_entry = select_current_entry_for_path(state, state.current_pane.cursor_path)
     if cursor_entry is None or cursor_entry.kind != "file":
         return ()
-    return (cursor_entry.path,)
+    return normalize_paths((cursor_entry.path,))
 
 
 def select_has_visible_current_entries(state: AppState) -> bool:

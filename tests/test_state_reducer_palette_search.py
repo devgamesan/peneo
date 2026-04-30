@@ -302,6 +302,54 @@ def test_copy_paths_to_clipboard_uses_search_workspace_selection() -> None:
         ),
     )
 
+
+def test_replace_text_from_find_workspace_uses_selected_files() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginFileSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            query="docs",
+            file_search_results=(
+                FileSearchResultState(
+                    path="/home/tadashi/develop/zivo/README.md",
+                    display_path="README.md",
+                ),
+                FileSearchResultState(
+                    path="/home/tadashi/develop/zivo/docs/commands.md",
+                    display_path="docs/commands.md",
+                ),
+            ),
+        ),
+    )
+    workspace_state = reduce_app_state(state, OpenFileSearchWorkspace()).state
+    workspace_state = replace(
+        workspace_state,
+        current_pane=replace(
+            workspace_state.current_pane,
+            selected_paths=frozenset(
+                {
+                    "/home/tadashi/develop/zivo/docs/commands.md",
+                }
+            ),
+        ),
+    )
+    palette_state = _reduce_state(workspace_state, BeginCommandPalette())
+    palette_state = _reduce_state(
+        palette_state,
+        SetCommandPaletteQuery("Replace text in selected files"),
+    )
+
+    result = reduce_app_state(palette_state, SubmitCommandPalette())
+
+    assert result.state.ui_mode == "PALETTE"
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.source == "replace_text"
+    assert result.state.command_palette.replace_target_paths == (
+        "/home/tadashi/develop/zivo/docs/commands.md",
+    )
+
+
 def test_begin_grep_search_enters_grep_mode() -> None:
     next_state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
 
@@ -1445,6 +1493,7 @@ def test_copy_paths_from_grep_workspace_uses_real_paths() -> None:
             ),
         ),
     )
+
     workspace_state = reduce_app_state(state, OpenGrepSearchWorkspace()).state
 
     result = reduce_app_state(workspace_state, CopyPathsToClipboard())
@@ -1457,4 +1506,105 @@ def test_copy_paths_from_grep_workspace_uses_real_paths() -> None:
                 paths=("/home/tadashi/develop/zivo/src/main.py",),
             ),
         ),
+    )
+
+
+def test_replace_text_from_grep_workspace_uses_unique_real_paths() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            grep_search_keyword="todo",
+            grep_search_results=(
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/a.py",
+                    display_path="src/a.py",
+                    line_number=10,
+                    line_text="todo one",
+                ),
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/a.py",
+                    display_path="src/a.py",
+                    line_number=20,
+                    line_text="todo two",
+                ),
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/b.py",
+                    display_path="src/b.py",
+                    line_number=5,
+                    line_text="todo three",
+                ),
+            ),
+        ),
+    )
+    workspace_state = reduce_app_state(state, OpenGrepSearchWorkspace()).state
+    workspace_state = replace(
+        workspace_state,
+        current_pane=replace(
+            workspace_state.current_pane,
+            selected_paths=frozenset(entry.path for entry in workspace_state.current_pane.entries),
+        ),
+    )
+    palette_state = _reduce_state(workspace_state, BeginCommandPalette())
+    palette_state = _reduce_state(
+        palette_state,
+        SetCommandPaletteQuery("Replace text in selected files"),
+    )
+
+    result = reduce_app_state(palette_state, SubmitCommandPalette())
+
+    assert result.state.ui_mode == "PALETTE"
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.source == "replace_text"
+    assert result.state.command_palette.replace_target_paths == (
+        "/home/tadashi/develop/zivo/src/a.py",
+        "/home/tadashi/develop/zivo/src/b.py",
+    )
+
+
+def test_grep_replace_from_grep_workspace_uses_unique_real_paths() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            grep_search_keyword="todo",
+            grep_search_results=(
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/a.py",
+                    display_path="src/a.py",
+                    line_number=10,
+                    line_text="todo one",
+                ),
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/a.py",
+                    display_path="src/a.py",
+                    line_number=20,
+                    line_text="todo two",
+                ),
+            ),
+        ),
+    )
+    workspace_state = reduce_app_state(state, OpenGrepSearchWorkspace()).state
+    workspace_state = replace(
+        workspace_state,
+        current_pane=replace(
+            workspace_state.current_pane,
+            selected_paths=frozenset(entry.path for entry in workspace_state.current_pane.entries),
+        ),
+    )
+    palette_state = _reduce_state(workspace_state, BeginCommandPalette())
+    palette_state = _reduce_state(
+        palette_state,
+        SetCommandPaletteQuery("Grep and replace in selected files"),
+    )
+
+    result = reduce_app_state(palette_state, SubmitCommandPalette())
+
+    assert result.state.ui_mode == "PALETTE"
+    assert result.state.command_palette is not None
+    assert result.state.command_palette.source == "grep_replace_selected"
+    assert result.state.command_palette.grs_target_paths == (
+        "/home/tadashi/develop/zivo/src/a.py",
     )

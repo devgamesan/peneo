@@ -133,6 +133,25 @@ You can open an external terminal directly from zivo. Press `t` to suspend zivo 
 
 ---
 
+## Search Workspace Mode
+
+| Key | Action |
+| --- | ------ |
+| `↑` / `↓` or `k` / `j` | Move cursor through results |
+| `PageUp` / `PageDown` | Move cursor by page |
+| `Home` / `End` | Jump to first/last result |
+| `Space` | Select or deselect the target file/result |
+| `Enter` | Open selected result |
+| `C` | Copy selected paths, or the cursor path when nothing is selected, to the system clipboard |
+| `:` | Open the command palette |
+| `Tab` / `Shift+Tab` | Switch tabs |
+| `w` | Close the Search Workspace tab |
+| `Esc` | Clear selection |
+
+Search Workspace is a virtual tab for search results. You can keep the original browser tab open while using results as a working target list.
+
+---
+
 ## Filter Mode
 
 | Key | Action |
