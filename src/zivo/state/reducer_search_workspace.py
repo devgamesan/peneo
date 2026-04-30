@@ -1,9 +1,6 @@
 """Search workspace reducers and helpers."""
 
 from dataclasses import replace
-from pathlib import Path
-
-from .actions import RequestBrowserSnapshot
 from .effects import ReduceResult
 from .models import (
     AppState,
