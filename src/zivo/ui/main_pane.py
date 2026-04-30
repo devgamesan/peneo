@@ -32,6 +32,24 @@ from .pane_rendering import (
 from .summary_bar import SummaryBar
 
 
+class _MainPaneDataTable(DataTable):
+    """DataTable variant that forwards mouse row clicks to its owning MainPane."""
+
+    async def _on_click(self, event: events.Click) -> None:
+        meta = event.style.meta
+        await super()._on_click(event)
+        row_index = meta.get("row")
+        column_index = meta.get("column")
+        if not isinstance(row_index, int) or not isinstance(column_index, int):
+            return
+        if row_index < 0 or column_index < 0:
+            return
+        handler = getattr(self.parent, "handle_table_row_clicked", None)
+        if handler is None:
+            return
+        await handler(row_index)
+
+
 class MainPane(Vertical):
     """Center pane with detailed columns for the current directory."""
 
@@ -104,7 +122,7 @@ class MainPane(Vertical):
         yield Label(self._title, classes="pane-title")
         yield SummaryBar(self._summary, id=self.summary_id, classes="pane-summary")
         yield InputBar(self._context_input, id=self.context_input_id, classes="pane-context-input")
-        yield DataTable(id=self.table_id, classes="pane-table")
+        yield _MainPaneDataTable(id=self.table_id, classes="pane-table")
 
     def on_mount(self) -> None:
         """Populate the table after the widget is attached to an app."""
@@ -120,19 +138,14 @@ class MainPane(Vertical):
     def on_resize(self, _event: events.Resize) -> None:
         self._refresh_table_width()
 
-    async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Translate table row selection directly into app-level pane handling."""
+    async def handle_table_row_clicked(self, row_index: int) -> None:
+        """Synchronize app state for a row clicked in the inner table."""
 
-        try:
-            row_index = int(str(event.row_key).removeprefix(self.ROW_KEY_PREFIX))
-        except ValueError:
-            return
         if row_index < 0 or row_index >= len(self._entries):
             return
         path = self._entries[row_index].path
         double_click = path == self._last_clicked_path
         self._last_clicked_path = path
-        event.stop()
         handler = getattr(self.app, "on_main_pane_entry_clicked", None)
         if handler is None:
             return

@@ -1264,12 +1264,15 @@ async def test_app_mouse_click_moves_current_cursor() -> None:
     async with app.run_test(size=(120, 20)):
         await _wait_for_snapshot_loaded(app, path)
         await _wait_for_row_count(app, 2)
+        pane = app.query_one("#current-pane", MainPane)
 
         assert app.app_state.current_pane.cursor_path == docs_path
 
-        await app._handle_main_pane_click("current-pane", readme_path, double_click=False)
+        await pane.handle_table_row_clicked(1)
 
         assert app.app_state.current_pane.cursor_path == readme_path
+        await app.action_dispatch_bound_key("up")
+        assert app.app_state.current_pane.cursor_path == docs_path
 
 
 @pytest.mark.asyncio
@@ -1298,8 +1301,10 @@ async def test_app_mouse_double_click_enters_directory() -> None:
 
     async with app.run_test(size=(120, 20)):
         await _wait_for_snapshot_loaded(app, path)
+        pane = app.query_one("#current-pane", MainPane)
 
-        await app._handle_main_pane_click("current-pane", docs_path, double_click=True)
+        await pane.handle_table_row_clicked(0)
+        await pane.handle_table_row_clicked(0)
         await _wait_for_snapshot_loaded(app, docs_path)
 
         assert app.app_state.current_path == docs_path
@@ -1331,11 +1336,9 @@ async def test_app_row_selected_double_click_enters_directory() -> None:
 
     async with app.run_test(size=(120, 20)):
         await _wait_for_snapshot_loaded(app, path)
-        table = app.query_one("#current-pane-table", DataTable)
         pane = app.query_one("#current-pane", MainPane)
-        row_key = MainPane.ROW_KEY_PREFIX + "0"
-        await pane.on_data_table_row_selected(DataTable.RowSelected(table, 0, row_key))
-        await pane.on_data_table_row_selected(DataTable.RowSelected(table, 0, row_key))
+        await pane.handle_table_row_clicked(0)
+        await pane.handle_table_row_clicked(0)
         await _wait_for_snapshot_loaded(app, docs_path)
 
         assert app.app_state.current_path == docs_path
