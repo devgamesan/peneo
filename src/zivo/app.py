@@ -14,7 +14,6 @@ from textual.containers import Container, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.keys import Keys
 from textual.timer import Timer
-from textual.widgets import DataTable
 from textual.worker import Worker
 
 from zivo.adapters import LocalExternalLaunchAdapter
@@ -137,7 +136,6 @@ _ESCAPE = "\x1b"
 _OSC_INTRODUCER = "]"
 _OSC_TERMINATOR = "\\"
 _OSC_BEL = "\x07"
-_MOUSE_DOUBLE_CLICK_SECONDS = 0.4
 
 
 def _preview_scroll_delta(state: AppState, key: str) -> int | None:
@@ -245,7 +243,6 @@ class zivoApp(App[None]):
         self._swallowing_terminal_response = False
         self._terminal_response_escape_deadline = 0.0
         self._last_mouse_click_key: tuple[str, str] | None = None
-        self._last_mouse_click_at = 0.0
 
     @property
     def app_state(self) -> AppState:
@@ -529,19 +526,13 @@ class zivoApp(App[None]):
         if widget_id == "child-pane-list" and self._is_double_click("child-pane", entry_path):
             await self._open_or_enter_path(entry_path)
 
-    async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Sync reducer state with row clicks in the main/transfer tables."""
+    async def on_main_pane_entry_clicked(self, message: MainPane.EntryClicked) -> None:
+        """Handle bubbled click messages from the center / transfer panes."""
 
-        table = event.data_table
-        table_id = table.id or ""
-        pane_id = table_id.removesuffix("-table")
-        path = self._path_for_table_row(pane_id, event.cursor_row)
-        if path is None:
-            return
         await self._handle_main_pane_click(
-            pane_id,
-            path,
-            double_click=self._is_double_click(pane_id, path),
+            message.pane_id,
+            message.path,
+            double_click=message.double_click,
         )
 
     async def action_dispatch_bound_key(self, key: str) -> None:
@@ -786,14 +777,9 @@ class zivoApp(App[None]):
                 await self.dispatch_actions((OpenPathWithDefaultApp(path),))
 
     def _is_double_click(self, pane_id: str, path: str) -> bool:
-        now = time.monotonic()
         key = (pane_id, path)
-        double_click = (
-            key == self._last_mouse_click_key
-            and now - self._last_mouse_click_at <= _MOUSE_DOUBLE_CLICK_SECONDS
-        )
+        double_click = key == self._last_mouse_click_key
         self._last_mouse_click_key = key
-        self._last_mouse_click_at = now
         return double_click
 
     def _path_for_table_row(self, pane_id: str, row_index: int) -> str | None:

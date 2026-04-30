@@ -1,7 +1,6 @@
 """Side pane widget for lightweight directory listings."""
 
 from collections.abc import Sequence
-from time import monotonic
 
 from rich.style import Style
 from textual import events
@@ -27,8 +26,6 @@ class SidePane(Vertical):
     ENTRY_HORIZONTAL_PADDING = 2
     SELECTED_DIRECTORY_STYLE = "ft-directory-sel"
     SELECTED_CUT_STYLE = "ft-cut"
-    DOUBLE_CLICK_SECONDS = 0.4
-
     class EntryClicked(Message):
         """Notify the app that a side-pane entry was clicked."""
 
@@ -52,7 +49,6 @@ class SidePane(Vertical):
         self._ft_styles: dict[str, Style] = {}
         self._last_render_width = 0
         self._last_clicked_path: str | None = None
-        self._last_clicked_at = 0.0
 
     @property
     def list_view_id(self) -> str | None:
@@ -87,13 +83,8 @@ class SidePane(Vertical):
         if "entry_path" not in meta:
             return
         path = str(meta["entry_path"])
-        now = monotonic()
-        double_click = (
-            path == self._last_clicked_path
-            and now - self._last_clicked_at <= self.DOUBLE_CLICK_SECONDS
-        )
+        double_click = path == self._last_clicked_path
         self._last_clicked_path = path
-        self._last_clicked_at = now
         event.stop()
         self.post_message(self.EntryClicked(self.id, path, double_click=double_click))
 

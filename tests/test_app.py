@@ -1332,8 +1332,10 @@ async def test_app_row_selected_double_click_enters_directory() -> None:
     async with app.run_test(size=(120, 20)):
         await _wait_for_snapshot_loaded(app, path)
         table = app.query_one("#current-pane-table", DataTable)
-        await app.on_data_table_row_selected(DataTable.RowSelected(table, 0, "ignored"))
-        await app.on_data_table_row_selected(DataTable.RowSelected(table, 0, "ignored"))
+        pane = app.query_one("#current-pane", MainPane)
+        row_key = MainPane.ROW_KEY_PREFIX + "0"
+        await pane.on_data_table_row_selected(DataTable.RowSelected(table, 0, row_key))
+        await pane.on_data_table_row_selected(DataTable.RowSelected(table, 0, row_key))
         await _wait_for_snapshot_loaded(app, docs_path)
 
         assert app.app_state.current_path == docs_path
