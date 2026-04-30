@@ -127,6 +127,80 @@ def test_select_current_entries_hides_hidden_by_default() -> None:
     assert [entry.name for entry in entries] == ["docs"]
 
 
+def test_select_current_entries_filters_file_search_workspace_by_path() -> None:
+    filter_state = replace(
+        build_initial_app_state().filter,
+        query="/home/tadashi/develop/zivo/docs",
+        active=True,
+    )
+    state = replace(
+        build_initial_app_state(),
+        filter=filter_state,
+        search_workspace=SearchWorkspaceState(
+            kind="find",
+            root_path="/home/tadashi/develop/zivo",
+            query="readme",
+        ),
+        current_pane=PaneState(
+            directory_path='Search Workspace: find "readme"',
+            entries=(
+                DirectoryEntryState(
+                    "/home/tadashi/develop/zivo/src/main.py",
+                    "main.py",
+                    "file",
+                ),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/zivo/docs/README.md",
+                    "README.md",
+                    "file",
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/zivo/src/main.py",
+        ),
+    )
+
+    entries = select_current_entries(state)
+
+    assert [entry.path for entry in entries] == ["/home/tadashi/develop/zivo/docs/README.md"]
+
+
+def test_select_current_entries_filters_grep_search_workspace_by_line_text() -> None:
+    filter_state = replace(
+        build_initial_app_state().filter,
+        query="implement",
+        active=True,
+    )
+    state = replace(
+        build_initial_app_state(),
+        filter=filter_state,
+        search_workspace=SearchWorkspaceState(
+            kind="grep",
+            root_path="/home/tadashi/develop/zivo",
+            query="TODO",
+        ),
+        current_pane=PaneState(
+            directory_path='Search Workspace: grep "TODO"',
+            entries=(
+                DirectoryEntryState(
+                    "/home/tadashi/develop/zivo/src/main.py\x0010",
+                    "src/main.py:10: implement this later",
+                    "file",
+                ),
+                DirectoryEntryState(
+                    "/home/tadashi/develop/zivo/src/main.py\x0020",
+                    "src/main.py:20: more notes",
+                    "file",
+                ),
+            ),
+            cursor_path="/home/tadashi/develop/zivo/src/main.py\x0010",
+        ),
+    )
+
+    entries = select_current_entries(state)
+
+    assert [entry.path for entry in entries] == ["/home/tadashi/develop/zivo/src/main.py\x0010"]
+
+
 def test_build_placeholder_app_state_keeps_parent_pane_empty_at_root() -> None:
     state = build_placeholder_app_state("/")
 

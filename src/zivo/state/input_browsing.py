@@ -48,6 +48,7 @@ from .actions import (
     SetSort,
     ShowAttributes,
     ToggleHiddenFiles,
+    ToggleSearchWorkspaceGrepDisplayMode,
     ToggleSelectionAndAdvance,
     ToggleTransferMode,
     UndoLastOperation,
@@ -62,6 +63,7 @@ from .input_common import (
     warn,
 )
 from .models import AppState, NotificationState
+from .search_workspace_helpers import decode_grep_result_path
 from .selectors import compute_current_pane_visible_window, select_target_paths
 
 BROWSING_KEYMAP = {
@@ -125,6 +127,8 @@ BROWSING_KEYMAP = {
     "tab": "activate_next_tab",
     "shift+tab": "activate_previous_tab",
 }
+
+SEARCH_WORKSPACE_EXTRA_KEYS = ("m",)
 
 
 def dispatch_browsing_input(
@@ -197,6 +201,14 @@ def dispatch_search_workspace_input(
         return handle_toggle_selection(state, ctx)
     if key == "escape":
         return supported(ClearSelection())
+    if key == "/":
+        return supported(BeginFilterInput())
+    if key == "s":
+        return handle_cycle_sort(state, ctx)
+    if key == "m":
+        if state.search_workspace is not None and state.search_workspace.kind == "grep":
+            return supported(ToggleSearchWorkspaceGrepDisplayMode())
+        return ()
     if key == ":":
         return supported(BeginCommandPalette())
     if key == "enter":
@@ -209,7 +221,10 @@ def dispatch_search_workspace_input(
         return supported(ActivateNextTab())
     if key == "shift+tab":
         return supported(ActivatePreviousTab())
-    return warn("Search workspace: ↑↓ move | Space select | Enter open | C copy paths")
+    return warn(
+        "Search workspace: ↑↓ move | / filter | s sort | m view | "
+        "Space select | Enter open | C copy paths"
+    )
 
 
 def handle_enter_search_workspace_file_open(state: AppState, ctx: BrowsingCtx) -> DispatchedActions:
@@ -219,13 +234,13 @@ def handle_enter_search_workspace_file_open(state: AppState, ctx: BrowsingCtx) -
 
     cursor_path = state.current_pane.cursor_path
     if state.search_workspace.kind == "grep":
-        # Grep workspace: decode the encoded path
-        _GREP_PATH_SEP = "\x00"
-        try:
-            real_path, _ = cursor_path.rsplit(_GREP_PATH_SEP, 1)
+        decoded = decode_grep_result_path(cursor_path)
+        if decoded is not None:
+            real_path, _ = decoded
             return supported(OpenPathWithDefaultApp(real_path))
-        except ValueError:
-            return warn("Invalid grep result path")
+        if cursor_path:
+            return supported(OpenPathWithDefaultApp(cursor_path))
+        return warn("Invalid grep result path")
     else:
         # Find workspace: use path as-is
         return supported(OpenPathWithDefaultApp(cursor_path))

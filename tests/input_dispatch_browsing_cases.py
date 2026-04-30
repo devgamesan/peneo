@@ -46,6 +46,7 @@ def test_iter_bound_keys_includes_printable_text_input_keys() -> None:
     assert "shift+delete" in keys
     assert "{" in keys
     assert "}" in keys
+    assert "m" in keys
 
 
 def test_browsing_j_dispatches_move_cursor() -> None:
@@ -206,6 +207,21 @@ def test_search_workspace_colon_character_opens_command_palette() -> None:
     actions = dispatch_key_input(state, key="shift+semicolon", character=":")
 
     assert actions == (SetNotification(None), BeginCommandPalette())
+
+
+def test_search_workspace_grep_m_toggles_match_and_file_views() -> None:
+    state = replace(
+        build_initial_app_state(),
+        search_workspace=SearchWorkspaceState(
+            kind="grep",
+            root_path="/home/tadashi/develop/zivo",
+            query="TODO",
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="m", character="m")
+
+    assert actions == (SetNotification(None), ToggleSearchWorkspaceGrepDisplayMode())
 
 
 def test_browsing_prefix_key_starts_multi_key_sequence(monkeypatch) -> None:

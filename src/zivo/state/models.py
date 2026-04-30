@@ -64,6 +64,7 @@ CurrentPaneProjectionMode = Literal["full", "viewport"]
 LayoutMode = Literal["browser", "transfer"]
 TransferPaneId = Literal["left", "right"]
 SearchWorkspaceKind = Literal["find", "grep"]
+SearchWorkspaceGrepDisplayMode = Literal["match", "file"]
 ConfigFieldId = Literal[
     "editor.command",
     "display.show_hidden_files",
@@ -403,6 +404,7 @@ class SearchWorkspaceState:
     kind: SearchWorkspaceKind
     root_path: str
     query: str
+    grep_display_mode: SearchWorkspaceGrepDisplayMode = "match"
     file_results: tuple[FileSearchResultState, ...] = ()
     grep_results: tuple[GrepSearchResultState, ...] = ()
 

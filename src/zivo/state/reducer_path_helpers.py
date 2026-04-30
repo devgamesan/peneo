@@ -17,6 +17,7 @@ from zivo.windows_paths import (
 )
 
 from .models import DirectoryEntryState, FileSearchResultState
+from .search_workspace_helpers import select_active_current_entries
 
 REGEX_FILE_SEARCH_PREFIX = "re:"
 REGEX_GREP_SEARCH_PREFIX = "re:"
@@ -27,7 +28,7 @@ def current_entry_paths(state) -> set[str]:
 
 
 def active_current_entries(state) -> tuple[DirectoryEntryState, ...]:
-    return state.current_pane.entries
+    return select_active_current_entries(state)
 
 
 def list_matching_directory_paths(query: str, base_path: str) -> tuple[str, ...]:

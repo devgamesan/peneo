@@ -19,6 +19,7 @@ from zivo.state import (
     RunGrepSearchEffect,
     build_initial_app_state,
     reduce_app_state,
+    select_current_entries,
 )
 from zivo.state.actions import (
     BeginCommandPalette,
@@ -42,6 +43,7 @@ from zivo.state.actions import (
     SetCommandPaletteQuery,
     SetGrepSearchField,
     SubmitCommandPalette,
+    ToggleSearchWorkspaceGrepDisplayMode,
 )
 
 
@@ -1473,6 +1475,81 @@ def test_open_grep_search_workspace_creates_new_tab_and_preview_request() -> Non
             ),
             grep_context_lines=3,
         ),
+    )
+
+
+def test_toggle_grep_search_workspace_display_mode_switches_to_file_view() -> None:
+    state = _reduce_state(build_initial_app_state(), BeginGrepSearch())
+    state = replace(
+        state,
+        command_palette=replace(
+            state.command_palette,
+            grep_search_keyword="todo",
+            grep_search_results=(
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/a.py",
+                    display_path="src/a.py",
+                    line_number=10,
+                    line_text="todo one",
+                    column_number=1,
+                ),
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/a.py",
+                    display_path="src/a.py",
+                    line_number=20,
+                    line_text="todo two",
+                    column_number=1,
+                ),
+                GrepSearchResultState(
+                    path="/home/tadashi/develop/zivo/src/b.py",
+                    display_path="src/b.py",
+                    line_number=5,
+                    line_text="todo three",
+                    column_number=1,
+                ),
+            ),
+        ),
+    )
+    workspace_state = reduce_app_state(state, OpenGrepSearchWorkspace()).state
+    workspace_state = replace(
+        workspace_state,
+        current_pane=replace(
+            workspace_state.current_pane,
+            cursor_path="/home/tadashi/develop/zivo/src/a.py\x0020",
+            selected_paths=frozenset(
+                {
+                    "/home/tadashi/develop/zivo/src/a.py\x0010",
+                    "/home/tadashi/develop/zivo/src/a.py\x0020",
+                }
+            ),
+            selection_anchor_path="/home/tadashi/develop/zivo/src/a.py\x0010",
+        ),
+    )
+
+    result = reduce_app_state(workspace_state, ToggleSearchWorkspaceGrepDisplayMode())
+
+    assert result.state.search_workspace is not None
+    assert result.state.search_workspace.grep_display_mode == "file"
+    assert result.state.current_pane.cursor_path == "/home/tadashi/develop/zivo/src/a.py"
+    assert result.state.current_pane.selected_paths == frozenset(
+        {"/home/tadashi/develop/zivo/src/a.py"}
+    )
+    assert result.state.current_pane.selection_anchor_path == "/home/tadashi/develop/zivo/src/a.py"
+    assert [entry.path for entry in select_current_entries(result.state)] == [
+        "/home/tadashi/develop/zivo/src/a.py",
+        "/home/tadashi/develop/zivo/src/b.py",
+    ]
+
+    toggled_back = reduce_app_state(result.state, ToggleSearchWorkspaceGrepDisplayMode()).state
+
+    assert toggled_back.search_workspace is not None
+    assert toggled_back.search_workspace.grep_display_mode == "match"
+    assert toggled_back.current_pane.cursor_path == "/home/tadashi/develop/zivo/src/a.py\x0010"
+    assert toggled_back.current_pane.selected_paths == frozenset(
+        {
+            "/home/tadashi/develop/zivo/src/a.py\x0010",
+            "/home/tadashi/develop/zivo/src/a.py\x0020",
+        }
     )
 
 

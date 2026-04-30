@@ -15,6 +15,11 @@ from .models import (
     PaneState,
 )
 from .reducer_requests import ReducerFn
+from .search_workspace_helpers import (
+    decode_grep_result_path,
+    first_grep_result_for_encoded_path,
+    first_grep_result_for_file_path,
+)
 
 IMAGE_PREVIEW_EXTENSIONS = frozenset(
     {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".tif", ".tiff", ".webp"}
@@ -124,15 +129,23 @@ def _find_grep_result_for_cursor(
         return None
     if cursor_path is None:
         return None
-    for result in state.search_workspace.grep_results:
-        encoded = _encode_grep_path(result.path, result.line_number)
-        if encoded == cursor_path:
-            return result
-    return None
-
-
-def _encode_grep_path(real_path: str, line_number: int) -> str:
-    return f"{real_path}\x00{line_number}"
+    if state.search_workspace.grep_display_mode == "file":
+        decoded = decode_grep_result_path(cursor_path)
+        if decoded is not None:
+            real_path, line_number = decoded
+            return first_grep_result_for_encoded_path(
+                state.search_workspace.grep_results,
+                f"{real_path}\x00{line_number}",
+            )
+        return first_grep_result_for_file_path(state.search_workspace.grep_results, cursor_path)
+    decoded = decode_grep_result_path(cursor_path)
+    if decoded is None:
+        return None
+    real_path, line_number = decoded
+    return first_grep_result_for_encoded_path(
+        state.search_workspace.grep_results,
+        f"{real_path}\x00{line_number}",
+    )
 
 
 def _child_pane_matches_grep_result(
