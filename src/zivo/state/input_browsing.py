@@ -197,6 +197,8 @@ def dispatch_search_workspace_input(
         return handle_toggle_selection(state, ctx)
     if key == "escape":
         return supported(ClearSelection())
+    if key == ":":
+        return supported(BeginCommandPalette())
     if key == "enter":
         return handle_enter_search_workspace_file_open(state, ctx)
     if key == "C":

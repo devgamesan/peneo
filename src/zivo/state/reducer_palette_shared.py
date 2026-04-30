@@ -19,7 +19,7 @@ from .models import (
     ReplacePreviewResultState,
 )
 from .reducer_common import ReducerFn, finalize, is_regex_file_search_query
-from .selectors import select_visible_current_entry_states
+from .selectors import select_target_file_paths
 
 GREP_SEARCH_FIELDS: tuple[GrepSearchFieldId, ...] = ("keyword", "filename", "include", "exclude")
 REPLACE_FIELDS: tuple[ReplaceFieldId, ...] = ("find", "replace")
@@ -279,25 +279,7 @@ def matches_search_completion(
 
 
 def selected_current_file_paths(state: AppState) -> tuple[str, ...]:
-    selected_paths = tuple(
-        entry.path
-        for entry in select_visible_current_entry_states(state)
-        if entry.path in state.current_pane.selected_paths and entry.kind == "file"
-    )
-    if state.current_pane.selected_paths:
-        return selected_paths
-
-    entry = next(
-        (
-            candidate
-            for candidate in select_visible_current_entry_states(state)
-            if candidate.path == state.current_pane.cursor_path
-        ),
-        None,
-    )
-    if entry is None or entry.kind != "file":
-        return ()
-    return (entry.path,)
+    return select_target_file_paths(state)
 
 
 def build_replace_preview_results(
