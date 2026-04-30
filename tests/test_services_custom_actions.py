@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from zivo.models import (
     CustomActionConfig,
     CustomActionContext,
@@ -48,7 +50,7 @@ def test_expand_custom_action_expands_file_and_cwd_placeholders() -> None:
     )
 
     assert request.command == ("tool", "report.md", "report", "md", "project")
-    assert request.cwd == "/tmp/project"
+    assert request.cwd == str(Path("/tmp/project").resolve(strict=False))
 
 
 def test_expand_custom_action_expands_selection_as_multiple_arguments() -> None:
