@@ -569,6 +569,13 @@ def select_conflict_dialog_state(state: AppState) -> ConflictDialogState | None:
             options=("enter confirm", "esc cancel"),
         )
 
+    if state.exit_confirmation is not None:
+        return ConflictDialogState(
+            title="Exit Confirmation",
+            message="Exit the application?",
+            options=("enter confirm", "esc cancel"),
+        )
+
     if state.archive_extract_confirmation is not None:
         confirmation = state.archive_extract_confirmation
         destination_name = Path(confirmation.first_conflict_path).name

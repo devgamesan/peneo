@@ -3146,7 +3146,7 @@ async def test_app_pressing_z_runs_undo() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Exit confirmation requires manual testing")
-async def test_app_pressing_q_exits_with_current_path() -> None:
+async def test_app_pressing_q_shows_exit_confirmation_dialog() -> None:
     path = str(Path("/tmp/zivo-quit").resolve())
     loader = FakeBrowserSnapshotLoader(
         snapshots={
@@ -3163,7 +3163,10 @@ async def test_app_pressing_q_exits_with_current_path() -> None:
         await _wait_for_snapshot_loaded(app, path)
         await pilot.press("q")
         await asyncio.sleep(0.05)
-        # 確認ダイアログが表示されるので Enter を押して終了
+        # 確認ダイアログが表示されることを確認
+        assert app.app_state.exit_confirmation is not None
+        assert app.app_state.ui_mode == "CONFIRM"
+        # Enter キーで終了
         await pilot.press("enter")
         await asyncio.sleep(0.05)
 

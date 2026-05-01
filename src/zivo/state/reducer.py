@@ -10,6 +10,7 @@ from .actions import (
     ClearPendingKeySequence,
     DirectorySizesFailed,
     DirectorySizesLoaded,
+    ExitCurrentPath,
     InitializeState,
     SetNotification,
     SetPendingKeySequence,
@@ -43,6 +44,9 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
             action,
             finalize(replace(state, notification=action.notification)),
         )
+
+    if isinstance(action, ExitCurrentPath):
+        return finalize(state, ExitCurrentPath())
 
     if isinstance(action, SetPendingKeySequence):
         return _finalize_reduce_result(
