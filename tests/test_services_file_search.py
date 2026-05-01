@@ -23,7 +23,9 @@ def test_live_file_search_service_matches_files_recursively(tmp_path) -> None:
 def test_live_file_search_service_populates_file_metadata(tmp_path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    (root / "data.txt").write_text("hello\n", encoding="utf-8")
+    target = root / "data.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    expected_size = target.stat().st_size
 
     service = LiveFileSearchService()
 
@@ -32,7 +34,7 @@ def test_live_file_search_service_populates_file_metadata(tmp_path) -> None:
     assert len(results) == 1
     result = results[0]
     assert result.display_path == "data.txt"
-    assert result.size_bytes == 6
+    assert result.size_bytes == expected_size
     assert result.modified_at is not None
 
 
