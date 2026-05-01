@@ -4,6 +4,7 @@ from dataclasses import replace
 from functools import lru_cache
 
 from .models import AppState, DirectoryEntryState, DirectorySizeCacheEntry, SortState
+from .search_workspace_helpers import select_active_current_entries
 
 
 @lru_cache(maxsize=256)
@@ -16,12 +17,14 @@ def visible_current_entry_states(state: AppState) -> tuple[DirectoryEntryState, 
     """Return filtered and sorted raw current-pane entries."""
 
     return select_visible_entry_states(
-        state.current_pane.entries,
+        select_active_current_entries(state),
         state.directory_size_cache,
         state.show_hidden,
         state.filter.query,
         state.filter.active,
         state.sort,
+        state.search_workspace.kind if state.search_workspace is not None else None,
+        state.search_workspace.grep_display_mode if state.search_workspace is not None else None,
     )
 
 
@@ -75,9 +78,17 @@ def select_visible_entry_states(
     query: str,
     active: bool,
     sort: SortState,
+    search_workspace_kind: str | None = None,
+    search_workspace_grep_display_mode: str | None = None,
 ) -> tuple[DirectoryEntryState, ...]:
     visible_entries = _filter_hidden_entries(entries, show_hidden)
-    visible_entries = _filter_entries(visible_entries, query, active)
+    visible_entries = _filter_entries(
+        visible_entries,
+        query,
+        active,
+        search_workspace_kind,
+        search_workspace_grep_display_mode,
+    )
     if sort.field == "size":
         visible_entries = _overlay_directory_sizes(visible_entries, directory_size_cache)
     return _sort_entries(visible_entries, sort)
@@ -98,12 +109,26 @@ def _filter_entries(
     entries: tuple[DirectoryEntryState, ...],
     query: str,
     active: bool,
+    search_workspace_kind: str | None,
+    search_workspace_grep_display_mode: str | None,
 ) -> tuple[DirectoryEntryState, ...]:
     if not active or not query:
         return entries
 
     lowered_query = query.casefold()
-    return tuple(entry for entry in entries if lowered_query in entry.name.casefold())
+    if search_workspace_kind is None:
+        return tuple(entry for entry in entries if lowered_query in entry.name.casefold())
+    if search_workspace_kind == "grep" and search_workspace_grep_display_mode == "file":
+        return tuple(
+            entry
+            for entry in entries
+            if lowered_query in entry.name.casefold() or lowered_query in entry.path.casefold()
+        )
+    return tuple(
+        entry
+        for entry in entries
+        if lowered_query in entry.name.casefold() or lowered_query in entry.path.casefold()
+    )
 
 
 @lru_cache(maxsize=256)

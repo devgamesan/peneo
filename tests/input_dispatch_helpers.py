@@ -94,6 +94,7 @@ from zivo.state.actions import (
     SubmitCommandPalette,
     SubmitPendingInput,
     ToggleHiddenFiles,
+    ToggleSearchWorkspaceGrepDisplayMode,
     ToggleSelectionAndAdvance,
     ToggleTransferMode,
     UndoLastOperation,

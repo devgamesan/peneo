@@ -24,6 +24,7 @@ from .actions import (
     SetFilterQuery,
     SetSort,
     ToggleHiddenFiles,
+    ToggleSearchWorkspaceGrepDisplayMode,
 )
 from .effects import ReduceResult
 from .models import AppState, NotificationState, resolve_parent_directory_path
@@ -41,6 +42,7 @@ from .reducer_common import (
     sync_child_pane,
 )
 from .reducer_navigation_shared import can_promote_child_pane, promote_child_pane_to_current
+from .reducer_search_workspace import toggle_grep_search_workspace_display_mode
 from .selectors import select_visible_current_entry_states
 
 
@@ -440,6 +442,14 @@ def _handle_set_sort(
     return sync_child_pane(next_state, cursor_path, reduce_state)
 
 
+def _handle_toggle_search_workspace_grep_display_mode(
+    state: AppState,
+    action: ToggleSearchWorkspaceGrepDisplayMode,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    return toggle_grep_search_workspace_display_mode(state, reduce_state)
+
+
 BROWSING_NAVIGATION_HANDLERS = {
     BeginFilterInput: _handle_begin_filter_input,
     ConfirmFilterInput: _handle_confirm_filter_input,
@@ -458,4 +468,5 @@ BROWSING_NAVIGATION_HANDLERS = {
     SetFilterQuery: _handle_set_filter_query,
     ToggleHiddenFiles: _handle_toggle_hidden_files,
     SetSort: _handle_set_sort,
+    ToggleSearchWorkspaceGrepDisplayMode: _handle_toggle_search_workspace_grep_display_mode,
 }

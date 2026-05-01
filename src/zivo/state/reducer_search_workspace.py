@@ -9,7 +9,6 @@ from .models import (
     CurrentPaneDeltaState,
     DirectoryEntryState,
     FilterState,
-    GrepSearchResultState,
     HistoryState,
     NotificationState,
     PaneState,
@@ -18,28 +17,11 @@ from .models import (
 )
 from .reducer_common import ReducerFn, finalize, sync_child_pane
 from .reducer_navigation_shared import load_browser_tab_from_tabs
-
-_GREP_PATH_SEP = "\x00"
-
-
-def _encode_grep_path(real_path: str, line_number: int) -> str:
-    return f"{real_path}{_GREP_PATH_SEP}{line_number}"
-
-
-def _decode_grep_path(encoded: str) -> tuple[str, int]:
-    real_path, line_str = encoded.rsplit(_GREP_PATH_SEP, 1)
-    return real_path, int(line_str)
-
-
-def _find_grep_result(state: AppState, cursor_path: str) -> GrepSearchResultState | None:
-    workspace = state.search_workspace
-    if workspace is None or workspace.kind != "grep":
-        return None
-    for result in workspace.grep_results:
-        encoded = _encode_grep_path(result.path, result.line_number)
-        if encoded == cursor_path:
-            return result
-    return None
+from .search_workspace_helpers import (
+    encode_grep_result_path,
+    normalize_grep_workspace_path_for_mode,
+    normalize_grep_workspace_selected_paths_for_mode,
+)
 
 
 def open_file_search_workspace(
@@ -136,7 +118,7 @@ def open_grep_search_workspace(
     )
     entries = tuple(
         DirectoryEntryState(
-            path=_encode_grep_path(result.path, result.line_number),
+            path=encode_grep_result_path(result.path, result.line_number),
             name=result.display_label,
             kind="file",
         )
@@ -173,3 +155,38 @@ def open_grep_search_workspace(
         insert_index,
     )
     return sync_child_pane(next_state, cursor_path, reduce_state)
+
+
+def toggle_grep_search_workspace_display_mode(
+    state: AppState,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    workspace = state.search_workspace
+    if workspace is None or workspace.kind != "grep":
+        return finalize(state)
+
+    next_mode = "file" if workspace.grep_display_mode == "match" else "match"
+    next_workspace = replace(workspace, grep_display_mode=next_mode)
+    next_state = replace(
+        state,
+        search_workspace=next_workspace,
+        current_pane=replace(
+            state.current_pane,
+            cursor_path=normalize_grep_workspace_path_for_mode(
+                next_workspace.grep_results,
+                state.current_pane.cursor_path,
+                next_mode,
+            ),
+            selected_paths=normalize_grep_workspace_selected_paths_for_mode(
+                next_workspace.grep_results,
+                state.current_pane.selected_paths,
+                next_mode,
+            ),
+            selection_anchor_path=normalize_grep_workspace_path_for_mode(
+                next_workspace.grep_results,
+                state.current_pane.selection_anchor_path,
+                next_mode,
+            ),
+        ),
+    )
+    return sync_child_pane(next_state, next_state.current_pane.cursor_path, reduce_state)

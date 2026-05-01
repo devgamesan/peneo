@@ -186,6 +186,11 @@ class ToggleTransferMode:
 
 
 @dataclass(frozen=True)
+class ToggleSearchWorkspaceGrepDisplayMode:
+    """Toggle grep search workspace results between match and file views."""
+
+
+@dataclass(frozen=True)
 class FocusTransferPane:
     """Focus one side of the transfer layout."""
 

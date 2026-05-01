@@ -2,7 +2,7 @@
 
 import string
 
-from .input_browsing import BROWSING_KEYMAP, dispatch_browsing_input
+from .input_browsing import BROWSING_KEYMAP, SEARCH_WORKSPACE_EXTRA_KEYS, dispatch_browsing_input
 from .input_common import BrowsingHandler, DispatchedActions, warn
 from .input_dialogs import (
     dispatch_config_input,
@@ -35,6 +35,7 @@ def iter_bound_keys() -> tuple[str, ...]:
         dict.fromkeys(
             (
                 *BROWSING_KEYMAP.keys(),
+                *SEARCH_WORKSPACE_EXTRA_KEYS,
                 *CONFLICT_KEYMAP.keys(),
                 *TERMINAL_KEYMAP.keys(),
                 *PRINTABLE_BINDING_KEYS,

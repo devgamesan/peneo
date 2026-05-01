@@ -164,6 +164,7 @@ from .actions_navigation import (
     SetTransferCursorPath,
     ShowAttributes,
     ToggleHiddenFiles,
+    ToggleSearchWorkspaceGrepDisplayMode,
     ToggleTransferMode,
     ToggleTransferSelectionAndAdvance,
     TransferCopyToOppositePane,
@@ -367,6 +368,7 @@ Action = (
     | AddBookmark
     | RemoveBookmark
     | ToggleHiddenFiles
+    | ToggleSearchWorkspaceGrepDisplayMode
     | SetSort
     | ToggleTransferMode
     | FocusTransferPane
