@@ -203,6 +203,8 @@ async def handle_worker_state_changed(app: Any, event: Worker.StateChanged) -> N
     if event.state == WorkerState.SUCCESS:
         actions = complete_worker_actions(effect, event.worker.result)
         if actions:
+            if isinstance(effect, RunExternalLaunchEffect):
+                app.refresh(repaint=True, layout=True)
             await app.dispatch_actions(actions)
         return
 
