@@ -80,6 +80,7 @@ ConfigFieldId = Literal[
     "display.grep_preview_context_lines",
     "display.show_help_bar",
     "behavior.confirm_delete",
+    "behavior.confirm_exit",
     "behavior.paste_conflict_action",
     "logging.level",
 ]
@@ -169,6 +170,11 @@ class EmptyTrashConfirmationState:
     """Pending confirmation dialog state for empty trash operation."""
 
     platform: Literal["linux", "darwin"]
+
+
+@dataclass(frozen=True)
+class ExitConfirmationState:
+    """Pending confirmation dialog state for application exit."""
 
 
 @dataclass(frozen=True)
@@ -525,6 +531,7 @@ class AppState:
     show_help_bar: bool = True
     sort: SortState = SortState()
     confirm_delete: bool = True
+    confirm_exit: bool = True
     paste_conflict_action: PasteConflictAction = "prompt"
     filter: FilterState = FilterState()
     clipboard: ClipboardState = ClipboardState()
@@ -541,6 +548,7 @@ class AppState:
     paste_conflict: PasteConflictState | None = None
     delete_confirmation: DeleteConfirmationState | None = None
     empty_trash_confirmation: EmptyTrashConfirmationState | None = None
+    exit_confirmation: ExitConfirmationState | None = None
     name_conflict: NameConflictState | None = None
     archive_extract_confirmation: ArchiveExtractConfirmationState | None = None
     archive_extract_progress: ArchiveExtractProgressState | None = None
@@ -670,6 +678,7 @@ def build_initial_app_state(
     show_help_bar: bool = True,
     sort: SortState | None = None,
     confirm_delete: bool = True,
+    confirm_exit: bool = True,
     paste_conflict_action: PasteConflictAction = "prompt",
     post_reload_notification: NotificationState | None = None,
     current_pane_projection_mode: CurrentPaneProjectionMode = "full",
@@ -738,6 +747,7 @@ def build_initial_app_state(
         show_help_bar=show_help_bar,
         sort=sort or SortState(field="name", descending=False, directories_first=True),
         confirm_delete=confirm_delete,
+        confirm_exit=confirm_exit,
         paste_conflict_action=paste_conflict_action,
         filter=FilterState(query="", active=False),
         post_reload_notification=post_reload_notification,
@@ -755,6 +765,7 @@ def build_placeholder_app_state(
     show_help_bar: bool = True,
     sort: SortState | None = None,
     confirm_delete: bool = True,
+    confirm_exit: bool = True,
     paste_conflict_action: PasteConflictAction = "prompt",
     post_reload_notification: NotificationState | None = None,
     current_pane_projection_mode: CurrentPaneProjectionMode = "viewport",
@@ -779,6 +790,7 @@ def build_placeholder_app_state(
         show_help_bar=show_help_bar,
         sort=sort or SortState(),
         confirm_delete=confirm_delete,
+        confirm_exit=confirm_exit,
         paste_conflict_action=paste_conflict_action,
         post_reload_notification=post_reload_notification,
         current_pane_projection_mode=current_pane_projection_mode,
