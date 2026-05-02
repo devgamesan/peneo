@@ -76,8 +76,11 @@ def handle_set_file_search_query(
                 state,
                 command_palette=replace(
                     next_palette,
-                    file_search_results=(),
-                    file_search_error_message=None,
+                    file_search=replace(
+                        next_palette.file_search,
+                        results=(),
+                        error_message=None,
+                    ),
                 ),
                 pending_file_search_request_id=None,
                 pending_grep_search_request_id=None,
@@ -87,23 +90,26 @@ def handle_set_file_search_query(
 
     is_regex_query = is_regex_file_search_query(stripped_query)
     normalized_query = stripped_query.casefold()
-    search_target = next_palette.file_search_target
+    search_target = next_palette.file_search.target
     if (
         not is_regex_query
-        and state.command_palette.file_search_cache_query
-        and normalized_query.startswith(state.command_palette.file_search_cache_query)
-        and state.command_palette.file_search_cache_root_path == state.current_path
-        and state.command_palette.file_search_cache_show_hidden == state.show_hidden
-        and state.command_palette.file_search_cache_target == search_target
+        and state.command_palette.file_search.cache_query
+        and normalized_query.startswith(state.command_palette.file_search.cache_query)
+        and state.command_palette.file_search.cache_root_path == state.current_path
+        and state.command_palette.file_search.cache_show_hidden == state.show_hidden
+        and state.command_palette.file_search.cache_target == search_target
     ):
         return sync_file_search_preview(
             replace(
                 state,
                 command_palette=replace(
                     next_palette,
-                    file_search_results=filter_file_search_results(
-                        state.command_palette.file_search_cache_results,
-                        normalized_query,
+                    file_search=replace(
+                        next_palette.file_search,
+                        results=filter_file_search_results(
+                            state.command_palette.file_search.cache_results,
+                            normalized_query,
+                        ),
                     ),
                 ),
                 pending_file_search_request_id=None,
@@ -230,8 +236,8 @@ def handle_submit_file_search_palette(
     state: AppState,
     reduce_state,
 ) -> ReduceResult:
-    results = state.command_palette.file_search_results
-    message = state.command_palette.file_search_error_message or "No matching files"
+    results = state.command_palette.file_search.results
+    message = state.command_palette.file_search.error_message or "No matching files"
     if not results:
         return notify(state, level="warning", message=message)
 
@@ -333,8 +339,8 @@ def handle_open_find_result_in_editor(
     reduce_state,
 ) -> ReduceResult:
     del reduce_state
-    results = state.command_palette.file_search_results
-    message = state.command_palette.file_search_error_message or "No matching files"
+    results = state.command_palette.file_search.results
+    message = state.command_palette.file_search.error_message or "No matching files"
     if not results:
         return notify(state, level="warning", message=message)
 
@@ -352,8 +358,8 @@ def handle_open_find_result_in_gui_editor(
     reduce_state,
 ) -> ReduceResult:
     del reduce_state
-    results = state.command_palette.file_search_results
-    message = state.command_palette.file_search_error_message or "No matching files"
+    results = state.command_palette.file_search.results
+    message = state.command_palette.file_search.error_message or "No matching files"
     if not results:
         return notify(state, level="warning", message=message)
 
@@ -396,14 +402,17 @@ def handle_file_search_completed(
             state,
             command_palette=replace(
                 state.command_palette,
-                file_search_results=action.results,
-                file_search_error_message=None,
+                file_search=replace(
+                    state.command_palette.file_search,
+                    results=action.results,
+                    error_message=None,
+                    cache_query=cache_query,
+                    cache_results=cache_results,
+                    cache_root_path=state.current_path,
+                    cache_show_hidden=state.show_hidden,
+                    cache_target=state.command_palette.file_search.target,
+                ),
                 cursor_index=0,
-                file_search_cache_query=cache_query,
-                file_search_cache_results=cache_results,
-                file_search_cache_root_path=state.current_path,
-                file_search_cache_show_hidden=state.show_hidden,
-                file_search_cache_target=state.command_palette.file_search_target,
             ),
             pending_file_search_request_id=None,
         )
@@ -449,8 +458,11 @@ def handle_file_search_failed(
                 state,
                 command_palette=replace(
                     state.command_palette,
-                    file_search_results=(),
-                    file_search_error_message=action.message,
+                    file_search=replace(
+                        state.command_palette.file_search,
+                        results=(),
+                        error_message=action.message,
+                    ),
                 ),
                 pending_file_search_request_id=None,
             )
@@ -609,13 +621,16 @@ def handle_set_file_search_target(
 ) -> ReduceResult:
     if state.command_palette is None or state.command_palette.source != "file_search":
         return finalize(state)
-    if action.target == state.command_palette.file_search_target:
+    if action.target == state.command_palette.file_search.target:
         return finalize(state)
     next_palette = replace(
         state.command_palette,
-        file_search_target=action.target,
-        file_search_results=(),
-        file_search_error_message=None,
+        file_search=replace(
+            state.command_palette.file_search,
+            target=action.target,
+            results=(),
+            error_message=None,
+        ),
         cursor_index=0,
     )
     return handle_set_file_search_query(
@@ -629,13 +644,16 @@ def handle_cycle_file_search_field(
 ) -> ReduceResult:
     if state.command_palette is None or state.command_palette.source != "file_search":
         return finalize(state)
-    current = state.command_palette.file_search_active_field
+    current = state.command_palette.file_search.active_field
     fields: tuple[str, ...] = ("keyword", "target")
     index = fields.index(current)
     next_index = (index + action.delta) % len(fields)
     next_palette = replace(
         state.command_palette,
-        file_search_active_field=fields[next_index],
+        file_search=replace(
+            state.command_palette.file_search,
+            active_field=fields[next_index],
+        ),
     )
     return finalize(replace(state, command_palette=next_palette))
 
@@ -643,7 +661,7 @@ def handle_cycle_file_search_field(
 def selected_file_search_result(state: AppState) -> FileSearchResultState | None:
     if state.command_palette is None or state.command_palette.source != "file_search":
         return None
-    results = state.command_palette.file_search_results
+    results = state.command_palette.file_search.results
     if not results:
         return None
     cursor_index = normalize_command_palette_cursor(state, state.command_palette.cursor_index)

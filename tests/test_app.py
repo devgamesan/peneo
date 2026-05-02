@@ -702,7 +702,7 @@ async def _wait_for_file_search_results(
     while True:
         palette = app.app_state.command_palette
         actual_paths = (
-            [result.display_path for result in palette.file_search_results]
+            [result.display_path for result in palette.file_search.results]
             if palette is not None
             else None
         )
@@ -3673,7 +3673,7 @@ async def test_app_file_search_passes_regex_queries_through_to_service(tmp_path)
         assert file_search_service.executed_requests == [(path, r"re:^README\.md$", False)]
         assert app.app_state.command_palette is not None
         assert [
-            result.display_path for result in app.app_state.command_palette.file_search_results
+            result.display_path for result in app.app_state.command_palette.file_search.results
         ] == ["README.md"]
 
 
@@ -3711,7 +3711,7 @@ async def test_app_file_search_prefix_extension_reuses_cached_results(tmp_path) 
         assert file_search_service.executed_requests == [(path, "cmd", False)]
         assert app.app_state.command_palette is not None
         assert [
-            result.display_path for result in app.app_state.command_palette.file_search_results
+            result.display_path for result in app.app_state.command_palette.file_search.results
         ] == []
 
 
@@ -3756,7 +3756,7 @@ async def test_app_file_search_cancels_superseded_request_without_notification(t
         assert app.app_state.notification is None
         assert app.app_state.command_palette is not None
         assert [
-            result.display_path for result in app.app_state.command_palette.file_search_results
+            result.display_path for result in app.app_state.command_palette.file_search.results
         ] == ["guide.md"]
 
 
