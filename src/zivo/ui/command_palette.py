@@ -1,11 +1,14 @@
 """Command palette widget."""
 
 from rich.cells import cell_len
+from rich.style import Style
 from rich.text import Text
 from textual.containers import Container
+from textual.events import Click
 from textual.widgets import Static
 
 from zivo.models import CommandPaletteInputFieldViewState, CommandPaletteViewState
+from zivo.state.actions import MoveCommandPaletteCursor, SubmitCommandPalette
 from zivo.ui.panes import truncate_middle
 
 
@@ -23,6 +26,7 @@ class CommandPalette(Container):
     ) -> None:
         super().__init__(id=id, classes=classes)
         self.state = state
+        self._last_clicked_index: int = -1
 
     def compose(self):
         yield Static("Command Palette", id="command-palette-title")
@@ -32,11 +36,40 @@ class CommandPalette(Container):
     def on_mount(self) -> None:
         self.set_state(self.state)
 
+    async def on_click(self, event: Click) -> None:
+        if self.state is None:
+            return
+
+        meta = event.style.meta
+        item_index = meta.get("palette_item_index")
+        if not isinstance(item_index, int):
+            return
+
+        event.stop()
+
+        current_cursor = 0
+        for i, item in enumerate(self.state.items):
+            if item.selected:
+                current_cursor = i
+                break
+
+        delta = item_index - current_cursor
+
+        actions: list = [MoveCommandPaletteCursor(delta)]
+        double_click = item_index == self._last_clicked_index
+        self._last_clicked_index = item_index
+        if double_click:
+            actions.append(SubmitCommandPalette())
+
+        await self.app.dispatch_actions(tuple(actions))
+
     def set_state(self, state: CommandPaletteViewState | None) -> None:
         """Update palette content and visibility."""
 
         self.state = state
         self.display = state is not None
+        if state is None:
+            self._last_clicked_index = -1
         title_widget = self.query_one("#command-palette-title", Static)
         query_widget = self.query_one("#command-palette-query", Static)
         items_widget = self.query_one("#command-palette-items", Static)
@@ -129,20 +162,24 @@ class CommandPalette(Container):
             else:
                 style = ""
 
+            meta = {"palette_item_index": index}
+            combined = Style(meta=meta)
+            if style:
+                combined += Style.parse(style)
+
             prefix = "> " if item.selected else "  "
             shortcut_suffix = f" [{item.shortcut}]" if item.shortcut else ""
-            line.append(prefix, style=style)
+            line.append(prefix, style=combined)
             available_width = max(
                 1,
                 render_width - cell_len(prefix) - cell_len(shortcut_suffix),
             )
             label = truncate_middle(item.label, available_width)
-            line.append(label, style=style)
+            line.append(label, style=combined)
             if item.shortcut:
-                shortcut_style = "dim"
-                if style:
-                    shortcut_style = f"{style} dim"
-                line.append(shortcut_suffix, style=shortcut_style)
+                combined_shortcut = Style(meta=meta)
+                combined_shortcut += Style.parse(f"{style} dim" if style else "dim")
+                line.append(shortcut_suffix, style=combined_shortcut)
             rendered.append_text(line)
             if index < len(state.items) - 1:
                 rendered.append("\n")

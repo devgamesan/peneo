@@ -11,6 +11,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.css.query import NoMatches
+from textual.events import Click
 from textual.widgets import DataTable, Label, Static
 
 from zivo import create_app
@@ -6186,3 +6187,103 @@ async def test_app_toggles_pane_visibility_on_resize() -> None:
         app._update_pane_visibility(120)
         assert parent.display
         assert child.display
+
+
+class TestCommandPaletteClick:
+    """Tests for command palette mouse-click support."""
+
+    @staticmethod
+    def test_render_items_embeds_click_meta() -> None:
+        from zivo.models.shell_data import CommandPaletteItemViewState, CommandPaletteViewState
+
+        items = (
+            CommandPaletteItemViewState(label="a.txt", shortcut=None, enabled=True, selected=True),
+            CommandPaletteItemViewState(label="b.txt", shortcut=None, enabled=True, selected=False),
+            CommandPaletteItemViewState(label="c.txt", shortcut=None, enabled=True, selected=False),
+        )
+        state = CommandPaletteViewState(
+            title="Test",
+            query="",
+            items=items,
+            empty_message="none",
+        )
+        rendered = CommandPalette._render_items(state, 80)
+        indices = []
+        for span in rendered.spans:
+            idx = span.style.meta.get("palette_item_index") if span.style.meta else None
+            if idx is not None and idx not in indices:
+                indices.append(idx)
+        assert indices == [0, 1, 2]
+
+    @pytest.mark.asyncio
+    async def test_single_click_moves_cursor_to_item(self, tmp_path) -> None:
+        (tmp_path / "a.txt").write_text("a\n", encoding="utf-8")
+        (tmp_path / "b.txt").write_text("b\n", encoding="utf-8")
+        (tmp_path / "c.txt").write_text("c\n", encoding="utf-8")
+        file_search_service = FakeFileSearchService(
+            results_by_query={
+                (str(tmp_path), "test", False): (
+                    FileSearchResultState(path=f"{tmp_path}/a.txt", display_path="a.txt"),
+                    FileSearchResultState(path=f"{tmp_path}/b.txt", display_path="b.txt"),
+                    FileSearchResultState(path=f"{tmp_path}/c.txt", display_path="c.txt"),
+                )
+            }
+        )
+        app = create_app(file_search_service=file_search_service, initial_path=str(tmp_path))
+
+        async with app.run_test(size=(72, 24)) as pilot:
+            await _wait_for_snapshot_loaded(app, str(tmp_path))
+            await pilot.press("f")
+            await pilot.press("t", "e", "s", "t")
+            await _wait_for_request_count(file_search_service, 1)
+            await _wait_for_file_search_results(
+                app,
+                ["a.txt", "b.txt", "c.txt"],
+            )
+            palette = app.query_one("#command-palette", CommandPalette)
+
+            # First item (index 0) is already selected, click item at index 2
+            event = Click(None, 0, 2, 0, 0, 0, False, False, False)
+            event.style = Style(meta={"palette_item_index": 2})
+            await palette.on_click(event)
+
+            palette_state = select_command_palette_state(app.app_state)
+            assert palette_state is not None
+            assert palette_state.items[2].selected
+            assert not palette_state.items[0].selected
+
+    @pytest.mark.asyncio
+    async def test_double_click_submits_item(self, tmp_path) -> None:
+        (tmp_path / "a.txt").write_text("a\n", encoding="utf-8")
+        file_search_service = FakeFileSearchService(
+            results_by_query={
+                (str(tmp_path), "test", False): (
+                    FileSearchResultState(path=f"{tmp_path}/a.txt", display_path="a.txt"),
+                )
+            }
+        )
+        app = create_app(file_search_service=file_search_service, initial_path=str(tmp_path))
+
+        async with app.run_test(size=(72, 24)) as pilot:
+            await _wait_for_snapshot_loaded(app, str(tmp_path))
+            await pilot.press("f")
+            await pilot.press("t", "e", "s", "t")
+            await _wait_for_request_count(file_search_service, 1)
+            await _wait_for_file_search_results(app, ["a.txt"])
+            palette = app.query_one("#command-palette", CommandPalette)
+
+            # Reset double-click state
+            palette._last_clicked_index = -1
+
+            # First click (sets _last_clicked_index)
+            event1 = Click(None, 0, 0, 0, 0, 0, False, False, False)
+            event1.style = Style(meta={"palette_item_index": 0})
+            await palette.on_click(event1)
+
+            # Second click on same index → double-click → SubmitCommandPalette
+            event2 = Click(None, 0, 0, 0, 0, 0, False, False, False)
+            event2.style = Style(meta={"palette_item_index": 0})
+            await palette.on_click(event2)
+
+            # After SubmitCommandPalette, palette should be closed
+            assert app.app_state.command_palette is None
