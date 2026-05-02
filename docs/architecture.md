@@ -344,7 +344,7 @@ stateDiagram-v2
 ## 7. 現時点で未実装または限定的な範囲
 
 - アプリ内編集、Git 連携、タブ並べ替え、キーバインドカスタマイズは未実装
-- Windows ネイティブ実行は依然として非対応で、設定上の `windows` キーは将来互換用
+- スタンドアロンのネイティブ Windows 実行ファイル（コンパイル済みバイナリ）は提供されていません。zivo は Python アプリケーションとして Windows 上で動作します。設定の `[terminal]` キーにある `windows` オプションは Windows および WSL 上の外部ターミナル起動に使用できます。
 - directory size 計算や archive 展開は可視対象数やアーカイブ内容に応じてコストが増えるため、runtime 側で cancel と進捗管理を前提にしている
 
 filesystem mutation は、UI が選択している entry path をそのまま trust boundary として扱います。  
