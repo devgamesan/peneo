@@ -18,6 +18,7 @@ from zivo.app_runtime_execution import (
     schedule_clipboard_paste,
     schedule_config_save,
     schedule_custom_action,
+    schedule_exit_current_path,
     schedule_external_launch_effect,
     schedule_file_mutation,
     schedule_shell_command,
@@ -54,6 +55,7 @@ from zivo.app_runtime_search import (
 )
 from zivo.state import (
     Effect,
+    ExitCurrentPathEffect,
     LoadBrowserSnapshotEffect,
     LoadChildPaneSnapshotEffect,
     LoadCurrentPaneEffect,
@@ -168,6 +170,7 @@ EFFECT_SCHEDULERS = (
     (RunFileMutationEffect, schedule_file_mutation),
     (RunUndoEffect, schedule_undo),
     (RunExternalLaunchEffect, schedule_external_launch_effect),
+    (ExitCurrentPathEffect, schedule_exit_current_path),
     (RunShellCommandEffect, schedule_shell_command),
     (RunFileSearchEffect, schedule_file_search),
     (RunGrepSearchEffect, schedule_grep_search),
@@ -200,6 +203,8 @@ async def handle_worker_state_changed(app: Any, event: Worker.StateChanged) -> N
     if event.state == WorkerState.SUCCESS:
         actions = complete_worker_actions(effect, event.worker.result)
         if actions:
+            if isinstance(effect, RunExternalLaunchEffect):
+                app.refresh(repaint=True, layout=True)
             await app.dispatch_actions(actions)
         return
 

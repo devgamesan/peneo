@@ -10,12 +10,13 @@ from .actions import (
     ClearPendingKeySequence,
     DirectorySizesFailed,
     DirectorySizesLoaded,
+    ExitCurrentPath,
     InitializeState,
     SetNotification,
     SetPendingKeySequence,
     SetUiMode,
 )
-from .effects import ReduceResult
+from .effects import ExitCurrentPathEffect, ReduceResult
 from .models import AppState, PendingKeySequenceState, sync_active_browser_tab
 from .reducer_common import finalize
 from .reducer_mutations import handle_mutation_action
@@ -65,6 +66,9 @@ def reduce_app_state(state: AppState, action: Action) -> ReduceResult:
             action,
             finalize(replace(state, pending_key_sequence=None)),
         )
+
+    if isinstance(action, ExitCurrentPath):
+        return finalize(state, ExitCurrentPathEffect())
 
     for handler in (
         handle_navigation_action,
