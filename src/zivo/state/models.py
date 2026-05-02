@@ -485,6 +485,22 @@ class GrsPaletteState:
 
 
 @dataclass(frozen=True)
+class GrfPaletteState:
+    keyword: str = ""
+    include_extensions: str = ""
+    exclude_extensions: str = ""
+    active_field: GrepReplaceFieldId = "keyword"
+    grep_results: tuple[GrepSearchResultState, ...] = ()
+    grep_error_message: str | None = None
+    filename_filter: str = ""
+    replacement_text: str = ""
+    preview_results: tuple[ReplacePreviewResultState, ...] = ()
+    error_message: str | None = None
+    status_message: str | None = None
+    total_match_count: int = 0
+
+
+@dataclass(frozen=True)
 class CommandPaletteState:
     """Transient palette search and cursor state."""
 
@@ -501,18 +517,7 @@ class CommandPaletteState:
     )
     rff: RffPaletteState = field(default_factory=RffPaletteState)
     grs: GrsPaletteState = field(default_factory=GrsPaletteState)
-    grf_keyword: str = ""
-    grf_include_extensions: str = ""
-    grf_exclude_extensions: str = ""
-    grf_active_field: GrepReplaceFieldId = "keyword"
-    grf_grep_results: tuple[GrepSearchResultState, ...] = ()
-    grf_grep_error_message: str | None = None
-    grf_filename_filter: str = ""
-    grf_replacement_text: str = ""
-    grf_preview_results: tuple[ReplacePreviewResultState, ...] = ()
-    grf_error_message: str | None = None
-    grf_status_message: str | None = None
-    grf_total_match_count: int = 0
+    grf: GrfPaletteState = field(default_factory=GrfPaletteState)
     sfg: SfgPaletteState = field(default_factory=SfgPaletteState)
 
 

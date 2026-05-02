@@ -660,14 +660,14 @@ def test_begin_grep_replace_enters_grf_mode() -> None:
     assert state.ui_mode == "PALETTE"
     assert state.command_palette is not None
     assert state.command_palette.source == "replace_in_grep_files"
-    assert state.command_palette.grf_active_field == "keyword"
+    assert state.command_palette.grf.active_field == "keyword"
 
 def test_set_grf_keyword_field_starts_grep_search() -> None:
     state = _reduce_state(build_initial_app_state(), BeginGrepReplace())
     result = reduce_app_state(state, SetGrepReplaceField(field="keyword", value="todo"))
 
     assert result.state.pending_grep_search_request_id is not None
-    assert result.state.command_palette.grf_keyword == "todo"
+    assert result.state.command_palette.grf.keyword == "todo"
     effects = [e for e in result.effects if isinstance(e, RunGrepSearchEffect)]
     assert len(effects) == 1
     assert effects[0].query == "todo"
@@ -678,7 +678,7 @@ def test_set_grf_keyword_clear_triggers_no_search() -> None:
     result = reduce_app_state(state, SetGrepReplaceField(field="keyword", value=""))
 
     assert result.state.pending_grep_search_request_id is None
-    assert result.state.command_palette.grf_grep_results == ()
+    assert result.state.command_palette.grf.grep_results == ()
 
 def test_set_grf_replace_field_with_grep_results_starts_preview() -> None:
     state = _reduce_state(build_initial_app_state(), BeginGrepReplace())
@@ -686,13 +686,16 @@ def test_set_grf_replace_field_with_grep_results_starts_preview() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_grep_results=(
-                GrepSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
-                    line_number=1,
-                    line_text="todo item",
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                grep_results=(
+                    GrepSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                        line_number=1,
+                        line_text="todo item",
+                    ),
                 ),
             ),
         ),
@@ -710,13 +713,16 @@ def test_set_grf_replace_field_without_grep_results_no_preview() -> None:
     result = reduce_app_state(state, SetGrepReplaceField(field="replace", value="done"))
 
     assert result.state.pending_replace_preview_request_id is None
-    assert result.state.command_palette.grf_preview_results == ()
+    assert result.state.command_palette.grf.preview_results == ()
 
 def test_grf_grep_search_completed_stores_results() -> None:
     state = _reduce_state(build_initial_app_state(), BeginGrepReplace())
     state = replace(
         state,
-        command_palette=replace(state.command_palette, grf_keyword="todo"),
+        command_palette=replace(
+            state.command_palette,
+            grf=replace(state.command_palette.grf, keyword="todo"),
+        ),
         pending_grep_search_request_id=10,
         next_request_id=11,
     )
@@ -732,7 +738,7 @@ def test_grf_grep_search_completed_stores_results() -> None:
         state, GrepSearchCompleted(request_id=10, query="todo", results=results)
     )
 
-    assert result.state.command_palette.grf_grep_results == results
+    assert result.state.command_palette.grf.grep_results == results
     assert result.state.pending_grep_search_request_id is None
 
 def test_grf_grep_search_completed_auto_triggers_preview_when_replace_text_present() -> None:
@@ -741,8 +747,11 @@ def test_grf_grep_search_completed_auto_triggers_preview_when_replace_text_prese
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_replacement_text="done",
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                replacement_text="done",
+            ),
         ),
         pending_grep_search_request_id=10,
         next_request_id=11,
@@ -759,7 +768,7 @@ def test_grf_grep_search_completed_auto_triggers_preview_when_replace_text_prese
         state, GrepSearchCompleted(request_id=10, query="todo", results=results)
     )
 
-    assert result.state.command_palette.grf_grep_results == results
+    assert result.state.command_palette.grf.grep_results == results
     assert result.state.pending_replace_preview_request_id is not None
     effects = [e for e in result.effects if isinstance(e, RunTextReplacePreviewEffect)]
     assert len(effects) == 1
@@ -770,14 +779,17 @@ def test_grf_preview_completed_stores_results() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_replacement_text="done",
-            grf_grep_results=(
-                GrepSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
-                    line_number=1,
-                    line_text="todo item",
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                replacement_text="done",
+                grep_results=(
+                    GrepSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                        line_number=1,
+                        line_text="todo item",
+                    ),
                 ),
             ),
         ),
@@ -807,8 +819,8 @@ def test_grf_preview_completed_stores_results() -> None:
         state, TextReplacePreviewCompleted(request_id=10, result=preview_result)
     )
 
-    assert len(result.state.command_palette.grf_preview_results) == 1
-    assert result.state.command_palette.grf_total_match_count == 1
+    assert len(result.state.command_palette.grf.preview_results) == 1
+    assert result.state.command_palette.grf.total_match_count == 1
     assert result.state.pending_replace_preview_request_id is None
 
 def test_submit_grf_palette_warns_when_no_replace_text() -> None:
@@ -817,13 +829,16 @@ def test_submit_grf_palette_warns_when_no_replace_text() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_grep_results=(
-                GrepSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
-                    line_number=1,
-                    line_text="todo item",
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                grep_results=(
+                    GrepSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                        line_number=1,
+                        line_text="todo item",
+                    ),
                 ),
             ),
         ),
@@ -838,14 +853,17 @@ def test_submit_grf_palette_warns_when_no_preview_results() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_replacement_text="done",
-            grf_grep_results=(
-                GrepSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
-                    line_number=1,
-                    line_text="todo item",
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                replacement_text="done",
+                grep_results=(
+                    GrepSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                        line_number=1,
+                        line_text="todo item",
+                    ),
                 ),
             ),
         ),
@@ -876,8 +894,11 @@ def test_grf_grep_search_completed_deduplicates_file_paths() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_replacement_text="done",
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                replacement_text="done",
+            ),
         ),
         pending_grep_search_request_id=10,
         next_request_id=11,
@@ -1296,8 +1317,11 @@ def test_grf_filename_filter_with_invalid_regex_single_backslash() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_grep_results=all_results,
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                grep_results=all_results,
+            ),
         ),
     )
 
@@ -1305,11 +1329,11 @@ def test_grf_filename_filter_with_invalid_regex_single_backslash() -> None:
     result = reduce_app_state(state, SetGrepReplaceField(field="filename", value="re:\\"))
 
     assert result.state.command_palette is not None
-    assert result.state.command_palette.grf_filename_filter == "re:\\"
-    assert result.state.command_palette.grf_error_message is not None
-    assert "Invalid regex pattern" in result.state.command_palette.grf_error_message
-    assert result.state.command_palette.grf_preview_results == ()
-    assert result.state.command_palette.grf_total_match_count == 0
+    assert result.state.command_palette.grf.filename_filter == "re:\\"
+    assert result.state.command_palette.grf.error_message is not None
+    assert "Invalid regex pattern" in result.state.command_palette.grf.error_message
+    assert result.state.command_palette.grf.preview_results == ()
+    assert result.state.command_palette.grf.total_match_count == 0
 
 
 def test_grf_filename_filter_with_valid_regex_backslash() -> None:
@@ -1336,9 +1360,12 @@ def test_grf_filename_filter_with_valid_regex_backslash() -> None:
         state,
         command_palette=replace(
             state.command_palette,
-            grf_keyword="todo",
-            grf_replacement_text="done",
-            grf_grep_results=all_results,
+            grf=replace(
+                state.command_palette.grf,
+                keyword="todo",
+                replacement_text="done",
+                grep_results=all_results,
+            ),
         ),
     )
 
@@ -1346,7 +1373,7 @@ def test_grf_filename_filter_with_valid_regex_backslash() -> None:
     result = reduce_app_state(state, SetGrepReplaceField(field="filename", value="re:\\.py$"))
 
     assert result.state.command_palette is not None
-    assert result.state.command_palette.grf_filename_filter == "re:\\.py$"
-    assert result.state.command_palette.grf_error_message is None
+    assert result.state.command_palette.grf.filename_filter == "re:\\.py$"
+    assert result.state.command_palette.grf.error_message is None
     # Results should be filtered to .py files only
     assert result.state.pending_replace_preview_request_id == 1

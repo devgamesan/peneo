@@ -500,33 +500,33 @@ def _build_grep_replace_input_fields(
     return (
         CommandPaletteInputFieldViewState(
             label="Keyword",
-            value=palette.grf_keyword or palette.query,
+            value=palette.grf.keyword or palette.query,
             placeholder="search text",
-            active=palette.grf_active_field == "keyword",
+            active=palette.grf.active_field == "keyword",
         ),
         CommandPaletteInputFieldViewState(
             label="Replace",
-            value=palette.grf_replacement_text,
+            value=palette.grf.replacement_text,
             placeholder="replacement text",
-            active=palette.grf_active_field == "replace",
+            active=palette.grf.active_field == "replace",
         ),
         CommandPaletteInputFieldViewState(
             label="Filter: Filename",
-            value=palette.grf_filename_filter,
+            value=palette.grf.filename_filter,
             placeholder="pattern or re:pattern",
-            active=palette.grf_active_field == "filename",
+            active=palette.grf.active_field == "filename",
         ),
         CommandPaletteInputFieldViewState(
             label="Include extensions",
-            value=palette.grf_include_extensions,
+            value=palette.grf.include_extensions,
             placeholder="e.g. py, js",
-            active=palette.grf_active_field == "include",
+            active=palette.grf.active_field == "include",
         ),
         CommandPaletteInputFieldViewState(
             label="Exclude extensions",
-            value=palette.grf_exclude_extensions,
+            value=palette.grf.exclude_extensions,
             placeholder="e.g. log, tmp",
-            active=palette.grf_active_field == "exclude",
+            active=palette.grf.active_field == "exclude",
         ),
     )
 
