@@ -44,6 +44,7 @@ class _MainPaneDataTable(DataTable):
             return
         if row_index < 0 or column_index < 0:
             return
+        event.stop()
         handler = getattr(self.parent, "handle_table_row_clicked", None)
         if handler is None:
             return
@@ -77,6 +78,13 @@ class MainPane(Vertical):
             self.pane_id = pane_id
             self.path = path
             self.double_click = double_click
+
+    class PaneClicked(Message):
+        """Notify the app that a transfer pane was clicked (not on a specific row)."""
+
+        def __init__(self, pane_id: str | None) -> None:
+            super().__init__()
+            self.pane_id = pane_id
 
     def __init__(
         self,
@@ -150,6 +158,16 @@ class MainPane(Vertical):
         if handler is None:
             return
         await handler(self.EntryClicked(self.id, path, double_click=double_click))
+
+    async def on_click(self, event: events.Click) -> None:
+        """In transfer mode, clicking on the pane switches focus to it."""
+
+        if "transfer-pane" not in self.classes:
+            return
+        handler = getattr(self.app, "on_main_pane_pane_clicked", None)
+        if handler is None:
+            return
+        await handler(self.PaneClicked(self.id))
 
     def set_entries(
         self,
