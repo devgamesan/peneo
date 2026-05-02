@@ -96,12 +96,12 @@ class SidePane(Vertical):
         new_path = str(path) if path is not None else None
         if new_path != self._hovered_path:
             self._hovered_path = new_path
-            self._refresh_rendered_labels()
+            self._refresh_rendered_labels(force=True)
 
     def on_leave(self, _event: events.Leave) -> None:
         if self._hovered_path is not None:
             self._hovered_path = None
-            self._refresh_rendered_labels()
+            self._refresh_rendered_labels(force=True)
 
     async def set_entries(self, entries: Sequence[PaneEntry]) -> None:
         """Replace the rendered entries without remounting the pane."""
@@ -125,13 +125,13 @@ class SidePane(Vertical):
         self._entries = next_entries
         self._last_render_width = render_width
 
-    def _refresh_rendered_labels(self) -> None:
+    def _refresh_rendered_labels(self, *, force: bool = False) -> None:
         try:
             content = self._content_widget()
         except NoMatches:
             return
         render_width = self._entry_width(content)
-        if render_width <= 0 or render_width == self._last_render_width:
+        if render_width <= 0 or (not force and render_width == self._last_render_width):
             return
         content.update(
             _render_file_entries(

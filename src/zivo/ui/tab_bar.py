@@ -63,7 +63,7 @@ class TabBar(Static):
         if tab_index is None:
             return
         event.stop()
-        self.post_message(self.TabClicked(tab_index=int(tab_index)))
+        self.post_message(self.TabClicked(tab_index=int(tab_index) - 1))
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         meta = event.style.meta
