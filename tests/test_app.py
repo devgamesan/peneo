@@ -1151,7 +1151,7 @@ async def test_app_ignores_terminal_response_sequences_in_browsing_mode() -> Non
 async def test_textual_parser_ignores_terminal_device_attributes_response() -> None:
     from textual._xterm_parser import XTermParser
 
-    from zivo.app import _install_textual_terminal_response_filters
+    from zivo.app_terminal_response import _install_textual_terminal_response_filters
 
     _install_textual_terminal_response_filters()
     parser = XTermParser()
@@ -1165,7 +1165,7 @@ async def test_textual_parser_ignores_terminal_device_attributes_response() -> N
 async def test_textual_parser_ignores_terminal_osc_color_response() -> None:
     from textual._xterm_parser import XTermParser
 
-    from zivo.app import _install_textual_terminal_response_filters
+    from zivo.app_terminal_response import _install_textual_terminal_response_filters
 
     _install_textual_terminal_response_filters()
     parser = XTermParser()
@@ -1180,7 +1180,7 @@ async def test_textual_parser_ignores_terminal_osc_color_response() -> None:
 async def test_textual_parser_ignores_split_terminal_osc_color_response() -> None:
     from textual._xterm_parser import XTermParser
 
-    from zivo.app import _install_textual_terminal_response_filters
+    from zivo.app_terminal_response import _install_textual_terminal_response_filters
 
     _install_textual_terminal_response_filters()
     parser = XTermParser()
