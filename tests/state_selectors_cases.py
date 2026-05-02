@@ -27,6 +27,7 @@ from zivo.state import (
     DirectoryEntryState,
     DirectorySizeCacheEntry,
     DirectorySizeDeltaState,
+    FileSearchPaletteState,
     FileSearchResultState,
     GrepSearchResultState,
     HistoryAndNavigationPaletteState,
@@ -2080,10 +2081,12 @@ def test_select_command_palette_state_for_file_search_results() -> None:
         command_palette=CommandPaletteState(
             source="file_search",
             query="read",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=FileSearchPaletteState(
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
             ),
         ),
@@ -2105,7 +2108,7 @@ def test_select_command_palette_state_shows_searching_message_while_file_search_
         command_palette=CommandPaletteState(
             source="file_search",
             query=".py",
-            file_search_results=(),
+            file_search=FileSearchPaletteState(),
         ),
         pending_file_search_request_id=7,
     )
@@ -2125,7 +2128,9 @@ def test_select_command_palette_state_shows_regex_error_message() -> None:
         command_palette=CommandPaletteState(
             source="file_search",
             query="re:[",
-            file_search_error_message="Invalid regex: unterminated character set",
+            file_search=FileSearchPaletteState(
+                error_message="Invalid regex: unterminated character set",
+            ),
         ),
     )
 
@@ -2152,7 +2157,7 @@ def test_select_command_palette_state_windows_large_file_search_results() -> Non
             source="file_search",
             query=".py",
             cursor_index=10,
-            file_search_results=results,
+            file_search=FileSearchPaletteState(results=results),
         ),
     )
 
@@ -2590,7 +2595,7 @@ class TestSelectSearchWindowWithDynamicSize:
                 source="file_search",
                 query=".py",
                 cursor_index=15,
-                file_search_results=results,
+                file_search=FileSearchPaletteState(results=results),
             ),
         )
 

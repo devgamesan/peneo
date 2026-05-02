@@ -192,11 +192,11 @@ def dispatch_command_palette_input(
     if key in ("left", "right") and palette_source == "file_search":
         if (
             state.command_palette is not None
-            and state.command_palette.file_search_active_field == "target"
+            and state.command_palette.file_search.active_field == "target"
         ):
             delta = -1 if key == "left" else 1
             targets: tuple[str, ...] = ("files", "directories", "all")
-            current = state.command_palette.file_search_target
+            current = state.command_palette.file_search.target
             index = targets.index(current)
             next_target = targets[(index + delta) % len(targets)]
             return supported(SetFileSearchTarget(target=next_target))
@@ -237,7 +237,7 @@ def dispatch_command_palette_input(
         if palette_source == "file_search":
             if (
                 state.command_palette is not None
-                and state.command_palette.file_search_active_field == "target"
+                and state.command_palette.file_search.active_field == "target"
             ):
                 return warn("Use left/right arrows on the target field to change scope")
             current_query = state.command_palette.query if state.command_palette is not None else ""
@@ -304,7 +304,7 @@ def dispatch_command_palette_input(
         if palette_source == "file_search":
             if (
                 state.command_palette is not None
-                and state.command_palette.file_search_active_field == "target"
+                and state.command_palette.file_search.active_field == "target"
             ):
                 return warn("Use left/right arrows on the target field to change scope")
         if palette_source == "grep_search":

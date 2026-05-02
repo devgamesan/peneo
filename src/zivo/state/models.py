@@ -421,6 +421,19 @@ class SfgPaletteState:
 
 
 @dataclass(frozen=True)
+class FileSearchPaletteState:
+    results: tuple[FileSearchResultState, ...] = ()
+    error_message: str | None = None
+    cache_query: str = ""
+    cache_results: tuple[FileSearchResultState, ...] = ()
+    cache_root_path: str | None = None
+    cache_show_hidden: bool = False
+    cache_target: FileSearchTarget | None = None
+    target: FileSearchTarget = "all"
+    active_field: FileSearchFieldId = "keyword"
+
+
+@dataclass(frozen=True)
 class CommandPaletteState:
     """Transient palette search and cursor state."""
 
@@ -435,15 +448,7 @@ class CommandPaletteState:
     replace_replacement_text: str = ""
     replace_active_field: ReplaceFieldId = "find"
     cursor_index: int = 0
-    file_search_results: tuple[FileSearchResultState, ...] = ()
-    file_search_error_message: str | None = None
-    file_search_cache_query: str = ""
-    file_search_cache_results: tuple[FileSearchResultState, ...] = ()
-    file_search_cache_root_path: str | None = None
-    file_search_cache_show_hidden: bool = False
-    file_search_target: FileSearchTarget = "all"
-    file_search_active_field: FileSearchFieldId = "keyword"
-    file_search_cache_target: FileSearchTarget | None = None
+    file_search: FileSearchPaletteState = field(default_factory=FileSearchPaletteState)
     grep_search_results: tuple[GrepSearchResultState, ...] = ()
     grep_search_error_message: str | None = None
     replace_preview_results: tuple[ReplacePreviewResultState, ...] = ()

@@ -165,7 +165,10 @@ def _next_palette_query_state(state: AppState, query: str):
         state.command_palette,
         query=query,
         cursor_index=0,
-        file_search_error_message=None,
+        file_search=replace(
+            state.command_palette.file_search,
+            error_message=None,
+        ),
         grep_search_error_message=None,
     )
 

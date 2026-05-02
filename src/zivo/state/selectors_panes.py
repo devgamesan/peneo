@@ -262,7 +262,7 @@ def _select_file_search_preview_pane(
     state: AppState,
     syntax_theme: str,
 ) -> ChildPaneViewState:
-    results = state.command_palette.file_search_results
+    results = state.command_palette.file_search.results
     if not results:
         return _build_child_entries_view((), syntax_theme)
 

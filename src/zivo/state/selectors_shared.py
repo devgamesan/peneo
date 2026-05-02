@@ -311,7 +311,7 @@ def _select_file_search_window(
         state.terminal_height,
         extra_rows=_FILE_SEARCH_EXTRA_INPUT_ROWS,
     )
-    target = state.command_palette.file_search_target if state.command_palette else "all"
+    target = state.command_palette.file_search.target if state.command_palette else "all"
     title = {
         "files": "Find File",
         "directories": "Find Directory",
@@ -439,13 +439,13 @@ def _build_file_search_input_fields(
             label="Keyword",
             value=palette.query,
             placeholder="type a filename or re:pattern",
-            active=palette.file_search_active_field == "keyword",
+            active=palette.file_search.active_field == "keyword",
         ),
         CommandPaletteInputFieldViewState(
             label="Target",
-            value=target_labels.get(palette.file_search_target, "all"),
+            value=target_labels.get(palette.file_search.target, "all"),
             placeholder="files/dirs/all",
-            active=palette.file_search_active_field == "target",
+            active=palette.file_search.active_field == "target",
         ),
     )
 

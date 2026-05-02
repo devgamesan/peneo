@@ -70,10 +70,13 @@ def test_open_find_result_in_editor_emits_external_launch_effect() -> None:
         command_palette=replace(
             state.command_palette,
             query="readme",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
             ),
             cursor_index=0,
@@ -143,10 +146,13 @@ def test_open_find_result_in_gui_editor_emits_external_launch_effect() -> None:
         command_palette=replace(
             state.command_palette,
             query="readme",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
             ),
             cursor_index=0,
@@ -440,37 +446,40 @@ def test_set_grep_search_field_clears_results_when_keyword_becomes_empty() -> No
     assert result.effects == ()
 
 def test_set_command_palette_query_reuses_completed_file_search_results_for_prefix_extension(
-) -> None:
+    ) -> None:
     state = _reduce_state(build_initial_app_state(), BeginFileSearch())
     state = replace(
         state,
         command_palette=replace(
             state.command_palette,
             query="read",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/docs/readings.txt",
+                        display_path="docs/readings.txt",
+                    ),
                 ),
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/docs/readings.txt",
-                    display_path="docs/readings.txt",
+                cache_query="read",
+                cache_results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/docs/readings.txt",
+                        display_path="docs/readings.txt",
+                    ),
                 ),
+                cache_root_path="/home/tadashi/develop/zivo",
+                cache_show_hidden=False,
+                cache_target="all",
             ),
-            file_search_cache_query="read",
-            file_search_cache_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
-                ),
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/docs/readings.txt",
-                    display_path="docs/readings.txt",
-                ),
-            ),
-            file_search_cache_root_path="/home/tadashi/develop/zivo",
-            file_search_cache_show_hidden=False,
-            file_search_cache_target="all",
         ),
         pending_file_search_request_id=4,
         next_request_id=5,
@@ -488,7 +497,7 @@ def test_set_command_palette_query_reuses_completed_file_search_results_for_pref
     assert result.state.pending_file_search_request_id is None
     assert result.state.pending_child_pane_request_id == 5
     assert result.state.command_palette is not None
-    assert result.state.command_palette.file_search_results == (
+    assert result.state.command_palette.file_search.results == (
         FileSearchResultState(
             path="/home/tadashi/develop/zivo/README.md",
             display_path="README.md",
@@ -503,21 +512,24 @@ def test_set_command_palette_query_runs_new_search_when_query_is_not_prefix_exte
         command_palette=replace(
             state.command_palette,
             query="read",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
-            ),
-            file_search_cache_query="read",
-            file_search_cache_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+                cache_query="read",
+                cache_results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
+                cache_root_path="/home/tadashi/develop/zivo",
+                cache_show_hidden=False,
             ),
-            file_search_cache_root_path="/home/tadashi/develop/zivo",
-            file_search_cache_show_hidden=False,
         ),
         next_request_id=4,
     )
@@ -541,15 +553,18 @@ def test_set_command_palette_query_runs_new_search_for_regex_queries() -> None:
         command_palette=replace(
             state.command_palette,
             query="read",
-            file_search_cache_query="read",
-            file_search_cache_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                cache_query="read",
+                cache_results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
+                cache_root_path="/home/tadashi/develop/zivo",
+                cache_show_hidden=False,
             ),
-            file_search_cache_root_path="/home/tadashi/develop/zivo",
-            file_search_cache_show_hidden=False,
         ),
         next_request_id=4,
     )
@@ -589,15 +604,15 @@ def test_file_search_completed_updates_palette_results() -> None:
     )
 
     assert next_state.command_palette is not None
-    assert next_state.command_palette.file_search_results == (
+    assert next_state.command_palette.file_search.results == (
         FileSearchResultState(
             path="/home/tadashi/develop/zivo/README.md",
             display_path="README.md",
         ),
     )
-    assert next_state.command_palette.file_search_cache_query == "read"
-    assert next_state.command_palette.file_search_cache_root_path == "/home/tadashi/develop/zivo"
-    assert next_state.command_palette.file_search_cache_show_hidden is False
+    assert next_state.command_palette.file_search.cache_query == "read"
+    assert next_state.command_palette.file_search.cache_root_path == "/home/tadashi/develop/zivo"
+    assert next_state.command_palette.file_search.cache_show_hidden is False
     assert next_state.pending_file_search_request_id is None
 
 def test_file_search_completed_does_not_cache_regex_queries() -> None:
@@ -623,14 +638,14 @@ def test_file_search_completed_does_not_cache_regex_queries() -> None:
     )
 
     assert next_state.command_palette is not None
-    assert next_state.command_palette.file_search_results == (
+    assert next_state.command_palette.file_search.results == (
         FileSearchResultState(
             path="/home/tadashi/develop/zivo/README.md",
             display_path="README.md",
         ),
     )
-    assert next_state.command_palette.file_search_cache_query == ""
-    assert next_state.command_palette.file_search_cache_results == ()
+    assert next_state.command_palette.file_search.cache_query == ""
+    assert next_state.command_palette.file_search.cache_results == ()
 
 def test_file_search_failed_sets_inline_error_for_invalid_regex() -> None:
     state = _reduce_state(build_initial_app_state(), BeginFileSearch())
@@ -639,10 +654,13 @@ def test_file_search_failed_sets_inline_error_for_invalid_regex() -> None:
         command_palette=replace(
             state.command_palette,
             query="re:[",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/README.md",
-                    display_path="README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/README.md",
+                        display_path="README.md",
+                    ),
                 ),
             ),
         ),
@@ -660,9 +678,9 @@ def test_file_search_failed_sets_inline_error_for_invalid_regex() -> None:
     )
 
     assert next_state.command_palette is not None
-    assert next_state.command_palette.file_search_results == ()
+    assert next_state.command_palette.file_search.results == ()
     assert (
-        next_state.command_palette.file_search_error_message
+        next_state.command_palette.file_search.error_message
         == "Invalid regex: unterminated character set"
     )
     assert next_state.notification is None
@@ -675,7 +693,10 @@ def test_submit_command_palette_uses_inline_error_message_when_present() -> None
         command_palette=replace(
             state.command_palette,
             query="re:[",
-            file_search_error_message="Invalid regex: unterminated character set",
+            file_search=replace(
+                state.command_palette.file_search,
+                error_message="Invalid regex: unterminated character set",
+            ),
         ),
     )
 
@@ -693,10 +714,13 @@ def test_submit_command_palette_file_search_result_requests_snapshot() -> None:
         command_palette=replace(
             state.command_palette,
             query="read",
-            file_search_results=(
-                FileSearchResultState(
-                    path="/home/tadashi/develop/zivo/docs/README.md",
-                    display_path="docs/README.md",
+            file_search=replace(
+                state.command_palette.file_search,
+                results=(
+                    FileSearchResultState(
+                        path="/home/tadashi/develop/zivo/docs/README.md",
+                        display_path="docs/README.md",
+                    ),
                 ),
             ),
             cursor_index=0,
