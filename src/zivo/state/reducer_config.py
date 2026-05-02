@@ -228,12 +228,28 @@ def cycle_config_editor_value(config: AppConfig, cursor_index: int, delta: int) 
                 ),
             ),
         )
+    if field_id == "display.preview_word_wrap":
+        return replace(
+            config,
+            display=replace(
+                config.display,
+                preview_word_wrap=not config.display.preview_word_wrap,
+            ),
+        )
     if field_id == "behavior.confirm_delete":
         return replace(
             config,
             behavior=replace(
                 config.behavior,
                 confirm_delete=not config.behavior.confirm_delete,
+            ),
+        )
+    if field_id == "behavior.confirm_exit":
+        return replace(
+            config,
+            behavior=replace(
+                config.behavior,
+                confirm_exit=not config.behavior.confirm_exit,
             ),
         )
     if field_id == "logging.level":
@@ -317,9 +333,11 @@ def config_editor_field_ids() -> tuple[str, ...]:
         "display.directories_first",
         "display.grep_preview_context_lines",
         "behavior.confirm_delete",
+        "behavior.confirm_exit",
         "behavior.paste_conflict_action",
         "logging.level",
         "file_search.max_results",
+        "display.preview_word_wrap",
     )
 
 
@@ -342,9 +360,11 @@ def config_editor_labels() -> tuple[str, ...]:
         "Directories first",
         "Grep preview context lines",
         "Confirm delete",
+        "Confirm exit",
         "Paste conflict action",
         "Log level",
         "File search max results",
+        "Preview word wrap",
     )
 
 
@@ -471,11 +491,23 @@ def config_editor_field_description(field_index: int, config: AppConfig) -> tupl
             "Increase this to show more context in grep preview results.",
             f"Current behavior: {config.display.grep_preview_context_lines} context lines.",
         )
+    if field_id == "display.preview_word_wrap":
+        return (
+            "Controls whether long lines in the preview pane wrap to fit the available width.",
+            "Current behavior: word wrap is "
+            f"{'enabled' if config.display.preview_word_wrap else 'disabled'} on startup.",
+        )
     if field_id == "behavior.confirm_delete":
         return (
             "Controls whether delete and move-to-trash actions ask for confirmation first.",
             "Current behavior: confirmations are "
             f"{'enabled' if config.behavior.confirm_delete else 'disabled'} by default.",
+        )
+    if field_id == "behavior.confirm_exit":
+        return (
+            "Controls whether exit actions ask for confirmation first.",
+            "Current behavior: confirmations are "
+            f"{'enabled' if config.behavior.confirm_exit else 'disabled'} by default.",
         )
     if field_id == "behavior.paste_conflict_action":
         return (
@@ -506,12 +538,12 @@ def config_editor_field_description(field_index: int, config: AppConfig) -> tupl
 CONFIG_EDITOR_CATEGORIES: tuple[tuple[str, tuple[int, ...]], ...] = (
     ("External", (0, 1)),
     ("Theme", (3, 9)),
-    ("Preview", (5, 6, 7, 8, 10, 15)),
+    ("Preview", (5, 6, 7, 8, 10, 15, 21)),
     ("Display", (2, 4, 11, 16)),
-    ("File Search", (19,)),
+    ("File Search", (20,)),
     ("Sorting", (12, 13, 14)),
-    ("Behavior", (17,)),
-    ("Logging", (18,)),
+    ("Behavior", (17, 18)),
+    ("Logging", (19,)),
 )
 
 
@@ -547,6 +579,7 @@ def apply_config_to_runtime_state(state, config: AppConfig):
             directories_first=config.display.directories_first,
         ),
         confirm_delete=config.behavior.confirm_delete,
+        confirm_exit=config.behavior.confirm_exit,
         paste_conflict_action=config.behavior.paste_conflict_action,
     )
 
@@ -587,8 +620,12 @@ def format_config_field_value(field_index: int, config: AppConfig) -> str:
         return _format_bool(config.display.directories_first)
     if field_id == "display.grep_preview_context_lines":
         return str(config.display.grep_preview_context_lines)
+    if field_id == "display.preview_word_wrap":
+        return _format_bool(config.display.preview_word_wrap)
     if field_id == "behavior.confirm_delete":
         return _format_bool(config.behavior.confirm_delete)
+    if field_id == "behavior.confirm_exit":
+        return _format_bool(config.behavior.confirm_exit)
     if field_id == "behavior.paste_conflict_action":
         return config.behavior.paste_conflict_action
     if field_id == "logging.level":

@@ -174,6 +174,7 @@ class RunFileSearchEffect:
     root_path: str
     query: str
     show_hidden: bool
+    search_target: str = "all"
 
 
 @dataclass(frozen=True)
@@ -230,6 +231,13 @@ class RunCustomActionEffect:
     request: CustomActionExecutionRequest
 
 
+@dataclass(frozen=True)
+class ExitCurrentPathEffect:
+    """Exit the application and return the current path."""
+
+    return_code: int = 0
+
+
 Effect = (
     LoadBrowserSnapshotEffect
     | LoadChildPaneSnapshotEffect
@@ -253,6 +261,7 @@ Effect = (
     | RunConfigSaveEffect
     | RunShellCommandEffect
     | RunCustomActionEffect
+    | ExitCurrentPathEffect
 )
 
 

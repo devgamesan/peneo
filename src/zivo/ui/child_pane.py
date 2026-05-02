@@ -62,6 +62,7 @@ class ChildPane(Vertical):
         self._last_render_width = 0
         self._last_render_signature: object | None = None
         self._last_clicked_path: str | None = None
+        self._hovered_path: str | None = None
 
     @property
     def list_view_id(self) -> str | None:
@@ -88,6 +89,7 @@ class ChildPane(Vertical):
                 {},
                 selected_directory_style=self.SELECTED_DIRECTORY_STYLE,
                 selected_cut_style=self.SELECTED_CUT_STYLE,
+                hovered_path=self._hovered_path,
             ),
             id=self.list_view_id,
             classes="pane-list",
@@ -137,6 +139,23 @@ class ChildPane(Vertical):
         self._last_clicked_path = path
         event.stop()
         self.post_message(self.EntryClicked(self.id, path, double_click=double_click))
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        if self._state.is_preview:
+            return
+        meta = event.style.meta
+        path = meta.get("entry_path")
+        new_path = str(path) if path is not None else None
+        if new_path != self._hovered_path:
+            self._hovered_path = new_path
+            self._refresh_rendered_content(force=True)
+
+    def on_leave(self, _event: events.Leave) -> None:
+        if self._state.is_preview:
+            return
+        if self._hovered_path is not None:
+            self._hovered_path = None
+            self._refresh_rendered_content(force=True)
 
     async def set_state(self, state: ChildPaneViewState) -> None:
         if state == self._state:
@@ -205,6 +224,7 @@ class ChildPane(Vertical):
                 self._ft_styles,
                 selected_directory_style=self.SELECTED_DIRECTORY_STYLE,
                 selected_cut_style=self.SELECTED_CUT_STYLE,
+                hovered_path=self._hovered_path,
             )
         )
         self._last_render_width = render_width
@@ -251,7 +271,7 @@ class ChildPane(Vertical):
             state.preview_content,
             lexer=lexer,
             theme=state.syntax_theme,
-            word_wrap=False,
+            word_wrap=state.preview_word_wrap,
             line_numbers=state.preview_start_line is not None,
             start_line=state.preview_start_line or 1,
             highlight_lines=(

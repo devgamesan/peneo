@@ -78,6 +78,7 @@ from zivo.state import (
 )
 from zivo.state.actions import (
     Action,
+    ActivateTabByIndex,
     EnterCursorDirectory,
     EnterTransferDirectory,
     ExitCurrentPath,
@@ -101,6 +102,7 @@ from zivo.ui import (
     ShellCommandDialog,
     SidePane,
     StatusBar,
+    TabBar,
 )
 
 
@@ -207,6 +209,7 @@ class zivoApp(App[None]):
             show_help_bar=self._app_config.display.show_help_bar,
             sort=_initial_sort_state(self._app_config),
             confirm_delete=self._app_config.behavior.confirm_delete,
+            confirm_exit=self._app_config.behavior.confirm_exit,
             paste_conflict_action=self._app_config.behavior.paste_conflict_action,
             post_reload_notification=startup_notification,
             current_pane_projection_mode=current_pane_projection_mode,
@@ -539,6 +542,13 @@ class zivoApp(App[None]):
             double_click=message.double_click,
         )
 
+    async def on_main_pane_pane_clicked(self, message: MainPane.PaneClicked) -> None:
+        """Handle clicks on a transfer pane area (not on a specific row)."""
+
+        pane = "right" if message.pane_id == "transfer-right-pane" else "left"
+        if self._app_state.active_transfer_pane != pane:
+            await self.dispatch_actions((FocusTransferPane(pane),))
+
     async def action_dispatch_bound_key(self, key: str) -> None:
         """Handle priority key bindings through the central dispatcher."""
 
@@ -674,6 +684,11 @@ class zivoApp(App[None]):
 
         await self.dispatch_actions((SetTerminalHeight(height=event.size.height),))
         self._sync_overlay_layout(event.size.width)
+
+    async def on_tab_bar_tab_clicked(self, message: TabBar.TabClicked) -> None:
+        """Handle tab clicks from the TabBar widget."""
+
+        await self.dispatch_actions((ActivateTabByIndex(index=message.tab_index),))
 
     async def on_side_pane_entry_clicked(self, message: SidePane.EntryClicked) -> None:
         """Handle left parent-pane double clicks from the widget message path."""

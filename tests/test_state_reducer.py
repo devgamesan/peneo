@@ -808,7 +808,7 @@ def test_move_config_editor_cursor_clamps_to_visible_settings() -> None:
     next_state = _reduce_state(state, MoveConfigEditorCursor(delta=99))
 
     assert next_state.config_editor is not None
-    assert next_state.config_editor.cursor_index == 18
+    assert next_state.config_editor.cursor_index == 19
 
 def test_cycle_config_editor_editor_command_updates_draft_and_dirty_state() -> None:
     state = replace(
@@ -1266,7 +1266,7 @@ def test_cycle_config_editor_file_search_max_results_updates_draft() -> None:
             config_editor=ConfigEditorState(
                 path="/tmp/zivo/config.toml",
                 draft=original_state.config,
-                cursor_index=19,  # file_search.max_results
+                cursor_index=20,  # file_search.max_results
             ),
         )
 
@@ -1406,6 +1406,16 @@ def test_confirm_filter_input_returns_to_browsing() -> None:
     next_state = _reduce_state(state, ConfirmFilterInput())
 
     assert next_state.ui_mode == "BROWSING"
+
+def test_confirm_filter_input_normalizes_cursor_path() -> None:
+    state = build_initial_app_state()
+    state = _reduce_state(state, SetUiMode("FILTER"))
+    state = _reduce_state(state, SetFilterQuery("src"))
+
+    next_state = _reduce_state(state, ConfirmFilterInput())
+
+    assert next_state.ui_mode == "BROWSING"
+    assert next_state.current_pane.cursor_path == "/home/tadashi/develop/zivo/src"
 
 def test_cancel_filter_input_clears_query() -> None:
     state = build_initial_app_state()

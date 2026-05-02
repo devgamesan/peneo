@@ -26,6 +26,7 @@ from .reducer_config import (
 )
 from .selectors_shared import (
     _build_command_palette_items_view,
+    _build_file_search_input_fields,
     _build_find_replace_input_fields,
     _build_grep_replace_input_fields,
     _build_grep_replace_selected_input_fields,
@@ -84,6 +85,10 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             if state.delete_confirmation.mode == "permanent":
                 return HelpBarState(("enter confirm permanent delete | esc cancel",))
             return HelpBarState(("enter confirm delete | esc cancel",))
+        if state.exit_confirmation is not None:
+            if state.config.help_bar.confirm_exit:
+                return HelpBarState(state.config.help_bar.confirm_exit)
+            return HelpBarState(("enter confirm exit | esc cancel",))
         if state.archive_extract_confirmation is not None:
             return HelpBarState(("enter continue extraction | esc return to input",))
         if state.zip_compress_confirmation is not None:
@@ -209,24 +214,19 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
         return HelpBarState(
             (
                 "[ ] focus | y copy-to-pane | m move-to-pane | p/Esc close | q quit",
-                "Space select | c copy | x cut | v paste | d delete | r rename",
-                "z undo | . hidden | N new-dir | o new-tab | w close-tab",
-                "b bookmarks | H history | G go-to | : palette",
+                "Space select | c copy | x cut | v paste | d delete | r rename | z undo",
+                ". hidden | N new-dir | : palette",
             )
         )
     if state.config.help_bar.browsing:
         return HelpBarState(state.config.help_bar.browsing)
     split_terminal_hint = " | t term" if is_split_terminal_supported() else ""
-    browsing_shortcuts = (
-        "n new-file | N new-dir | H history | "
-        f"b bookmarks{split_terminal_hint} | p transfer | : palette | q quit"
-    )
     return HelpBarState(
         (
-            "enter open | e edit | O gui editor | i info | space select | "
-            "c copy | x cut | v paste | d delete | r rename | z undo",
-            "/ filter | s sort | . hidden | ~ home | f find | g grep | G go-to | [ ] preview",
-            browsing_shortcuts,
+            "enter open | e edit | O gui editor | i info | "
+            "/ filter | s sort | . hidden | [ ] preview | q quit",
+            "space select | c copy | x cut | v paste | d delete | r rename | z undo",
+            f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette",
         )
     )
 
@@ -313,7 +313,11 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
             query=state.command_palette.query,
             items=tuple(
                 CommandPaletteItemViewState(
-                    label=result.display_path,
+                    label=(
+                        f"{result.display_path}/"
+                        if result.entry_type == "directory"
+                        else result.display_path
+                    ),
                     shortcut=None,
                     enabled=True,
                     selected=index == cursor_index,
@@ -322,6 +326,7 @@ def select_command_palette_state(state: AppState) -> CommandPaletteViewState | N
             ),
             empty_message=_file_search_empty_message(state),
             has_more_items=len(state.command_palette.file_search_results) > len(visible_results),
+            input_fields=_build_file_search_input_fields(state.command_palette),
         )
     if state.command_palette.source == "grep_search":
         visible_results, title = _select_grep_search_window(
@@ -569,6 +574,13 @@ def select_conflict_dialog_state(state: AppState) -> ConflictDialogState | None:
             title="Extract Archive Confirmation",
             message=message,
             options=("enter continue", "esc return to input"),
+        )
+
+    if state.exit_confirmation is not None:
+        return ConflictDialogState(
+            title="Exit Confirmation",
+            message="Exit the application?",
+            options=("enter confirm", "esc cancel"),
         )
 
     if state.zip_compress_confirmation is not None:

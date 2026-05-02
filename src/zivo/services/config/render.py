@@ -95,7 +95,8 @@ def render_display_section(config: AppConfig) -> str:
         f'default_sort_field = "{config.display.default_sort_field}"\n'
         f"default_sort_descending = {render_bool(config.display.default_sort_descending)}\n"
         f"directories_first = {render_bool(config.display.directories_first)}\n"
-        f"grep_preview_context_lines = {config.display.grep_preview_context_lines}"
+        f"grep_preview_context_lines = {config.display.grep_preview_context_lines}\n"
+        f"preview_word_wrap = {render_bool(config.display.preview_word_wrap)}"
     )
 
 
@@ -103,6 +104,7 @@ def render_behavior_section(config: AppConfig) -> str:
     return (
         "[behavior]\n"
         f"confirm_delete = {render_bool(config.behavior.confirm_delete)}\n"
+        f"confirm_exit = {render_bool(config.behavior.confirm_exit)}\n"
         f'paste_conflict_action = "{config.behavior.paste_conflict_action}"'
     )
 

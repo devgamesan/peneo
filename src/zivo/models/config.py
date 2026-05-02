@@ -57,6 +57,7 @@ class DisplayConfig:
     default_sort_descending: bool = False
     directories_first: bool = True
     grep_preview_context_lines: int = 3
+    preview_word_wrap: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ class BehaviorConfig:
     """Behavior-related startup defaults."""
 
     confirm_delete: bool = True
+    confirm_exit: bool = True
     paste_conflict_action: PasteConflictAction = "prompt"
 
 
@@ -103,6 +105,7 @@ class HelpBarConfig:
     shell: tuple[str, ...] = ()
     config: tuple[str, ...] = ()
     confirm_delete: tuple[str, ...] = ()
+    confirm_exit: tuple[str, ...] = ()
     detail: tuple[str, ...] = ()
     busy: tuple[str, ...] = ()
 

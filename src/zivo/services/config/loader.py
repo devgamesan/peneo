@@ -194,6 +194,13 @@ def load_display_config(section: object, warnings: list[str]) -> DisplayConfig:
             warnings=warnings,
             section_name="display",
         ),
+        preview_word_wrap=read_bool(
+            validated,
+            key="preview_word_wrap",
+            default=config.preview_word_wrap,
+            warnings=warnings,
+            section_name="display",
+        ),
     )
     return replace(
         config,
@@ -327,6 +334,13 @@ def load_behavior_config(section: object, warnings: list[str]) -> BehaviorConfig
             validated,
             key="confirm_delete",
             default=config.confirm_delete,
+            warnings=warnings,
+            section_name="behavior",
+        ),
+        confirm_exit=read_bool(
+            validated,
+            key="confirm_exit",
+            default=config.confirm_exit,
             warnings=warnings,
             section_name="behavior",
         ),
