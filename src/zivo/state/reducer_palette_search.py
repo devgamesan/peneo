@@ -681,18 +681,26 @@ def sync_file_search_preview(state: AppState) -> ReduceResult:
     selected_result = selected_file_search_result(state)
     if selected_result is None:
         return finalize(replace(state, pending_child_pane_request_id=None))
-    if not (
-        state.config.display.enable_text_preview
-        or state.config.display.enable_pdf_preview
-        or state.config.display.enable_office_preview
-    ):
-        return finalize(replace(state, pending_child_pane_request_id=None))
 
-    if state.pending_child_pane_request_id is None and matches_file_search_preview(
-        state,
-        selected_result,
-    ):
-        return finalize(state)
+    if selected_result.entry_type == "directory":
+        if state.pending_child_pane_request_id is None and (
+            state.child_pane.mode == "entries"
+            and state.child_pane.directory_path == selected_result.path
+        ):
+            return finalize(state)
+    else:
+        if not (
+            state.config.display.enable_text_preview
+            or state.config.display.enable_pdf_preview
+            or state.config.display.enable_office_preview
+        ):
+            return finalize(replace(state, pending_child_pane_request_id=None))
+
+        if state.pending_child_pane_request_id is None and matches_file_search_preview(
+            state,
+            selected_result,
+        ):
+            return finalize(state)
 
     request_id = state.next_request_id
     return finalize(
