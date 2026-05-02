@@ -260,13 +260,6 @@ def _select_file_search_preview_pane(
     state: AppState,
     syntax_theme: str,
 ) -> ChildPaneViewState:
-    if not (
-        state.config.display.enable_text_preview
-        or state.config.display.enable_pdf_preview
-        or state.config.display.enable_office_preview
-    ):
-        return _build_child_entries_view((), syntax_theme)
-
     results = state.command_palette.file_search_results
     if not results:
         return _build_child_entries_view((), syntax_theme)
@@ -274,6 +267,36 @@ def _select_file_search_preview_pane(
     selected_result = results[
         normalize_command_palette_cursor(state, state.command_palette.cursor_index)
     ]
+
+    if selected_result.entry_type == "directory":
+        if (
+            state.child_pane.mode == "entries"
+            and state.child_pane.directory_path == selected_result.path
+        ):
+            visible_entries = _select_side_pane_entry_states(
+                state.child_pane.entries, state.show_hidden
+            )
+            return _build_child_entries_view(
+                _select_side_pane_entries(
+                    visible_entries,
+                    state.directory_size_cache,
+                    display_directory_sizes=False,
+                    selected_path=None,
+                    cut_paths=_select_visible_cut_paths(
+                        visible_entries, _select_cut_paths(state)
+                    ),
+                ),
+                syntax_theme,
+            )
+        return _build_child_entries_view((), syntax_theme)
+
+    if not (
+        state.config.display.enable_text_preview
+        or state.config.display.enable_pdf_preview
+        or state.config.display.enable_office_preview
+    ):
+        return _build_child_entries_view((), syntax_theme)
+
     if (
         state.child_pane.mode != "preview"
         or state.child_pane.preview_path != selected_result.path
