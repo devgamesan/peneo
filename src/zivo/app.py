@@ -542,6 +542,13 @@ class zivoApp(App[None]):
             double_click=message.double_click,
         )
 
+    async def on_main_pane_pane_clicked(self, message: MainPane.PaneClicked) -> None:
+        """Handle clicks on a transfer pane area (not on a specific row)."""
+
+        pane = "right" if message.pane_id == "transfer-right-pane" else "left"
+        if self._app_state.active_transfer_pane != pane:
+            await self.dispatch_actions((FocusTransferPane(pane),))
+
     async def action_dispatch_bound_key(self, key: str) -> None:
         """Handle priority key bindings through the central dispatcher."""
 
