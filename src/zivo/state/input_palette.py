@@ -76,16 +76,16 @@ def active_find_replace_field_value(state: AppState) -> str:
 def active_grep_replace_field_value(state: AppState) -> str:
     if state.command_palette is None:
         return ""
-    field = state.command_palette.grf_active_field
+    field = state.command_palette.grf.active_field
     if field == "keyword":
-        return state.command_palette.grf_keyword or state.command_palette.query
+        return state.command_palette.grf.keyword or state.command_palette.query
     if field == "replace":
-        return state.command_palette.grf_replacement_text
+        return state.command_palette.grf.replacement_text
     if field == "filename":
-        return state.command_palette.grf_filename_filter
+        return state.command_palette.grf.filename_filter
     if field == "include":
-        return state.command_palette.grf_include_extensions
-    return state.command_palette.grf_exclude_extensions
+        return state.command_palette.grf.include_extensions
+    return state.command_palette.grf.exclude_extensions
 
 
 def active_grep_replace_selected_field_value(state: AppState) -> str:
@@ -266,7 +266,7 @@ def dispatch_command_palette_input(
         if palette_source == "replace_in_grep_files":
             return supported(
                 SetGrepReplaceField(
-                    field=state.command_palette.grf_active_field,
+                    field=state.command_palette.grf.active_field,
                     value=active_grep_replace_field_value(state)[:-1],
                 )
             )
@@ -332,7 +332,7 @@ def dispatch_command_palette_input(
                 )
             )
         if palette_source == "replace_in_grep_files":
-            active_field_grf: GrepReplaceFieldId = state.command_palette.grf_active_field
+            active_field_grf: GrepReplaceFieldId = state.command_palette.grf.active_field
             return supported(
                 SetGrepReplaceField(
                     field=active_field_grf,
