@@ -25,6 +25,7 @@ from .actions import (
     MoveTransferCursorAndSelectRange,
     MoveTransferCursorByPage,
     PasteClipboardToTransferPane,
+    RequestBrowserSnapshot,
     SelectAllVisibleTransferEntries,
     SetTransferCursorPath,
     ToggleTransferMode,
@@ -123,16 +124,28 @@ def _handle_toggle_transfer_mode(
     action: ToggleTransferMode,
     reduce_state: ReducerFn,
 ) -> ReduceResult:
-    del action, reduce_state
+    del action
     if state.layout_mode == "transfer":
-        return finalize(
-            replace(
-                state,
-                layout_mode="browser",
-                transfer_left=None,
-                transfer_right=None,
-                notification=NotificationState(level="info", message="Transfer mode closed"),
-            )
+        active = (
+            state.transfer_left
+            if state.active_transfer_pane == "left"
+            else state.transfer_right
+        )
+        closed_state = replace(
+            state,
+            layout_mode="browser",
+            transfer_left=None,
+            transfer_right=None,
+            notification=NotificationState(
+                level="info", message="Transfer mode closed"
+            ),
+        )
+        new_path = active.current_path if active else state.current_path
+        return reduce_state(
+            closed_state,
+            RequestBrowserSnapshot(
+                new_path, cursor_path=new_path, blocking=True
+            ),
         )
     left = TransferPaneState(
         pane=state.current_pane, current_path=state.current_path, history=state.history
