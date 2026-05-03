@@ -224,7 +224,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
     return HelpBarState(
         (
             "enter open | e edit | O gui editor | i info | "
-            "/ filter | s sort | . hidden | [ ] preview | q quit",
+            "/ filter | s sort | . hidden | [ ] back/forward | q quit",
             "space select | c copy | x cut | v paste | d delete | r rename | z undo",
             f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette",
         )
