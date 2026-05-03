@@ -14,6 +14,8 @@ zivo is a TUI file manager designed to be usable without memorizing dozens of sh
 
 It keeps common actions visible in the help bar, and lets you run everything else from the command palette. You can browse, preview, search, grep, replace, and transfer files without leaving the terminal.
 
+> **Platform notes**: zivo is in active development (Beta). It runs on Linux, macOS, and Windows, but some features have platform-specific limitations. Shell integration (`zivo-cd`) and standalone native executable are not available on Windows. See [Platforms](docs/platforms.md) for OS-specific details.
+
 ---
 
 ## Who zivo is for
@@ -91,8 +93,6 @@ This defines a shell function named `zivo-cd`. Start zivo with `zivo-cd` when yo
 ```bash
 zivo-cd
 ```
-
-**Note**: Shell integration (`zivo-cd`) is currently not supported on Windows. Use plain `zivo` on Windows.
 
 ---
 
@@ -172,6 +172,8 @@ See [Commands](docs/commands.md) for the full command list.
 - **Shell command**: run a command in the current directory
 - **File manager**: open the current directory in the OS file manager
 - **Clipboard**: copy paths to the system clipboard
+
+> **Note**: Some features (preview, grep, replace) depend on external tools that may not be pre-installed. See [Installation](#installation) for requirements. For platform-specific limitations, see [Platforms](docs/platforms.md).
 
 ---
 
