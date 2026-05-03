@@ -131,6 +131,7 @@ class LiveBrowserSnapshotLoader:
     grep_context_cache_capacity: int = DEFAULT_GREP_CONTEXT_CACHE_CAPACITY
     document_preview_loader: "DocumentPreviewLoader | None" = None
     image_preview_loader: "ImagePreviewLoader | None" = None
+    app_state: "AppState | None" = None
     _directory_entries_cache: OrderedDict[str, tuple[DirectoryEntryState, ...]] = field(
         default_factory=OrderedDict,
         init=False,
@@ -534,10 +535,10 @@ class LiveBrowserSnapshotLoader:
         from zivo.windows_paths import file_search_result_to_directory_entry
 
         # Get search results from workspace cache
-        if not hasattr(self, "_app_state") or self._app_state is None:
+        if self.app_state is None:
             return ()
 
-        entries = self._app_state.search_workspaces.get(virtual_path, ())
+        entries = self.app_state.search_workspaces.get(virtual_path, ())
 
         # Convert FileSearchResultState to DirectoryEntryState
         return tuple(file_search_result_to_directory_entry(result) for result in entries)
@@ -678,6 +679,7 @@ class FakeBrowserSnapshotLoader:
     executed_child_pane_requests: list[tuple[str, str | None]] = field(default_factory=list)
     executed_grep_preview_requests: list[tuple[str, str, int]] = field(default_factory=list)
     invalidated_directory_listing_paths: list[tuple[str, ...]] = field(default_factory=list)
+    app_state: "AppState | None" = None
 
     def load_browser_snapshot(
         self,
