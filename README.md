@@ -10,42 +10,57 @@
 [English](README.md) | [日本語](README.ja.md)
 ---
 
-zivo is a TUI file manager designed to be usable without memorizing dozens of shortcuts.
+zivo is a TUI file manager designed for **discoverability over memorization**.
 
-It keeps common actions visible in the help bar, and lets you run everything else from the command palette. You can browse, preview, search, grep, replace, and transfer files without leaving the terminal.
+Common actions stay visible in the help bar. Everything else is one `:` away in the command palette. **No shortcut cheat sheet required.**
+
+You can browse, preview, search, grep, replace, and transfer files without leaving the terminal.
 
 ---
 
 ## Who zivo is for
 
-- People who want a terminal file manager without memorizing many shortcuts
-- People who want to browse, preview, search, grep, and replace files from the terminal
-- People who find ranger, lf, nnn, or yazi powerful but somewhat expert-oriented
+- People who want a powerful terminal file manager **without memorizing dozens of shortcuts**
+- People who value **discoverability** over reading documentation first
+- People who find existing terminal file managers powerful but **require too much upfront learning**
 - People who work mainly in terminals or WSL and want to avoid switching to a GUI file manager
 
 ---
 
-## Highlights
+## What makes zivo different
 
-- **No memorization required**: common actions are always visible in the help bar
-- **Command palette**: press `:` to search and run available actions
-- **Three-pane preview**: preview directories, text, images, PDF, and Office files
-- **Transfer mode**: copy and move files between two directories side by side
-- **Search and grep**: find files, grep recursively, and open files from results
-- **Replace with preview**: replace in grep results or files, review diffs before applying
+- **Discoverable, not memorizable**: Common actions visible in help bar + command palette (`:`) for everything else
+- **Integrated search & replace**: File search, grep, and diff-preview replace — all in one interface, no need to manually run commands in the terminal
+- **Configure in the app**: Edit settings interactively in the UI — no need to manually edit config files
+- **Transfer mode**: Side-by-side panes make file operations visual and intuitive
+
+**Everything else** you expect: preview (text/images/PDF/Office), tabs, undo, bookmarks, history navigation.
 
 ---
 
-Browse directories across three panes while previewing files on the right. Use file search and grep to quickly jump to any file. Common actions are always visible in the help bar, so you never feel lost.
+## Why zivo?
+
+Many terminal file managers exist. zivo differs in four key ways:
+
+1. **Discoverability first**: Help bar shows mode-specific actions. Command palette (`:`) searches everything. No reading manuals required.
+2. **Integrated search & replace**: All in one interface — no need to manually run commands in the terminal.
+3. **Configure in the app**: Edit settings from within zivo — no manual config file editing required.
+4. **Lower learning curve**: Focus on visual discoverability rather than shortcut power.
+
+If you value minimalism and speed over ease of use, other tools may be better fits. If you want power **and** discoverability, try zivo.
+
+---
+
+Browse directories across three panes while previewing files on the right. **The help bar means you never have to memorize shortcuts or feel lost.**
 
 ![](docs/resources/basic_operation.gif)
 
-Press `:` to search and run any action from the command palette. The palette supports incremental search, letting you find and execute commands quickly without memorizing keybindings.
+Press `:` to search and execute actions from the command palette. Commands support incremental search.
 
 ![](docs/resources/command_palette.gif)
 
-Transfer mode puts two directories side by side for easy copy and move operations.
-Press `y` to copy or `m` to move files to the opposite pane, and verify results immediately.
+Transfer mode puts two directories side by side for easy copy and move operations. Press `y` to copy or `m` to move files to the opposite pane.
+
 ![](docs/resources/transfer_mode_operation.gif)
 
 ---
@@ -98,9 +113,6 @@ zivo-cd
 
 ## Basic controls
 
-Common actions are always shown in the help bar.
-You can also press `:` to open the command palette and search for available actions.
-
 | Key | Action |
 |---|---|
 | `↑` / `↓` or `j` / `k` | Move cursor |
@@ -116,41 +128,32 @@ You can also press `:` to open the command palette and search for available acti
 
 See [Keybindings](docs/keybindings.md) for the full list.
 
----
-
-## Command palette
-
-Press `:` to search and run available actions.
-This is useful for less frequently used operations or actions whose keybindings you do not remember.
-
-See [Commands](docs/commands.md) for the full command list.
+See [Commands](docs/commands.md) for the complete command palette reference.
 
 ---
 
 ## Features
 
-### Browsing
-- **Three-pane layout**: directory tree on the left, file list in the center, preview on the right
-- **Tabs**: open multiple directories and switch between them
-- **Directory history**: go back / forward through visited directories
-- **Bookmarks**: save directories and jump to them instantly
-- **Go to path**: navigate to any path with Tab completion
-
 ### File operations
 - **Copy / Cut / Paste**: within a pane or across panes in Transfer mode
+- **Undo**: revert rename, paste, or trash operations
 - **Rename**: inline rename
 - **Delete**: move to trash (`d`) or permanent delete (`D`), with configurable confirmation
-- **Undo**: revert rename, paste, or trash operations
 - **Multi-selection**: select files with Space, or Select all
+- **Archives**: compress (zip) or extract (zip / tar / tar.gz / tar.bz2)
 
-### Archives
-- **Compress**: zip selected items
-- **Extract**: extract zip / tar / tar.gz / tar.bz2
+### Browsing
+- **Three-pane layout**: directory tree on the left, file list in the center, preview on the right
+- **Responsive panes**: side panes auto-adjust based on terminal width
+- **Tabs**: open multiple directories and switch between them
+- **History navigation**: go back / forward through visited directories, or search history
+- **Bookmarks**: save directories and jump to them instantly
+- **Go to path**: navigate to any path with Tab completion
 
 ### Search and replace
 - **Find files**: recursive filename search
 - **Grep search**: recursive grep via ripgrep (filename / extension filters)
-- **Replace**: batch replace in selected files, found files, or grep results with diff preview
+- **Replace**: batch replace in selected files, found files, or grep results with **diff preview**
 
 ### Preview
 - Text, images (chafa), PDF (pdftotext), Office (pandoc)
@@ -159,10 +162,10 @@ See [Commands](docs/commands.md) for the full command list.
 - Side-by-side two-pane layout for copying or moving files between directories
 
 ### Command palette
-- Press `:` to search and execute any action via incremental search. No need to memorize keybindings
+- Press `:` to search and execute any action via incremental search. **No need to memorize keybindings**
 
 ### Customization
-- **Settings overlay**: interactively edit and save startup configuration
+- **Settings overlay**: **interactively edit and save** startup configuration — no manual file editing required
 - **Custom actions**: add external tools to the command palette
 - **config.toml**: configure themes, sorting, preview visibility, delete confirmation, and more
 
@@ -229,7 +232,13 @@ uv run pip-licenses --format=plain --from=mixed --with-urls --output-file NOTICE
 
 ---
 
-> **Beta**: zivo is currently in beta. Keybindings may change as features are added and keybindings are reviewed.
+## Other
+
+### Beta Notice
+
+zivo is currently in beta. Keybindings may change as features are added and keybindings are reviewed.
+
+---
 
 ## Development
 
