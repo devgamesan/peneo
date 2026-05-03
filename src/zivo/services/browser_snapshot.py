@@ -46,6 +46,7 @@ from zivo.state.models import (
 from zivo.windows_paths import (
     comparable_path,
     is_posix_path,
+    is_search_workspace_path,
     is_windows_drive_root,
     is_windows_drives_root,
     is_windows_path,
@@ -497,6 +498,10 @@ class LiveBrowserSnapshotLoader:
                 self._directory_entries_cache.popitem(last=False)
 
     def _read_directory(self, path: str):
+        # Handle virtual search workspace paths
+        if is_search_workspace_path(path):
+            return self._read_virtual_search_directory(path)
+
         if is_windows_drives_root(path):
             return tuple(
                 DirectoryEntryState(
@@ -516,6 +521,26 @@ class LiveBrowserSnapshotLoader:
             raise OSError(f"Not a directory: {path}") from error
         except OSError as error:
             raise OSError(str(error) or f"Failed to load directory: {path}") from error
+
+    def _read_virtual_search_directory(self, virtual_path: str) -> tuple:
+        """Read directory entries from a virtual search workspace.
+
+        Args:
+            virtual_path: A search:// virtual path
+
+        Returns:
+            A tuple of DirectoryEntryState objects from the search workspace cache
+        """
+        from zivo.windows_paths import file_search_result_to_directory_entry
+
+        # Get search results from workspace cache
+        if not hasattr(self, "_app_state") or self._app_state is None:
+            return ()
+
+        entries = self._app_state.search_workspaces.get(virtual_path, ())
+
+        # Convert FileSearchResultState to DirectoryEntryState
+        return tuple(file_search_result_to_directory_entry(result) for result in entries)
 
     def _load_cached_text_preview(
         self,
