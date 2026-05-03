@@ -11,7 +11,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.css.query import NoMatches
-from textual.events import Click, Key
+from textual.events import Click, MouseDown
 from textual.widgets import DataTable, Label, Static
 
 from zivo import create_app
@@ -1598,11 +1598,13 @@ async def test_app_mouse_back_forward_buttons_navigate_history() -> None:
         await _wait_for_path(app, docs)
         assert app.app_state.current_path == docs
 
-        await app.on_key(Key("mouse_back", None))
+        back_event = MouseDown(None, 0, 0, 0, 0, 1, False, True, False)
+        await app.on_mouse_down(back_event)
         await _wait_for_snapshot_loaded(app, root)
         assert app.app_state.current_path == root
 
-        await app.on_key(Key("mouse_forward", None))
+        forward_event = MouseDown(None, 0, 0, 0, 0, 2, False, True, False)
+        await app.on_mouse_down(forward_event)
         await _wait_for_snapshot_loaded(app, docs)
         assert app.app_state.current_path == docs
 
