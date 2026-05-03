@@ -14,7 +14,7 @@ zivo is a TUI file manager designed to be usable without memorizing dozens of sh
 
 It keeps common actions visible in the help bar, and lets you run everything else from the command palette. You can browse, preview, search, grep, replace, and transfer files without leaving the terminal.
 
-> **Beta**: zivo is currently in beta. As features are added, current keybindings may change.
+> **Beta**: zivo is currently in beta. Keybindings may change as features are added and keybindings are reviewed.
 
 ---
 
