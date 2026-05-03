@@ -138,9 +138,20 @@ def select_shell_data(state: AppState) -> ThreePaneShellData:
     )
     if state.layout_mode != "transfer":
         return shell
+    active_pane = (
+        state.transfer_left
+        if state.active_transfer_pane == "left"
+        else state.transfer_right
+    )
+    transfer_current_path = (
+        active_pane.current_path
+        if active_pane
+        else state.current_pane.directory_path
+    )
     return replace(
         shell,
         layout_mode="transfer",
+        current_path=transfer_current_path,
         transfer_left=_select_transfer_pane(state, "left"),
         transfer_right=_select_transfer_pane(state, "right"),
     )

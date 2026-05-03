@@ -24,7 +24,9 @@ from .actions import (
     MoveTransferCursor,
     MoveTransferCursorAndSelectRange,
     MoveTransferCursorByPage,
+    NavigateTransferToPath,
     PasteClipboardToTransferPane,
+    RequestBrowserSnapshot,
     SelectAllVisibleTransferEntries,
     SetTransferCursorPath,
     ToggleTransferMode,
@@ -123,16 +125,28 @@ def _handle_toggle_transfer_mode(
     action: ToggleTransferMode,
     reduce_state: ReducerFn,
 ) -> ReduceResult:
-    del action, reduce_state
+    del action
     if state.layout_mode == "transfer":
-        return finalize(
-            replace(
-                state,
-                layout_mode="browser",
-                transfer_left=None,
-                transfer_right=None,
-                notification=NotificationState(level="info", message="Transfer mode closed"),
-            )
+        active = (
+            state.transfer_left
+            if state.active_transfer_pane == "left"
+            else state.transfer_right
+        )
+        closed_state = replace(
+            state,
+            layout_mode="browser",
+            transfer_left=None,
+            transfer_right=None,
+            notification=NotificationState(
+                level="info", message="Transfer mode closed"
+            ),
+        )
+        new_path = active.current_path if active else state.current_path
+        return reduce_state(
+            closed_state,
+            RequestBrowserSnapshot(
+                new_path, cursor_path=new_path, blocking=True
+            ),
         )
     left = TransferPaneState(
         pane=state.current_pane, current_path=state.current_path, history=state.history
@@ -476,6 +490,20 @@ def _handle_go_to_transfer_home(
     )
 
 
+def _handle_navigate_transfer_to_path(
+    state: AppState,
+    action: NavigateTransferToPath,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    del reduce_state
+    return request_transfer_pane_snapshot(
+        state,
+        state.active_transfer_pane,
+        action.path,
+        invalidate_paths=browser_snapshot_invalidation_paths(action.path),
+    )
+
+
 def _handle_transfer_copy_to_opposite_pane(
     state: AppState,
     action: TransferCopyToOppositePane,
@@ -674,6 +702,7 @@ _TRANSFER_HANDLERS: dict[type[Action], Callable[[AppState, Action, ReducerFn], R
     EnterTransferDirectory: _handle_enter_transfer_directory,
     GoToTransferParent: _handle_go_to_transfer_parent,
     GoToTransferHome: _handle_go_to_transfer_home,
+    NavigateTransferToPath: _handle_navigate_transfer_to_path,
     TransferCopyToOppositePane: _handle_transfer_copy_to_opposite_pane,
     TransferMoveToOppositePane: _handle_transfer_move_to_opposite_pane,
     PasteClipboardToTransferPane: _handle_paste_clipboard_to_transfer_pane,
