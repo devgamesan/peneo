@@ -203,6 +203,11 @@ class ChildPane(Vertical):
                 widget.update(self._render_preview(self._state, render_width))
                 self._last_render_width = render_width
                 self._last_render_signature = render_signature
+                if self._state.preview_kind == "kitty" and self._state.preview_content:
+                    captured = self._state.preview_content
+                    self.call_after_refresh(
+                        lambda c=captured: self._write_kitty_content(c)
+                    )
                 return True
 
             widget = self._list_widget()
@@ -263,6 +268,9 @@ class ChildPane(Vertical):
         if state.preview_kind == "image":
             return _render_image_preview_text(state.preview_content)
 
+        if state.preview_kind == "kitty":
+            return _render_kitty_preview_text(state.preview_content)
+
         lexer = "text"
         if state.preview_path is not None:
             lexer = _guess_preview_lexer(state.preview_path)
@@ -289,6 +297,73 @@ class ChildPane(Vertical):
         self._last_render_width = 0
         self._last_render_signature = None
         self._refresh_rendered_content(force=True)
+
+    def _write_kitty_content(self, content: str) -> None:
+        """Write Kitty graphics protocol escape sequence to the terminal.
+
+        Re-runs chafa when the available preview width changes so the
+        image always fills the pane without overflowing the terminal.
+        """
+        try:
+            import os
+            from pathlib import Path as FsPath
+
+            from zivo.services.previews.core import (
+                ChafaImagePreviewLoader,
+                resolve_image_preview_format,
+            )
+
+            scroll = self._preview_scroll_widget()
+            region = scroll.region
+            if region.x < 0 or region.y < 0:
+                return
+
+            pane_width = max(1, scroll.size.width - 2)
+
+            mode = getattr(self._state, "image_preview_mode", "auto")
+            fmt = resolve_image_preview_format(mode)
+            if fmt != "kitty":
+                return
+
+            path = self._state.preview_path
+            last_width = getattr(self, "_last_kitty_width", None)
+
+            if pane_width != last_width and path:
+                loader = ChafaImagePreviewLoader()
+                result = loader.load_preview(
+                    FsPath(path),
+                    preview_columns=pane_width,
+                    image_preview_format="kitty",
+                )
+                if result and result.content:
+                    content = result.content
+                    object.__setattr__(self, "_kitty_cached", content)
+                object.__setattr__(self, "_last_kitty_width", pane_width)
+            else:
+                cached = getattr(self, "_kitty_cached", None)
+                if cached is not None:
+                    content = cached
+
+            if not content:
+                return
+
+            row = region.y + 1
+            col = region.x + 1
+            write = f"\033_Ga=d,d=A\033\\\033[{row};{col}H{content}"
+            payload = write.encode("utf-8")
+            try:
+                tty_fd = os.open("/dev/tty", os.O_WRONLY)
+                try:
+                    os.write(tty_fd, payload)
+                finally:
+                    os.close(tty_fd)
+            except OSError:
+                import sys
+
+                sys.stdout.buffer.write(payload)
+                sys.stdout.buffer.flush()
+        except Exception:
+            pass
 
     def scroll_preview(self, delta: int) -> None:
         """Scroll the preview content by *delta* lines (negative = up)."""
@@ -329,6 +404,15 @@ class ChildPane(Vertical):
                 state.syntax_theme,
             )
         return ("list", state.entries)
+
+
+def _render_kitty_preview_text(content: str) -> Text:
+    """Kitty graphics protocol escape sequences cannot be split across
+    individual grid cells by Rich/Textual.  The actual bytes are written
+    to the terminal in :meth:`ChildPane._write_kitty_content` after
+    each render cycle; this placeholder prevents the preview widget
+    from showing anything else."""
+    return Text("", no_wrap=True, overflow="ignore", end="")
 
 
 def _render_image_preview_text(content: str) -> Text:
