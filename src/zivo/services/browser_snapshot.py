@@ -540,7 +540,7 @@ class LiveBrowserSnapshotLoader:
         enable_office_preview: bool,
         preview_columns: int,
     ) -> "FilePreviewState":
-        if self.text_preview_cache_capacity <= 0:
+        if self.text_preview_cache_capacity <= 0 or image_preview_mode == "kitty":
             return _load_text_preview(
                 path,
                 preview_max_bytes=preview_max_bytes,
