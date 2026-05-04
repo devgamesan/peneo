@@ -294,9 +294,23 @@ def _child_preview_columns(app: Any) -> int:
 
         child_pane = app.query_one("#child-pane", ChildPane)
     except (NoMatches, Exception):
-        return 80
+        try:
+            import shutil
+
+            cols = shutil.get_terminal_size().columns
+            return max(1, cols // 3)
+        except Exception:
+            return 40
     width = child_pane.preview_render_width()
-    return width if width > 0 else 80
+    if width > 0:
+        return width
+    try:
+        import shutil
+
+        cols = shutil.get_terminal_size().columns
+        return max(1, cols // 3)
+    except Exception:
+        return 40
 
 
 def _is_document_preview_path(path: str | None) -> bool:
