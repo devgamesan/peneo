@@ -538,10 +538,10 @@ class LiveBrowserSnapshotLoader:
         if self.app_state is None:
             return ()
 
-        entries = self.app_state.search_workspaces.get(virtual_path, ())
+        search_results = self.app_state.search_workspaces.get(virtual_path, ())
 
         # Convert FileSearchResultState to DirectoryEntryState
-        return tuple(file_search_result_to_directory_entry(result) for result in entries)
+        return tuple(file_search_result_to_directory_entry(result) for result in search_results)
 
     def _load_cached_text_preview(
         self,
@@ -946,6 +946,9 @@ def _contains_path(entries, path: str) -> bool:
 
 
 def _normalize_directory_cache_path(path: str) -> str:
+    # Handle virtual search workspace paths - return as-is
+    if is_search_workspace_path(path):
+        return path
     if is_windows_drives_root(path):
         return path
     if is_posix_path(path):

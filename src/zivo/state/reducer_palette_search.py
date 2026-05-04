@@ -1032,15 +1032,12 @@ def handle_open_search_workspace(
     }
     virtual_path = f"search://{quote(query)}?{urlencode(params, doseq=True)}"
 
-    # Cache search results in search_workspaces
-    entries = tuple(
-        file_search_result_to_directory_entry(result) for result in results
-    )
+    # Cache search results in search_workspaces (keep as FileSearchResultState)
     next_state = replace(
         state,
         search_workspaces={
             **state.search_workspaces,
-            virtual_path: entries,
+            virtual_path: results,
         },
     )
 
