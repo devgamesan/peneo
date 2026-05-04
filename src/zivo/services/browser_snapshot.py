@@ -85,6 +85,7 @@ class BrowserSnapshotLoader(Protocol):
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
         preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
+        image_preview_mode: str = "auto",
     ) -> PaneState: ...
 
     def load_current_pane_snapshot(
@@ -101,6 +102,7 @@ class BrowserSnapshotLoader(Protocol):
         *,
         enable_text_preview: bool = True,
         enable_image_preview: bool = True,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> tuple[PaneState, PaneState]: ...
@@ -145,7 +147,10 @@ class LiveBrowserSnapshotLoader:
         compare=False,
     )
     _text_preview_cache: OrderedDict[
-        tuple[str, int, int, int, bool, bool, bool], "FilePreviewState"
+        tuple[
+            str, int, int, int, bool, bool, bool, bool, int, str
+        ],
+        "FilePreviewState",
     ] = field(
         default_factory=OrderedDict,
         init=False,
@@ -190,6 +195,7 @@ class LiveBrowserSnapshotLoader:
         *,
         show_hidden: bool = False,
         enable_image_preview: bool = True,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> BrowserSnapshot:
@@ -224,6 +230,7 @@ class LiveBrowserSnapshotLoader:
                 resolved_path,
                 resolved_cursor_path,
                 enable_image_preview=enable_image_preview,
+                image_preview_mode=image_preview_mode,
                 enable_pdf_preview=enable_pdf_preview,
                 enable_office_preview=enable_office_preview,
             ),
@@ -237,6 +244,7 @@ class LiveBrowserSnapshotLoader:
         preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
         enable_text_preview: bool = True,
         enable_image_preview: bool = True,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
         preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
@@ -288,6 +296,7 @@ class LiveBrowserSnapshotLoader:
             preview_max_bytes=preview_max_bytes,
             enable_text_preview=enable_text_preview,
             enable_image_preview=enable_image_preview,
+            image_preview_mode=image_preview_mode,
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
             preview_columns=preview_columns,
@@ -358,6 +367,7 @@ class LiveBrowserSnapshotLoader:
         *,
         enable_text_preview: bool = True,
         enable_image_preview: bool = True,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> tuple[PaneState, PaneState]:
@@ -393,6 +403,7 @@ class LiveBrowserSnapshotLoader:
             resolved_cursor_path,
             enable_text_preview=enable_text_preview,
             enable_image_preview=enable_image_preview,
+            image_preview_mode=image_preview_mode,
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
         )
@@ -550,16 +561,18 @@ class LiveBrowserSnapshotLoader:
         preview_max_bytes: int,
         enable_text_preview: bool,
         enable_image_preview: bool,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool,
         enable_office_preview: bool,
         preview_columns: int,
     ) -> "FilePreviewState":
-        if self.text_preview_cache_capacity <= 0:
+        if self.text_preview_cache_capacity <= 0 or image_preview_mode == "kitty":
             return _load_text_preview(
                 path,
                 preview_max_bytes=preview_max_bytes,
                 enable_text_preview=enable_text_preview,
                 enable_image_preview=enable_image_preview,
+                image_preview_mode=image_preview_mode,
                 enable_pdf_preview=enable_pdf_preview,
                 enable_office_preview=enable_office_preview,
                 document_preview_loader=self._resolve_document_preview_loader(),
@@ -574,6 +587,7 @@ class LiveBrowserSnapshotLoader:
             enable_pdf_preview,
             enable_office_preview,
             preview_columns,
+            image_preview_mode,
         )
         if isinstance(cache_key, FilePreviewState):
             return cache_key
@@ -585,6 +599,7 @@ class LiveBrowserSnapshotLoader:
             preview_max_bytes=preview_max_bytes,
             enable_text_preview=enable_text_preview,
             enable_image_preview=enable_image_preview,
+            image_preview_mode=image_preview_mode,
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
             document_preview_loader=self._resolve_document_preview_loader(),
@@ -616,7 +631,7 @@ class LiveBrowserSnapshotLoader:
 
     def _get_cached_text_preview(
         self,
-        cache_key: tuple[str, int, int, int, bool, bool, bool, bool, int],
+        cache_key: tuple[str, int, int, int, bool, bool, bool, bool, int, str],
     ) -> "FilePreviewState | None":
         with self._text_preview_cache_lock:
             preview = self._text_preview_cache.get(cache_key)
@@ -627,7 +642,7 @@ class LiveBrowserSnapshotLoader:
 
     def _store_cached_text_preview(
         self,
-        cache_key: tuple[str, int, int, int, bool, bool, bool, bool, int],
+        cache_key: tuple[str, int, int, int, bool, bool, bool, bool, int, str],
         preview: "FilePreviewState",
     ) -> None:
         with self._text_preview_cache_lock:
@@ -723,6 +738,7 @@ class FakeBrowserSnapshotLoader:
         preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
         enable_text_preview: bool = True,
         enable_image_preview: bool = True,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
         preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
@@ -760,6 +776,8 @@ class FakeBrowserSnapshotLoader:
         current_pane: PaneState,
         *,
         enable_text_preview: bool = True,
+        enable_image_preview: bool = True,
+        image_preview_mode: str = "auto",
         enable_pdf_preview: bool = True,
         enable_office_preview: bool = True,
     ) -> tuple[PaneState, PaneState]:
