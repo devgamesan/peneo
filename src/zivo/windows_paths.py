@@ -264,13 +264,15 @@ def file_search_result_to_directory_entry(result: object) -> object:
         result: A FileSearchResultState instance
 
     Returns:
-        A DirectoryEntryState with path, name, and kind
+        A DirectoryEntryState with path, name, kind, size_bytes, and modified_at
 
     Raises:
         TypeError: If result is not a FileSearchResultState
     """
+    from datetime import datetime
     from pathlib import Path
 
+    from zivo.adapters.filesystem_attributes import resolve_owner_group
     from zivo.models.shell_data import EntryKind
 
     # Import here to avoid circular dependency
@@ -278,9 +280,40 @@ def file_search_result_to_directory_entry(result: object) -> object:
 
     if isinstance(result, FileSearchResultState):
         kind: EntryKind = "dir" if result.entry_type == "directory" else "file"
-        return DirectoryEntryState(
-            path=result.path,
-            name=Path(result.path).name,
-            kind=kind,
-        )
+        path = Path(result.path)
+
+        # ファイルのメタデータを取得
+        try:
+            stat_result = path.stat()
+            size_bytes = None if kind == "dir" else stat_result.st_size
+            modified_at = datetime.fromtimestamp(stat_result.st_mtime)
+            permissions_mode = stat_result.st_mode
+            hidden = path.name.startswith(".")
+            symlink = path.is_symlink()
+
+            # オーナー/グループ情報を取得
+            owner, group = resolve_owner_group(stat_result)
+
+            return DirectoryEntryState(
+                path=result.path,
+                name=path.name,
+                kind=kind,
+                size_bytes=size_bytes,
+                modified_at=modified_at,
+                hidden=hidden,
+                permissions_mode=permissions_mode,
+                owner=owner,
+                group=group,
+                symlink=symlink,
+            )
+        except (FileNotFoundError, PermissionError, OSError):
+            # ファイルが見つからない、アクセス権限がない、その他のエラーの場合
+            # 基本的な情報のみを含む DirectoryEntryState を返す
+            return DirectoryEntryState(
+                path=result.path,
+                name=path.name,
+                kind=kind,
+                hidden=path.name.startswith("."),
+            )
+
     raise TypeError(f"Expected FileSearchResultState, got {type(result)}")
