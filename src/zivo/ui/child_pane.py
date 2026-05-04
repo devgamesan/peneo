@@ -203,6 +203,11 @@ class ChildPane(Vertical):
                 widget.update(self._render_preview(self._state, render_width))
                 self._last_render_width = render_width
                 self._last_render_signature = render_signature
+                if self._state.preview_kind == "kitty" and self._state.preview_content:
+                    captured = self._state.preview_content
+                    self.call_after_refresh(
+                        lambda c=captured: self._write_kitty_content(c)
+                    )
                 return True
 
             widget = self._list_widget()
@@ -263,6 +268,9 @@ class ChildPane(Vertical):
         if state.preview_kind == "image":
             return _render_image_preview_text(state.preview_content)
 
+        if state.preview_kind == "kitty":
+            return _render_kitty_preview_text(state.preview_content)
+
         lexer = "text"
         if state.preview_path is not None:
             lexer = _guess_preview_lexer(state.preview_path)
@@ -289,6 +297,39 @@ class ChildPane(Vertical):
         self._last_render_width = 0
         self._last_render_signature = None
         self._refresh_rendered_content(force=True)
+
+    def _write_kitty_content(self, content: str) -> None:
+        """Write Kitty graphics protocol escape sequence to the terminal.
+
+        This runs after the current Textual frame has been flushed so
+        the raw bytes reach the terminal without being split by the
+        cell-based rendering pipeline.
+        """
+        if not content:
+            return
+        try:
+            import os
+
+            scroll = self._preview_scroll_widget()
+            region = scroll.region
+            if region.x < 0 or region.y < 0:
+                return
+            ansi_pos = f"\033[{region.y + 1};{region.x + 1}H"
+            delete_old = "\033_Ga=d,d=A\033\\"
+            payload = (delete_old + ansi_pos + content).encode("utf-8")
+            try:
+                tty_fd = os.open("/dev/tty", os.O_WRONLY)
+                try:
+                    os.write(tty_fd, payload)
+                finally:
+                    os.close(tty_fd)
+            except OSError:
+                import sys
+
+                sys.stdout.buffer.write(payload)
+                sys.stdout.buffer.flush()
+        except Exception:
+            pass
 
     def scroll_preview(self, delta: int) -> None:
         """Scroll the preview content by *delta* lines (negative = up)."""
@@ -329,6 +370,15 @@ class ChildPane(Vertical):
                 state.syntax_theme,
             )
         return ("list", state.entries)
+
+
+def _render_kitty_preview_text(content: str) -> Text:
+    """Kitty graphics protocol escape sequences cannot be split across
+    individual grid cells by Rich/Textual.  The actual bytes are written
+    to the terminal in :meth:`ChildPane._write_kitty_content` after
+    each render cycle; this placeholder prevents the preview widget
+    from showing anything else."""
+    return Text("", no_wrap=True, overflow="ignore", end="")
 
 
 def _render_image_preview_text(content: str) -> Text:
