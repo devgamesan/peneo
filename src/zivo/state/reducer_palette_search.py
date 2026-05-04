@@ -1011,7 +1011,6 @@ def handle_open_search_workspace(
     """Open search results as a virtual workspace."""
     from urllib.parse import quote, urlencode
 
-    from zivo.windows_paths import file_search_result_to_directory_entry
 
     # Get search results
     results = state.command_palette.file_search.results

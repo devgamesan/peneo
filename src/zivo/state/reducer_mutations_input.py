@@ -45,8 +45,8 @@ from .reducer_common import (
     run_zip_compress_prepare_request,
     validate_pending_input,
 )
-from .reducer_palette_shared import notify
 from .reducer_mutations_common import MutationHandler
+from .reducer_palette_shared import notify
 
 
 def _handle_begin_extract_archive_input(state, action, reduce_state):
