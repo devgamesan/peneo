@@ -1,6 +1,5 @@
 """Textual UI components for zivo."""
 
-from .about_dialog import AboutDialog
 from .attribute_dialog import AttributeDialog
 from .command_palette import CommandPalette
 from .config_dialog import ConfigDialog
@@ -16,7 +15,6 @@ from .summary_bar import SummaryBar
 from .tab_bar import TabBar
 
 __all__ = [
-    "AboutDialog",
     "AttributeDialog",
     "CommandPalette",
     "ConfigDialog",

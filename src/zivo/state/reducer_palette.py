@@ -404,7 +404,12 @@ def _handle_dismiss_about_dialog(
     reduce_state: ReducerFn,
 ) -> ReduceResult:
     del action, reduce_state
-    return finalize(replace(state, ui_mode="BROWSING"))
+    return finalize(
+        replace(
+            state,
+            ui_mode="BROWSING",
+        )
+    )
 
 
 def _handle_show_about(

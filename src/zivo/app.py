@@ -94,7 +94,6 @@ from zivo.state.actions import (
     SetTransferCursorPath,
 )
 from zivo.ui import (
-    AboutDialog,
     AttributeDialog,
     ChildPane,
     CommandPalette,
@@ -267,11 +266,6 @@ class zivoApp(App[None]):
         yield Container(
             ConflictDialog(shell.conflict_dialog, id="conflict-dialog"),
             id="conflict-dialog-layer",
-            classes="overlay-layer dialog-layer",
-        )
-        yield Container(
-            AboutDialog(shell.about_dialog, id="about-dialog"),
-            id="about-dialog-layer",
             classes="overlay-layer dialog-layer",
         )
         yield Container(

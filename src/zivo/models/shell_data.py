@@ -204,13 +204,6 @@ class ConflictDialogState:
 
 
 @dataclass(frozen=True)
-class AboutDialogState:
-    title: str
-    lines: tuple[str, ...]
-    options: tuple[str, ...]
-
-
-@dataclass(frozen=True)
 class AttributeDialogState:
     """Display data for the read-only attribute dialog."""
 
@@ -274,7 +267,6 @@ class ThreePaneShellData:
     config_dialog: ConfigDialogState | None = None
     shell_command_dialog: ShellCommandDialogState | None = None
     input_dialog: InputDialogState | None = None
-    about_dialog: AboutDialogState | None = None
     layout_mode: Literal["browser", "transfer"] = "browser"
     transfer_left: TransferPaneViewState | None = None
     transfer_right: TransferPaneViewState | None = None
