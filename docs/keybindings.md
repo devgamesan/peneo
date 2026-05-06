@@ -127,6 +127,7 @@ You can open an external terminal directly from zivo. Press `t` to suspend zivo 
 | `Enter` | Open selected result |
 | `Ctrl+e` | Open selected result in editor |
 | `Ctrl+o` | Open selected result in GUI editor |
+| `Ctrl+x` | Export grep results to file (Single Line / Context / JSON) |
 | `Esc` | Close search |
 
 **Note**: In search results mode, use arrow keys or `Ctrl+j`/`Ctrl+k` to navigate. `j`/`k` keys are used for typing the search query.
