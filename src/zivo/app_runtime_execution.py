@@ -23,6 +23,7 @@ from zivo.state import (
     RunCustomActionEffect,
     RunExternalLaunchEffect,
     RunFileMutationEffect,
+    RunGrepExportEffect,
     RunShellCommandEffect,
     RunUndoEffect,
     RunZipCompressEffect,
@@ -486,6 +487,27 @@ def schedule_external_launch_effect(app: Any, effect: RunExternalLaunchEffect) -
         app.call_next(run_foreground_external_launch, app, effect)
         return
     schedule_external_launch(app, effect)
+
+
+def schedule_grep_export(app: Any, effect: RunGrepExportEffect) -> None:
+    run_worker(
+        app,
+        effect,
+        partial(
+            app._grep_export_service.export,
+            output_path=effect.output_path,
+            format=effect.format,
+            context_lines=effect.context_lines,
+            results=effect.results,
+            search_query=effect.search_query,
+        ),
+        WorkerSpec(
+            name=f"grep-export:{effect.request_id}",
+            group="grep-export",
+            description=effect.output_path,
+            exclusive=True,
+        ),
+    )
 
 
 def schedule_exit_current_path(app: Any, effect: ExitCurrentPathEffect) -> None:

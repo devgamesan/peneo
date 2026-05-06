@@ -3,6 +3,7 @@
 import os
 
 from .actions import (
+    BeginGrepExport,
     CancelCommandPalette,
     CycleFileSearchField,
     CycleFindReplaceField,
@@ -300,6 +301,16 @@ def dispatch_command_palette_input(
         if state.command_palette.source == "file_search":
             return supported(OpenFindResultInGuiEditor())
 
+    if key == "ctrl+x" and state.command_palette is not None:
+        if state.command_palette.source in {
+            "grep_search",
+            "replace_in_grep_files",
+            "grep_replace_selected",
+            "selected_files_grep",
+        }:
+            return supported(BeginGrepExport())
+        return warn("No grep results to export")
+
     if character and character.isprintable():
         if palette_source == "file_search":
             if (
@@ -360,13 +371,22 @@ def dispatch_command_palette_input(
 
     if search_palette:
         if state.command_palette is not None and state.command_palette.source == "grep_search":
-            return warn("Use Tab/Shift+Tab, type, arrows, Enter, Ctrl+e, or Esc")
+            return warn(
+                "Use Tab/Shift+Tab, type, arrows, Enter, "
+                "Ctrl+e editor, Ctrl+x export, or Esc"
+            )
         if (
             state.command_palette is not None
             and state.command_palette.source == "selected_files_grep"
         ):
-            return warn("Use arrows, type to search, Enter, Ctrl+e for editor, or Esc")
-        return warn("Use arrows, type to search, Enter, Ctrl+e for editor, or Esc")
+            return warn(
+                "Use arrows, type to search, Enter, "
+                "Ctrl+e editor, Ctrl+x export, or Esc"
+            )
+        return warn(
+            "Use arrows, type to search, Enter, "
+            "Ctrl+e editor, Ctrl+x export, or Esc"
+        )
 
     if palette_source == "replace_text":
         return warn("Use Tab/Shift+Tab, type, arrows or Ctrl+j/k, Enter to apply, or Esc")

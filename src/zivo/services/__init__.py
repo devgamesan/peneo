@@ -70,6 +70,11 @@ from .file_search import (
     InvalidFileSearchQueryError,
     LiveFileSearchService,
 )
+from .grep_export import (
+    FakeGrepExportService,
+    GrepExportService,
+    LiveGrepExportService,
+)
 from .grep_search import (
     FakeGrepSearchService,
     GrepSearchService,
@@ -123,7 +128,9 @@ __all__ = [
     "DirectorySizeService",
     "ExternalLaunchService",
     "FakeZipCompressService",
+    "FakeGrepExportService",
     "FileSearchService",
+    "GrepExportService",
     "GrepSearchService",
     "FakeArchiveExtractService",
     "FakeArchiveListService",
@@ -146,6 +153,7 @@ __all__ = [
     "LiveAttributeInspectionService",
     "LiveExternalLaunchService",
     "LiveFileSearchService",
+    "LiveGrepExportService",
     "LiveGrepSearchService",
     "LiveFileMutationService",
     "LiveDirectorySizeService",
