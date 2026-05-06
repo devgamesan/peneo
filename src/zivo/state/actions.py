@@ -185,6 +185,7 @@ from .actions_palette import (
     BeginFileSearch,
     BeginFindAndReplace,
     BeginGoToPath,
+    BeginGrepExport,
     BeginGrepReplace,
     BeginGrepReplaceSelected,
     BeginGrepSearch,
@@ -192,6 +193,7 @@ from .actions_palette import (
     BeginSelectedFilesGrep,
     BeginTextReplace,
     CancelCommandPalette,
+    CancelGrepExport,
     CycleFileSearchField,
     CycleFindReplaceField,
     CycleGrepReplaceField,
@@ -201,6 +203,8 @@ from .actions_palette import (
     CycleSelectedFilesGrepField,
     FileSearchCompleted,
     FileSearchFailed,
+    GrepExportCompleted,
+    GrepExportFailed,
     GrepSearchCompleted,
     GrepSearchFailed,
     MoveCommandPaletteCursor,
@@ -208,15 +212,19 @@ from .actions_palette import (
     OpenFindResultInGuiEditor,
     OpenGrepResultInEditor,
     OpenGrepResultInGuiEditor,
+    OpenSearchWorkspace,
     SelectedFilesGrepKeywordChanged,
     SetCommandPaletteQuery,
     SetFileSearchTarget,
     SetFindReplaceField,
+    SetGrepExportFilename,
+    SetGrepExportFormat,
     SetGrepReplaceField,
     SetGrepReplaceSelectedField,
     SetGrepSearchField,
     SetReplaceField,
     SubmitCommandPalette,
+    SubmitGrepExport,
     TextReplaceApplied,
     TextReplaceApplyFailed,
     TextReplacePreviewCompleted,
@@ -282,6 +290,13 @@ Action = (
     | SetTerminalHeight
     | BeginFileSearch
     | BeginGrepSearch
+    | BeginGrepExport
+    | CancelGrepExport
+    | SetGrepExportFormat
+    | SetGrepExportFilename
+    | SubmitGrepExport
+    | GrepExportCompleted
+    | GrepExportFailed
     | BeginHistorySearch
     | BeginBookmarkSearch
     | BeginGoToPath
@@ -321,6 +336,7 @@ Action = (
     | OpenFindResultInEditor
     | OpenGrepResultInGuiEditor
     | OpenFindResultInGuiEditor
+    | OpenSearchWorkspace
     | BeginFilterInput
     | ConfirmFilterInput
     | CancelFilterInput

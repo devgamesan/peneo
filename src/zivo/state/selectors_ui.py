@@ -9,6 +9,7 @@ from zivo.models import (
     CommandPaletteViewState,
     ConfigDialogState,
     ConflictDialogState,
+    GrepExportDialogViewState,
     HelpBarState,
     InputBarState,
     InputDialogState,
@@ -160,22 +161,8 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             return HelpBarState(
                 (
                     "type text / tab fields / ↑↓ or Ctrl+j/k select | "
-                    "enter jump | Ctrl+e edit | Ctrl+o GUI | esc cancel",
-                )
-            )
-        if (
-            state.command_palette is not None
-            and state.command_palette.source in {
-                "replace_text",
-                "replace_in_found_files",
-                "replace_in_grep_files",
-                "grep_replace_selected",
-            }
-        ):
-            return HelpBarState(
-                (
-                    "type text / tab fields / ↑↓ or Ctrl+j/k preview | "
-                    "Shift+↑↓ scroll preview | enter apply | esc cancel",
+                    "enter jump | Ctrl+e edit | Ctrl+o GUI | "
+                    "Ctrl+x export | esc cancel",
                 )
             )
         if (
@@ -185,7 +172,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             return HelpBarState(
                 (
                     "type keyword / ↑↓ or Ctrl+j/k select | enter jump | "
-                    "Ctrl+e edit | Ctrl+o GUI | esc cancel",
+                    "Ctrl+e edit | Ctrl+o GUI | Ctrl+x export | esc cancel",
                 )
             )
         if state.command_palette is not None and state.command_palette.source == "history":
@@ -262,6 +249,21 @@ def select_input_bar_state(state: AppState) -> InputBarState | None:
         )
 
     return None
+
+
+def select_grep_export_dialog_state(state: AppState) -> GrepExportDialogViewState | None:
+    """Return dialog content when the app is in grep export mode."""
+
+    if state.ui_mode != "GREP_EXPORT" or state.grep_export_dialog is None:
+        return None
+    dialog = state.grep_export_dialog
+    return GrepExportDialogViewState(
+        filename=dialog.filename,
+        format=dialog.format,
+        context_lines=dialog.context_lines,
+        cursor_pos=dialog.cursor_pos,
+        options=("[f] Format", "[Enter] Export", "[Esc] Cancel"),
+    )
 
 
 def select_input_dialog_state(state: AppState) -> InputDialogState | None:

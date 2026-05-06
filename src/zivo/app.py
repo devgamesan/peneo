@@ -44,6 +44,7 @@ from zivo.services import (
     ExternalLaunchService,
     FileMutationService,
     FileSearchService,
+    GrepExportService,
     GrepSearchService,
     LiveArchiveExtractService,
     LiveAttributeInspectionService,
@@ -55,6 +56,7 @@ from zivo.services import (
     LiveExternalLaunchService,
     LiveFileMutationService,
     LiveFileSearchService,
+    LiveGrepExportService,
     LiveGrepSearchService,
     LiveShellCommandService,
     LiveTextReplaceService,
@@ -100,6 +102,7 @@ from zivo.ui import (
     ConfigDialog,
     ConflictDialog,
     CurrentPathBar,
+    GrepExportDialog,
     HelpBar,
     InputDialog,
     MainPane,
@@ -182,6 +185,7 @@ class zivoApp(App[None]):
         external_launch_service: ExternalLaunchService | None = None,
         file_search_service: FileSearchService | None = None,
         grep_search_service: GrepSearchService | None = None,
+        grep_export_service: GrepExportService | None = None,
         text_replace_service: TextReplaceService | None = None,
         shell_command_service: ShellCommandService | None = None,
         custom_action_service: CustomActionService | None = None,
@@ -227,6 +231,7 @@ class zivoApp(App[None]):
         )
         self._file_search_service = file_search_service or LiveFileSearchService()
         self._grep_search_service = grep_search_service or LiveGrepSearchService()
+        self._grep_export_service = grep_export_service or LiveGrepExportService()
         self._text_replace_service = text_replace_service or LiveTextReplaceService()
         self._shell_command_service = shell_command_service or LiveShellCommandService()
         self._custom_action_service = custom_action_service or LiveCustomActionService()
@@ -286,6 +291,11 @@ class zivoApp(App[None]):
         yield Container(
             InputDialog(shell.input_dialog, id="input-dialog"),
             id="input-dialog-layer",
+            classes="overlay-layer dialog-layer",
+        )
+        yield Container(
+            GrepExportDialog(shell.grep_export_dialog, id="grep-export-dialog"),
+            id="grep-export-dialog-layer",
             classes="overlay-layer dialog-layer",
         )
         yield HelpBar(shell.help, id="help-bar")

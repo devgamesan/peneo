@@ -18,7 +18,7 @@ from zivo.models import (
 )
 from zivo.models.config import ImagePreviewMode
 
-from .models import AppState, GrepSearchResultState, PaneState, TransferPaneId
+from .models import AppState, GrepExportFormat, GrepSearchResultState, PaneState, TransferPaneId
 
 
 @dataclass(frozen=True)
@@ -235,6 +235,18 @@ class RunCustomActionEffect:
 
 
 @dataclass(frozen=True)
+class RunGrepExportEffect:
+    """Execute grep results export outside the reducer."""
+
+    request_id: int
+    output_path: str
+    format: GrepExportFormat
+    context_lines: int
+    results: tuple[GrepSearchResultState, ...]
+    search_query: str = ""
+
+
+@dataclass(frozen=True)
 class ExitCurrentPathEffect:
     """Exit the application and return the current path."""
 
@@ -259,6 +271,7 @@ Effect = (
     | RunExternalLaunchEffect
     | RunFileSearchEffect
     | RunGrepSearchEffect
+    | RunGrepExportEffect
     | RunTextReplacePreviewEffect
     | RunTextReplaceApplyEffect
     | RunConfigSaveEffect

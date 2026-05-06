@@ -37,7 +37,9 @@ UiMode = Literal[
     "CONFIG",
     "SHELL",
     "BUSY",
+    "GREP_EXPORT",
 ]
+GrepExportFormat = Literal["single_line", "context", "json"]
 SortField = Literal["name", "modified", "size"]
 ClipboardMode = Literal["copy", "cut", "none"]
 NameConflictKind = Literal["rename", "create_file", "create_dir"]
@@ -367,6 +369,16 @@ class FileSearchResultState:
 
 
 @dataclass(frozen=True)
+class GrepExportDialogState:
+    """Transient grep export dialog state."""
+
+    filename: str = "grep_results.txt"
+    format: GrepExportFormat = "single_line"
+    context_lines: int = 3
+    cursor_pos: int = 0
+
+
+@dataclass(frozen=True)
 class GrepSearchResultState:
     """A single grep result shown in the command palette."""
 
@@ -611,6 +623,7 @@ class AppState:
     custom_action_confirmation: CustomActionConfirmationState | None = None
     attribute_inspection: AttributeInspectionState | None = None
     config_editor: ConfigEditorState | None = None
+    grep_export_dialog: GrepExportDialogState | None = None
     shell_command: ShellCommandState | None = None
     post_reload_notification: NotificationState | None = None
     directory_size_cache: tuple[DirectorySizeCacheEntry, ...] = ()
@@ -632,6 +645,7 @@ class AppState:
     pending_attribute_inspection_request_id: int | None = None
     pending_config_save_request_id: int | None = None
     pending_shell_command_request_id: int | None = None
+    pending_grep_export_request_id: int | None = None
     pending_custom_action_request_id: int | None = None
     undo_stack: tuple[UndoEntry, ...] = ()
     pending_undo_entry: UndoEntry | None = None

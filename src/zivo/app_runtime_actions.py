@@ -40,6 +40,7 @@ from zivo.state import (
     RunExternalLaunchEffect,
     RunFileMutationEffect,
     RunFileSearchEffect,
+    RunGrepExportEffect,
     RunGrepSearchEffect,
     RunShellCommandEffect,
     RunTextReplaceApplyEffect,
@@ -75,6 +76,8 @@ from zivo.state.actions import (
     FileMutationFailed,
     FileSearchCompleted,
     FileSearchFailed,
+    GrepExportCompleted,
+    GrepExportFailed,
     GrepSearchCompleted,
     GrepSearchFailed,
     ParentChildSnapshotFailed,
@@ -449,6 +452,19 @@ failed_grep_search = make_failed_handler(
         "invalid_query": lambda _e, err, _msg: isinstance(err, InvalidGrepSearchQueryError),
     },
 )
+
+
+def complete_grep_export(effect: RunGrepExportEffect, result: object) -> tuple[Any, ...]:
+    return (
+        GrepExportCompleted(
+            request_id=effect.request_id,
+            destination_path=str(result),
+            exported_results=len(effect.results),
+        ),
+    )
+
+
+failed_grep_export = make_failed_handler(GrepExportFailed)
 failed_text_replace_preview = make_failed_handler(
     TextReplacePreviewFailed,
     extra_field_builders={
@@ -483,6 +499,7 @@ COMPLETE_ACTION_HANDLERS: tuple[tuple[type[Any], CompleteActionHandler], ...] = 
     (RunCustomActionEffect, complete_custom_action),
     (RunFileSearchEffect, complete_file_search),
     (RunGrepSearchEffect, complete_grep_search),
+    (RunGrepExportEffect, complete_grep_export),
     (RunTextReplacePreviewEffect, complete_text_replace_preview),
     (RunTextReplaceApplyEffect, complete_text_replace_apply),
 )
@@ -508,6 +525,7 @@ FAILED_ACTION_HANDLERS: tuple[tuple[type[Any], FailureActionHandler], ...] = (
     (RunUndoEffect, failed_undo),
     (RunFileSearchEffect, failed_file_search),
     (RunGrepSearchEffect, failed_grep_search),
+    (RunGrepExportEffect, failed_grep_export),
     (RunTextReplacePreviewEffect, failed_text_replace_preview),
     (RunTextReplaceApplyEffect, failed_text_replace_apply),
 )

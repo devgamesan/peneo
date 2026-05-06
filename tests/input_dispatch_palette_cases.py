@@ -363,3 +363,68 @@ def test_palette_backspace_updates_rff_field() -> None:
         SetNotification(None),
         SetFindReplaceField(field="find", value="tod"),
     )
+
+
+def test_palette_ctrl_x_opens_grep_export_when_grep_search_results() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            grep_search=GrepSearchPaletteState(
+                keyword="hello",
+                results=(
+                    GrepSearchResultState(
+                        path="/root/src/main.py",
+                        display_path="src/main.py",
+                        line_number=10,
+                        line_text="def hello():",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="ctrl+x")
+
+    assert actions == (SetNotification(None), BeginGrepExport())
+
+
+def test_palette_ctrl_x_dispatches_begin_for_grep_source() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            grep_search=GrepSearchPaletteState(keyword="hello"),
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="ctrl+x")
+
+    assert actions == (SetNotification(None), BeginGrepExport())
+
+
+def test_palette_ctrl_x_works_for_sfg_source() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="selected_files_grep",
+            sfg=SfgPaletteState(
+                keyword="test",
+                results=(
+                    GrepSearchResultState(
+                        path="/root/src/test.py",
+                        display_path="src/test.py",
+                        line_number=5,
+                        line_text="def test():",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="ctrl+x")
+
+    assert actions == (SetNotification(None), BeginGrepExport())
