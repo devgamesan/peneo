@@ -24,6 +24,7 @@ from .pane_rendering import (
 from .side_pane import SidePane
 
 _SGR_SEQUENCE_RE = re.compile(r"\x1b\[([0-9;]*)m")
+_KITTY_DELETE_ALL_IMAGES = "\033_Ga=d,d=A\033\\"
 
 
 class ChildPane(Vertical):
@@ -171,7 +172,12 @@ class ChildPane(Vertical):
             previous_state
         )
         mode_changed = state.is_preview != previous_state.is_preview
+        clear_previous_kitty_preview = self._should_clear_previous_kitty_preview(
+            previous_state, state
+        )
         self._state = state
+        if clear_previous_kitty_preview:
+            self.call_after_refresh(self._clear_kitty_content)
         if state.title != previous_state.title:
             self.query_one(Label).update(state.title)
         list_widget = self._list_widget()
@@ -188,8 +194,15 @@ class ChildPane(Vertical):
         if preview_identity_changed:
             object.__setattr__(self, "_chafa_cached_content", None)
             object.__setattr__(self, "_last_chafa_width", 0)
+            object.__setattr__(self, "_kitty_cached", None)
+            object.__setattr__(self, "_last_kitty_path", None)
+            object.__setattr__(self, "_last_kitty_width", None)
             if state.is_preview:
                 self.call_after_refresh(lambda: scroll_widget.scroll_home(animate=False))
+
+    def on_unmount(self) -> None:
+        if self._state.is_preview and self._state.preview_kind == "kitty":
+            self._clear_kitty_content()
 
     def _refresh_rendered_content(self, *, force: bool = False) -> bool:
         render_signature = self._render_signature(self._state)
@@ -347,7 +360,6 @@ class ChildPane(Vertical):
         image always fills the pane without overflowing the terminal.
         """
         try:
-            import os
             from pathlib import Path as FsPath
 
             from zivo.services.previews.core import (
@@ -369,8 +381,9 @@ class ChildPane(Vertical):
 
             path = self._state.preview_path
             last_width = getattr(self, "_last_kitty_width", None)
+            last_path = getattr(self, "_last_kitty_path", None)
 
-            if pane_width != last_width and path:
+            if path == last_path and pane_width != last_width and path:
                 loader = ChafaImagePreviewLoader()
                 result = loader.load_preview(
                     FsPath(path),
@@ -383,29 +396,56 @@ class ChildPane(Vertical):
                 object.__setattr__(self, "_last_kitty_width", pane_width)
             else:
                 cached = getattr(self, "_kitty_cached", None)
-                if cached is not None:
+                if path == last_path and cached is not None:
                     content = cached
 
             if not content:
                 return
 
+            object.__setattr__(self, "_kitty_cached", content)
+            object.__setattr__(self, "_last_kitty_path", path)
+            object.__setattr__(self, "_last_kitty_width", pane_width)
+
             row = region.y + 1
             col = region.x + 1
-            write = f"\033_Ga=d,d=A\033\\\033[{row};{col}H{content}"
-            payload = write.encode("utf-8")
-            try:
-                tty_fd = os.open("/dev/tty", os.O_WRONLY)
-                try:
-                    os.write(tty_fd, payload)
-                finally:
-                    os.close(tty_fd)
-            except OSError:
-                import sys
-
-                sys.stdout.buffer.write(payload)
-                sys.stdout.buffer.flush()
+            write = f"{_KITTY_DELETE_ALL_IMAGES}\033[{row};{col}H{content}"
+            self._write_terminal_content(write)
         except Exception:
             pass
+
+    @staticmethod
+    def _should_clear_previous_kitty_preview(
+        previous_state: ChildPaneViewState,
+        next_state: ChildPaneViewState,
+    ) -> bool:
+        if not previous_state.is_preview or previous_state.preview_kind != "kitty":
+            return False
+        return (
+            not next_state.is_preview
+            or next_state.preview_kind != "kitty"
+            or next_state.preview_path != previous_state.preview_path
+            or next_state.preview_content != previous_state.preview_content
+        )
+
+    def _clear_kitty_content(self) -> None:
+        self._write_terminal_content(_KITTY_DELETE_ALL_IMAGES)
+
+    @staticmethod
+    def _write_terminal_content(content: str) -> None:
+        import os
+
+        payload = content.encode("utf-8")
+        try:
+            tty_fd = os.open("/dev/tty", os.O_WRONLY)
+            try:
+                os.write(tty_fd, payload)
+            finally:
+                os.close(tty_fd)
+        except OSError:
+            import sys
+
+            sys.stdout.buffer.write(payload)
+            sys.stdout.buffer.flush()
 
     def scroll_preview(self, delta: int) -> None:
         """Scroll the preview content by *delta* lines (negative = up)."""
