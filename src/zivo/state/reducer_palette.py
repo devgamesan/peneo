@@ -14,6 +14,7 @@ from .actions import (
     BeginFileSearch,
     BeginFindAndReplace,
     BeginGoToPath,
+    BeginGrepExport,
     BeginGrepReplace,
     BeginGrepReplaceSelected,
     BeginGrepSearch,
@@ -21,6 +22,7 @@ from .actions import (
     BeginSelectedFilesGrep,
     BeginTextReplace,
     CancelCommandPalette,
+    CancelGrepExport,
     CycleFileSearchField,
     CycleFindReplaceField,
     CycleGrepReplaceField,
@@ -32,6 +34,8 @@ from .actions import (
     DismissAttributeDialog,
     FileSearchCompleted,
     FileSearchFailed,
+    GrepExportCompleted,
+    GrepExportFailed,
     GrepSearchCompleted,
     GrepSearchFailed,
     MoveCommandPaletteCursor,
@@ -43,6 +47,8 @@ from .actions import (
     SetCommandPaletteQuery,
     SetFileSearchTarget,
     SetFindReplaceField,
+    SetGrepExportFilename,
+    SetGrepExportFormat,
     SetGrepReplaceField,
     SetGrepReplaceSelectedField,
     SetGrepSearchField,
@@ -50,6 +56,7 @@ from .actions import (
     ShowAbout,
     ShowAttributes,
     SubmitCommandPalette,
+    SubmitGrepExport,
     TextReplaceApplied,
     TextReplaceApplyFailed,
     TextReplacePreviewCompleted,
@@ -66,6 +73,15 @@ from .reducer_common import (
 from .reducer_palette_commands import (
     handle_show_attributes_command,
     handle_submit_commands_palette,
+)
+from .reducer_palette_export import (
+    handle_begin_grep_export,
+    handle_cancel_grep_export,
+    handle_grep_export_completed,
+    handle_grep_export_failed,
+    handle_set_grep_export_filename,
+    handle_set_grep_export_format,
+    handle_submit_grep_export,
 )
 from .reducer_palette_navigation import (
     handle_begin_bookmark_search,
@@ -547,6 +563,13 @@ _PALETTE_HANDLERS: dict[type[Action], _PaletteHandler] = {
     OpenFindResultInEditor: lambda s, a, r: handle_open_find_result_in_editor(s, r),
     OpenGrepResultInGuiEditor: lambda s, a, r: handle_open_grep_result_in_gui_editor(s, r),
     OpenFindResultInGuiEditor: lambda s, a, r: handle_open_find_result_in_gui_editor(s, r),
+    BeginGrepExport: lambda s, a, r: handle_begin_grep_export(s, a),
+    CancelGrepExport: lambda s, a, r: handle_cancel_grep_export(s, a),
+    SetGrepExportFormat: lambda s, a, r: handle_set_grep_export_format(s, a),
+    SetGrepExportFilename: lambda s, a, r: handle_set_grep_export_filename(s, a),
+    SubmitGrepExport: lambda s, a, r: handle_submit_grep_export(s, a),
+    GrepExportCompleted: lambda s, a, r: handle_grep_export_completed(s, a),
+    GrepExportFailed: lambda s, a, r: handle_grep_export_failed(s, a),
 }
 
 

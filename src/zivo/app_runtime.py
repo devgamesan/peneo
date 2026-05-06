@@ -21,6 +21,7 @@ from zivo.app_runtime_execution import (
     schedule_exit_current_path,
     schedule_external_launch_effect,
     schedule_file_mutation,
+    schedule_grep_export,
     schedule_shell_command,
     schedule_undo,
     schedule_zip_compress,
@@ -71,6 +72,7 @@ from zivo.state import (
     RunExternalLaunchEffect,
     RunFileMutationEffect,
     RunFileSearchEffect,
+    RunGrepExportEffect,
     RunGrepSearchEffect,
     RunShellCommandEffect,
     RunTextReplaceApplyEffect,
@@ -174,6 +176,7 @@ EFFECT_SCHEDULERS = (
     (RunShellCommandEffect, schedule_shell_command),
     (RunFileSearchEffect, schedule_file_search),
     (RunGrepSearchEffect, schedule_grep_search),
+    (RunGrepExportEffect, schedule_grep_export),
     (RunTextReplacePreviewEffect, schedule_text_replace_preview),
     (RunTextReplaceApplyEffect, schedule_text_replace_apply),
 )
