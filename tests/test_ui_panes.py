@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
 from rich.style import Style
 from rich.text import Text
 from textual.widgets import DataTable
@@ -529,3 +530,113 @@ def test_child_pane_refresh_rendered_content_skips_duplicate_preview_render(
     assert pane._refresh_rendered_content() is True
     assert pane._refresh_rendered_content() is True
     assert preview_widget.update.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_child_pane_clears_kitty_preview_when_leaving_preview() -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview",
+            preview_path="/tmp/image.png",
+            preview_content="\033_Gf=100;AAAA\033\\",
+            preview_kind="kitty",
+        ),
+        id="child-pane",
+    )
+    list_widget = SimpleNamespace(display=False)
+    scroll_widget = SimpleNamespace(display=True, scroll_home=Mock())
+    writer = Mock()
+    pane._list_widget = lambda: list_widget  # type: ignore[method-assign]
+    pane._preview_scroll_widget = lambda: scroll_widget  # type: ignore[method-assign]
+    pane._refresh_rendered_content = Mock(return_value=True)  # type: ignore[method-assign]
+    pane._write_terminal_content = writer  # type: ignore[method-assign]
+    pane.call_after_refresh = lambda callback: callback()  # type: ignore[method-assign]
+
+    await pane.set_state(ChildPaneViewState(title="Preview"))
+
+    writer.assert_called_once_with("\033_Ga=d,d=A\033\\")
+    assert list_widget.display is True
+    assert scroll_widget.display is False
+
+
+@pytest.mark.asyncio
+async def test_child_pane_keeps_current_kitty_preview_without_extra_clear() -> None:
+    state = ChildPaneViewState(
+        title="Preview",
+        preview_path="/tmp/image.png",
+        preview_content="\033_Gf=100;AAAA\033\\",
+        preview_kind="kitty",
+    )
+    pane = ChildPane(state, id="child-pane")
+    list_widget = SimpleNamespace(display=False)
+    scroll_widget = SimpleNamespace(display=True, scroll_home=Mock())
+    writer = Mock()
+    pane._list_widget = lambda: list_widget  # type: ignore[method-assign]
+    pane._preview_scroll_widget = lambda: scroll_widget  # type: ignore[method-assign]
+    pane._refresh_rendered_content = Mock(return_value=True)  # type: ignore[method-assign]
+    pane._write_terminal_content = writer  # type: ignore[method-assign]
+    pane.call_after_refresh = lambda callback: callback()  # type: ignore[method-assign]
+
+    await pane.set_state(
+        ChildPaneViewState(
+            title="Preview",
+            preview_path="/tmp/image.png",
+            preview_content="\033_Gf=100;AAAA\033\\",
+            preview_kind="kitty",
+            preview_start_line=1,
+        )
+    )
+
+    writer.assert_not_called()
+
+
+def test_child_pane_clears_kitty_preview_on_unmount() -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview",
+            preview_path="/tmp/image.png",
+            preview_content="\033_Gf=100;AAAA\033\\",
+            preview_kind="kitty",
+        ),
+        id="child-pane",
+    )
+    writer = Mock()
+    pane._write_terminal_content = writer  # type: ignore[method-assign]
+
+    pane.on_unmount()
+
+    writer.assert_called_once_with("\033_Ga=d,d=A\033\\")
+
+
+def test_child_pane_writes_new_kitty_content_when_path_changes_same_width(
+    monkeypatch,
+) -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview",
+            preview_path="/tmp/new.png",
+            preview_content="\033_Gf=100;NEW\033\\",
+            preview_kind="kitty",
+        ),
+        id="child-pane",
+    )
+    scroll_widget = SimpleNamespace(
+        region=SimpleNamespace(x=4, y=2),
+        size=SimpleNamespace(width=42),
+    )
+    writer = Mock()
+    pane._preview_scroll_widget = lambda: scroll_widget  # type: ignore[method-assign]
+    pane._write_terminal_content = writer  # type: ignore[method-assign]
+    object.__setattr__(pane, "_last_kitty_path", "/tmp/old.png")
+    object.__setattr__(pane, "_last_kitty_width", 40)
+    object.__setattr__(pane, "_kitty_cached", "\033_Gf=100;OLD\033\\")
+    monkeypatch.setattr(
+        "zivo.services.previews.core.resolve_image_preview_format",
+        lambda mode: "kitty",
+    )
+
+    pane._write_kitty_content("\033_Gf=100;NEW\033\\")
+
+    writer.assert_called_once()
+    assert "NEW" in writer.call_args.args[0]
+    assert "OLD" not in writer.call_args.args[0]
