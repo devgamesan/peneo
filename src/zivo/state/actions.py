@@ -212,6 +212,7 @@ from .actions_palette import (
     OpenFindResultInGuiEditor,
     OpenGrepResultInEditor,
     OpenGrepResultInGuiEditor,
+    OpenSearchWorkspace,
     SelectedFilesGrepKeywordChanged,
     SetCommandPaletteQuery,
     SetFileSearchTarget,
@@ -335,6 +336,7 @@ Action = (
     | OpenFindResultInEditor
     | OpenGrepResultInGuiEditor
     | OpenFindResultInGuiEditor
+    | OpenSearchWorkspace
     | BeginFilterInput
     | ConfirmFilterInput
     | CancelFilterInput

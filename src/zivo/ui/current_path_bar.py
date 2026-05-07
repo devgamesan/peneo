@@ -12,6 +12,8 @@ from textual.widgets import Static
 
 from zivo.windows_paths import (
     WINDOWS_DRIVES_LABEL,
+    display_path,
+    is_search_workspace_path,
     is_windows_drives_root,
     is_windows_path,
 )
@@ -71,6 +73,10 @@ class CurrentPathBar(Static):
 
         if is_windows_drives_root(path):
             rendered.append(WINDOWS_DRIVES_LABEL)
+            return rendered
+
+        if is_search_workspace_path(path):
+            rendered.append(display_path(path))
             return rendered
 
         parts = CurrentPathBar._get_path_parts(path)

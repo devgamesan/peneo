@@ -5,9 +5,11 @@ from stat import S_IFREG
 import zivo.state.selectors as selectors_module
 from tests.state_test_helpers import entry, pane, reduce_state
 from zivo.models import (
+    ActionsConfig,
     AppConfig,
     BookmarkConfig,
     CreateZipArchiveRequest,
+    CustomActionConfig,
     DisplayConfig,
     EditorConfig,
     ExtractArchiveRequest,
@@ -88,6 +90,24 @@ from zivo.state.selectors import (
     compute_current_pane_visible_window,
     select_input_dialog_state,
 )
+
+SEARCH_WORKSPACE_PATH = (
+    "search://readme?target=files&hidden=false&root=%2Fhome%2Ftadashi%2Fdevelop%2Fzivo"
+)
+
+
+def build_search_workspace_state():
+    result_path = "/home/tadashi/develop/zivo/README.md"
+    state = build_initial_app_state()
+    return replace(
+        state,
+        current_path=SEARCH_WORKSPACE_PATH,
+        current_pane=pane(
+            SEARCH_WORKSPACE_PATH,
+            (entry(result_path, "file"),),
+            cursor_path=result_path,
+        ),
+    )
 
 
 def _reduce_state(state, action):
@@ -1293,6 +1313,22 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
     )
 
 
+def test_select_help_bar_for_search_workspace_shows_available_actions_only() -> None:
+    state = build_search_workspace_state()
+
+    help_state = select_help_bar_state(state)
+
+    assert help_state.lines == (
+        "enter open | e edit | O gui editor | i info | "
+        "/ filter | s sort | . hidden | [ ] bk/fwd | q quit",
+        "space select | c copy | z undo | ctrl+j/k prv",
+        ": palette",
+    )
+    assert "x cut" not in help_state.text
+    assert "d delete" not in help_state.text
+    assert "f find" not in help_state.text
+
+
 def test_select_help_bar_for_transfer_mode_prioritizes_transfer_actions() -> None:
     state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
 
@@ -1349,6 +1385,70 @@ def test_select_command_palette_state_marks_selected_and_enabled_items() -> None
     assert palette_state.items[0].enabled is True
     assert any(item.label == "Go back" and not item.enabled for item in palette_state.items)
     assert any(item.label == "Go forward" and not item.enabled for item in palette_state.items)
+
+
+def test_command_palette_items_for_search_workspace_are_limited_to_safe_actions() -> None:
+    state = replace(
+        build_search_workspace_state(),
+        config=AppConfig(
+            bookmarks=BookmarkConfig(paths=(SEARCH_WORKSPACE_PATH,)),
+            actions=ActionsConfig(
+                custom=(CustomActionConfig(name="Format project", command=("format",)),)
+            ),
+        ),
+        command_palette=CommandPaletteState(),
+    )
+
+    labels = [
+        item.label
+        for item in command_palette_module.get_command_palette_items(state)
+    ]
+
+    assert "History search" in labels
+    assert "Show bookmarks" in labels
+    assert "Go back" in labels
+    assert "Go forward" in labels
+    assert "Go to path" in labels
+    assert "Go to home directory" in labels
+    assert "Undo last file operation" in labels
+    assert "New tab" in labels
+    assert "Next tab" in labels
+    assert "Previous tab" in labels
+    assert "Close current tab" in labels
+    assert "Exit" in labels
+    assert "Select all" in labels
+    assert "Show attributes" in labels
+    assert "Open in editor" in labels
+    assert "Open in GUI editor" in labels
+    assert "Copy path" in labels
+    assert "Show hidden files" in labels
+    assert "About zivo" in labels
+    assert "Edit config" in labels
+
+    assert "Find files" not in labels
+    assert "Grep search" not in labels
+    assert "Reload directory" not in labels
+    assert "Toggle transfer mode" not in labels
+    assert "Replace text in selected files" not in labels
+    assert "Replace text in found files" not in labels
+    assert "Replace text in grep results" not in labels
+    assert "Grep in selected files" not in labels
+    assert "Grep and replace in selected files" not in labels
+    assert "Format project" not in labels
+    assert "Rename" not in labels
+    assert "Make symlink" not in labels
+    assert "Compress as zip" not in labels
+    assert "Extract archive" not in labels
+    assert "Move to trash" not in labels
+    assert "Empty trash" not in labels
+    assert "Open in file manager" not in labels
+    assert "Open current directory in GUI editor" not in labels
+    assert "Open terminal here" not in labels
+    assert "Run shell command" not in labels
+    assert "Remove bookmark" not in labels
+    assert "Bookmark this directory" not in labels
+    assert "Create file" not in labels
+    assert "Create directory" not in labels
 
 
 def test_select_command_palette_state_shows_single_target_commands_when_filtered() -> None:
@@ -1504,7 +1604,7 @@ def test_select_help_bar_state_for_file_search_palette() -> None:
 
     assert help_bar.lines == (
         "type filename | ↑↓ or Ctrl+j/k select | enter jump | "
-        "Ctrl+e edit | Ctrl+o GUI | esc cancel",
+        "Ctrl+w workspace | Ctrl+e edit | Ctrl+o GUI | esc cancel",
     )
 
 
