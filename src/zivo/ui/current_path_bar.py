@@ -13,9 +13,9 @@ from textual.widgets import Static
 from zivo.windows_paths import (
     WINDOWS_DRIVES_LABEL,
     display_path,
+    is_search_workspace_path,
     is_windows_drives_root,
     is_windows_path,
-    is_search_workspace_path,
 )
 
 

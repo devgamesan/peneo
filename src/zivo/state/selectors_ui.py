@@ -17,6 +17,7 @@ from zivo.models import (
     StatusBarState,
 )
 from zivo.platform_support import is_split_terminal_supported
+from zivo.windows_paths import is_search_workspace_path
 
 from .models import AppState
 from .reducer_config import (
@@ -204,6 +205,15 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
                 "[ ] focus | y copy-to-pane | m move-to-pane | p/Esc close | q quit",
                 "Space select | c copy | x cut | v paste | d delete | r rename | z undo",
                 ". hidden | N new-dir | : palette",
+            )
+        )
+    if is_search_workspace_path(state.current_path):
+        return HelpBarState(
+            (
+                "enter open | e edit | O gui editor | i info | "
+                "/ filter | s sort | . hidden | [ ] bk/fwd | q quit",
+                "space select | c copy | z undo | ctrl+j/k prv",
+                ": palette",
             )
         )
     if state.config.help_bar.browsing:
