@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from zivo.archive_utils import is_supported_archive_path
 from zivo.models import CustomActionContext, custom_action_matches
 from zivo.platform_support import is_split_terminal_supported
-from zivo.windows_paths import display_path
+from zivo.windows_paths import display_path, is_search_workspace_path
 
 from .entry_state_helpers import select_visible_entry_states
 from .models import AppState
@@ -29,6 +29,32 @@ class CommandPaletteItem:
     shortcut: str | None
     enabled: bool
     path: str | None = None
+
+
+SEARCH_WORKSPACE_COMMAND_IDS = frozenset(
+    {
+        "history_search",
+        "bookmark_search",
+        "go_back",
+        "go_forward",
+        "go_to_path",
+        "go_to_home_directory",
+        "undo_last_operation",
+        "new_tab",
+        "next_tab",
+        "previous_tab",
+        "close_current_tab",
+        "exit",
+        "select_all",
+        "show_attributes",
+        "open_in_editor",
+        "open_in_gui_editor",
+        "copy_path",
+        "toggle_hidden",
+        "show_about",
+        "edit_config",
+    }
+)
 
 
 def get_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, ...]:
@@ -323,7 +349,10 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
         ),
     ]
 
-    items.extend(_build_custom_action_items(state))
+    is_search_workspace = is_search_workspace_path(state.current_path)
+
+    if not is_search_workspace:
+        items.extend(_build_custom_action_items(state))
 
     if has_single_target:
         items.append(
@@ -334,39 +363,40 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 enabled=True,
             )
         )
-        items.append(
-            CommandPaletteItem(
-                id="rename",
-                label="Rename",
-                shortcut="r",
-                enabled=True,
+        if not is_search_workspace:
+            items.append(
+                CommandPaletteItem(
+                    id="rename",
+                    label="Rename",
+                    shortcut="r",
+                    enabled=True,
+                )
             )
-        )
-        items.append(
-            CommandPaletteItem(
-                id="create_symlink",
-                label="Make symlink",
-                shortcut=None,
-                enabled=True,
+            items.append(
+                CommandPaletteItem(
+                    id="create_symlink",
+                    label="Make symlink",
+                    shortcut=None,
+                    enabled=True,
+                )
             )
-        )
-        items.append(
-            CommandPaletteItem(
-                id="compress_as_zip",
-                label="Compress as zip",
-                shortcut=None,
-                enabled=True,
+            items.append(
+                CommandPaletteItem(
+                    id="compress_as_zip",
+                    label="Compress as zip",
+                    shortcut=None,
+                    enabled=True,
+                )
             )
-        )
-        items.append(
-            CommandPaletteItem(
-                id="extract_archive",
-                label="Extract archive",
-                shortcut=None,
-                enabled=single_target_entry.kind == "file"
-                and is_supported_archive_path(single_target_entry.path),
+            items.append(
+                CommandPaletteItem(
+                    id="extract_archive",
+                    label="Extract archive",
+                    shortcut=None,
+                    enabled=single_target_entry.kind == "file"
+                    and is_supported_archive_path(single_target_entry.path),
+                )
             )
-        )
         items.append(
             CommandPaletteItem(
                 id="open_in_editor",
@@ -383,7 +413,7 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 enabled=single_target_entry.kind == "file",
             )
         )
-    elif has_target:
+    elif has_target and not is_search_workspace:
         items.append(
             CommandPaletteItem(
                 id="compress_as_zip",
@@ -402,23 +432,25 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 enabled=True,
             )
         )
+        if not is_search_workspace:
+            items.append(
+                CommandPaletteItem(
+                    id="delete_targets",
+                    label="Move to trash",
+                    shortcut="d",
+                    enabled=True,
+                )
+            )
+
+    if not is_search_workspace:
         items.append(
             CommandPaletteItem(
-                id="delete_targets",
-                label="Move to trash",
-                shortcut="d",
-                enabled=True,
+                id="empty_trash",
+                label="Empty trash",
+                shortcut=None,
+                enabled=_is_empty_trash_supported(),
             )
         )
-
-    items.append(
-        CommandPaletteItem(
-            id="empty_trash",
-            label="Empty trash",
-            shortcut=None,
-            enabled=_is_empty_trash_supported(),
-        )
-    )
 
     items.extend(
         [
@@ -426,25 +458,25 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 id="open_file_manager",
                 label="Open in file manager",
                 shortcut="M",
-                enabled=True,
+                enabled=not is_search_workspace,
             ),
             CommandPaletteItem(
                 id="open_current_directory_in_gui_editor",
                 label="Open current directory in GUI editor",
                 shortcut=None,
-                enabled=True,
+                enabled=not is_search_workspace,
             ),
             CommandPaletteItem(
                 id="open_terminal",
                 label="Open terminal here",
                 shortcut="T",
-                enabled=True,
+                enabled=not is_search_workspace,
             ),
             CommandPaletteItem(
                 id="run_shell_command",
                 label="Run shell command",
                 shortcut="!",
-                enabled=True,
+                enabled=not is_search_workspace,
             ),
             CommandPaletteItem(
                 id="remove_bookmark" if current_path_is_bookmarked else "add_bookmark",
@@ -454,7 +486,7 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                     else "Bookmark this directory"
                 ),
                 shortcut="B",
-                enabled=True,
+                enabled=not is_search_workspace,
             ),
             CommandPaletteItem(
                 id="toggle_hidden",
@@ -478,17 +510,19 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 id="create_file",
                 label="Create file",
                 shortcut="n",
-                enabled=True,
+                enabled=not is_search_workspace,
             ),
             CommandPaletteItem(
                 id="create_dir",
                 label="Create directory",
                 shortcut="N",
-                enabled=True,
+                enabled=not is_search_workspace,
             )
         ]
     )
 
+    if is_search_workspace:
+        return tuple(item for item in items if item.id in SEARCH_WORKSPACE_COMMAND_IDS)
     return tuple(items)
 
 

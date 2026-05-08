@@ -1,5 +1,7 @@
 """Browsing-mode key bindings and dispatcher."""
 
+from zivo.windows_paths import is_search_workspace_path
+
 from .actions import (
     Action,
     ActivateNextTab,
@@ -125,6 +127,27 @@ BROWSING_KEYMAP = {
     "shift+tab": "activate_previous_tab",
 }
 
+SEARCH_WORKSPACE_BLOCKED_COMMANDS = frozenset(
+    {
+        "begin_file_search",
+        "begin_grep_search",
+        "reload_directory",
+        "toggle_transfer_mode",
+        "begin_rename",
+        "begin_shell_command",
+        "delete_targets",
+        "permanent_delete_targets",
+        "open_terminal",
+        "open_terminal_window",
+        "open_file_manager",
+        "cut_targets",
+        "paste_clipboard",
+        "toggle_bookmark",
+        "create_file",
+        "create_dir",
+    }
+)
+
 
 def dispatch_browsing_input(
     state: AppState,
@@ -154,6 +177,11 @@ def dispatch_browsing_input(
 
     command = BROWSING_KEYMAP.get(key)
     if command is not None:
+        if (
+            is_search_workspace_path(state.current_path)
+            and command in SEARCH_WORKSPACE_BLOCKED_COMMANDS
+        ):
+            return warn("Unavailable in search workspace")
         handler = BROWSING_COMMAND_DISPATCH.get(command)
         if handler is not None:
             return handler(state, ctx)
