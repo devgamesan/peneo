@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 
@@ -13,6 +14,115 @@ skip_if_windows_permission_semantics = pytest.mark.skipif(
     shutil.which("rg") is None or os.name == "nt",
     reason="permission-denied grep coverage is not reliable on native Windows runners",
 )
+
+
+class _FakeTextStream:
+    def __init__(self, lines: tuple[str, ...] = (), read_text: str = "") -> None:
+        self._lines = lines
+        self._read_text = read_text
+        self.closed = False
+
+    def __iter__(self):
+        return iter(self._lines)
+
+    def read(self) -> str:
+        return self._read_text
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeGrepProcess:
+    def __init__(
+        self,
+        stdout_lines: tuple[str, ...],
+        *,
+        return_code: int = 0,
+        stderr_text: str = "",
+    ) -> None:
+        self.stdout = _FakeTextStream(stdout_lines)
+        self.stderr = _FakeTextStream(read_text=stderr_text)
+        self.return_code = return_code
+        self.killed = False
+
+    def wait(self) -> int:
+        return self.return_code
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+def _rg_match_line(
+    path: str,
+    *,
+    line_number: int,
+    text: str,
+    start: int = 0,
+) -> str:
+    return json.dumps(
+        {
+            "type": "match",
+            "data": {
+                "path": {"text": path},
+                "lines": {"text": text},
+                "line_number": line_number,
+                "submatches": [{"start": start}],
+            },
+        }
+    )
+
+
+def test_live_grep_search_service_parses_stdout_lines_as_they_are_read(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    process = _FakeGrepProcess(
+        (
+            _rg_match_line("z.txt", line_number=2, text="TODO: z\n", start=6),
+            json.dumps({"type": "begin", "data": {"path": {"text": "z.txt"}}}),
+            "{not json}\n",
+            _rg_match_line("a.txt", line_number=1, text="TODO: a\r\n", start=0),
+        )
+    )
+
+    monkeypatch.setattr(
+        "zivo.services.grep_search.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+
+    results = LiveGrepSearchService().search(str(root), "todo", show_hidden=False)
+
+    assert [result.display_label for result in results] == [
+        "a.txt:1: TODO: a",
+        "z.txt:2: TODO: z",
+    ]
+    assert [result.column_number for result in results] == [1, 7]
+    assert process.stdout.closed
+    assert process.stderr.closed
+
+
+def test_live_grep_search_service_keeps_nonfatal_error_partial_results(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    process = _FakeGrepProcess(
+        (_rg_match_line("README.md", line_number=3, text="TODO\n"),),
+        return_code=2,
+        stderr_text="",
+    )
+
+    monkeypatch.setattr(
+        "zivo.services.grep_search.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+
+    results = LiveGrepSearchService().search(str(root), "todo", show_hidden=False)
+
+    assert [result.display_label for result in results] == ["README.md:3: TODO"]
 
 
 @skip_if_no_rg
