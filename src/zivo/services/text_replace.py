@@ -36,72 +36,124 @@ class LiveTextReplaceService:
 
     def preview(self, request: TextReplaceRequest) -> TextReplacePreviewResult:
         matcher = _compile_pattern(request.find_text)
-        changed_entries: list[TextReplacePreviewEntry] = []
-        diff_chunks: list[str] = []
-        skipped_paths: list[str] = []
-        total_match_count = 0
-
-        for raw_path in request.paths:
-            path = Path(raw_path)
-            try:
-                original = path.read_text(encoding=self.encoding)
-            except (OSError, UnicodeDecodeError):
-                skipped_paths.append(str(path))
-                continue
-
-            replaced, match_count = matcher.replace(original, request.replace_text)
-            if match_count <= 0:
-                continue
-
-            preview_entry = _build_preview_entry(path, original, replaced, match_count)
-            if preview_entry is None:
-                skipped_paths.append(str(path))
-                continue
-
-            changed_entries.append(preview_entry)
-            diff_chunks.append(preview_entry.diff_text)
-            total_match_count += match_count
-
-        changed_entries.sort(key=lambda entry: entry.path.casefold())
+        result = _preview_replacements(request, matcher, self.encoding)
         return TextReplacePreviewResult(
             request=request,
-            changed_entries=tuple(changed_entries),
-            total_match_count=total_match_count,
-            diff_text="".join(diff_chunks),
-            skipped_paths=tuple(skipped_paths),
+            changed_entries=result.changed_entries,
+            total_match_count=result.total_match_count,
+            diff_text=result.diff_text,
+            skipped_paths=result.skipped_paths,
         )
 
     def apply(self, request: TextReplaceRequest) -> TextReplaceResult:
-        preview = self.preview(request)
-        changed_paths: list[str] = []
+        matcher = _compile_pattern(request.find_text)
+        result = _apply_replacements(request, matcher, self.encoding)
 
-        for entry in preview.changed_entries:
-            path = Path(entry.path)
-            original = path.read_text(encoding=self.encoding)
-            replaced, match_count = _compile_pattern(request.find_text).replace(
-                original,
-                request.replace_text,
-            )
-            if match_count <= 0:
-                continue
-            path.write_text(replaced, encoding=self.encoding)
-            changed_paths.append(entry.path)
-
-        file_count = len(changed_paths)
-        skipped_count = len(preview.skipped_paths)
-        message = f"Replaced {preview.total_match_count} match(es) in {file_count} file(s)"
+        file_count = len(result.changed_paths)
+        skipped_count = len(result.skipped_paths)
+        message = f"Replaced {result.total_match_count} match(es) in {file_count} file(s)"
         level = "info"
         if skipped_count:
             level = "warning"
             message += f"; skipped {skipped_count} unreadable file(s)"
         return TextReplaceResult(
             request=request,
-            changed_paths=tuple(changed_paths),
-            total_match_count=preview.total_match_count,
+            changed_paths=result.changed_paths,
+            total_match_count=result.total_match_count,
             message=message,
             level=level,
-            skipped_paths=preview.skipped_paths,
+            skipped_paths=result.skipped_paths,
         )
+
+
+@dataclass(frozen=True)
+class _PreviewReplacementResult:
+    changed_entries: tuple[TextReplacePreviewEntry, ...]
+    total_match_count: int
+    diff_text: str
+    skipped_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _ApplyReplacementResult:
+    changed_paths: tuple[str, ...]
+    total_match_count: int
+    skipped_paths: tuple[str, ...]
+
+
+def _preview_replacements(
+    request: TextReplaceRequest,
+    matcher: "_PatternMatcher",
+    encoding: str,
+) -> _PreviewReplacementResult:
+    changed_entries: list[TextReplacePreviewEntry] = []
+    diff_chunks: list[str] = []
+    skipped_paths: list[str] = []
+    total_match_count = 0
+
+    for raw_path in request.paths:
+        path = Path(raw_path)
+        try:
+            original = path.read_text(encoding=encoding)
+        except (OSError, UnicodeDecodeError):
+            skipped_paths.append(str(path))
+            continue
+
+        replaced, match_count = matcher.replace(original, request.replace_text)
+        if match_count <= 0:
+            continue
+
+        preview_entry = _build_preview_entry(path, original, replaced, match_count)
+        if preview_entry is None:
+            skipped_paths.append(str(path))
+            continue
+
+        changed_entries.append(preview_entry)
+        diff_chunks.append(preview_entry.diff_text)
+        total_match_count += match_count
+
+    changed_entries.sort(key=lambda entry: entry.path.casefold())
+    return _PreviewReplacementResult(
+        changed_entries=tuple(changed_entries),
+        total_match_count=total_match_count,
+        diff_text="".join(diff_chunks),
+        skipped_paths=tuple(skipped_paths),
+    )
+
+
+def _apply_replacements(
+    request: TextReplaceRequest,
+    matcher: "_PatternMatcher",
+    encoding: str,
+) -> _ApplyReplacementResult:
+    changed_paths: list[str] = []
+    skipped_paths: list[str] = []
+    total_match_count = 0
+
+    for raw_path in request.paths:
+        path = Path(raw_path)
+        try:
+            original = path.read_text(encoding=encoding)
+        except (OSError, UnicodeDecodeError):
+            skipped_paths.append(str(path))
+            continue
+
+        replaced, match_count = matcher.replace(original, request.replace_text)
+        if match_count <= 0:
+            continue
+        if _find_first_changed_line(original, replaced) is None:
+            skipped_paths.append(str(path))
+            continue
+        path.write_text(replaced, encoding=encoding)
+        changed_paths.append(str(path))
+        total_match_count += match_count
+
+    changed_paths.sort(key=str.casefold)
+    return _ApplyReplacementResult(
+        changed_paths=tuple(changed_paths),
+        total_match_count=total_match_count,
+        skipped_paths=tuple(skipped_paths),
+    )
 
 
 @dataclass
@@ -175,21 +227,33 @@ def _build_preview_entry(
     replaced: str,
     match_count: int,
 ) -> TextReplacePreviewEntry | None:
+    first_changed_line = _find_first_changed_line(original, replaced)
+    if first_changed_line is None:
+        return None
+
+    line_number, before, after = first_changed_line
     diff_text = _build_unified_diff(path, original, replaced)
+    return TextReplacePreviewEntry(
+        path=str(path),
+        diff_text=diff_text,
+        match_count=match_count,
+        first_match_line_number=line_number,
+        first_match_before=before,
+        first_match_after=after,
+    )
+
+
+def _find_first_changed_line(
+    original: str,
+    replaced: str,
+) -> tuple[int, str, str] | None:
     original_lines = original.splitlines()
     replaced_lines = replaced.splitlines()
     line_count = min(len(original_lines), len(replaced_lines))
     for index in range(line_count):
         if original_lines[index] == replaced_lines[index]:
             continue
-        return TextReplacePreviewEntry(
-            path=str(path),
-            diff_text=diff_text,
-            match_count=match_count,
-            first_match_line_number=index + 1,
-            first_match_before=original_lines[index],
-            first_match_after=replaced_lines[index],
-        )
+        return index + 1, original_lines[index], replaced_lines[index]
     return None
 
 
