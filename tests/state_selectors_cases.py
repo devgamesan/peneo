@@ -1480,6 +1480,18 @@ def test_select_command_palette_state_shows_chmod_for_single_target() -> None:
     assert palette_state.items[0].enabled is True
 
 
+def test_command_palette_hides_chmod_on_windows(monkeypatch) -> None:
+    monkeypatch.setattr(command_palette_module.platform, "system", lambda: "Windows")
+    state = _reduce_state(build_initial_app_state(), BeginCommandPalette())
+
+    labels = [
+        item.label
+        for item in command_palette_module.get_command_palette_items(state)
+    ]
+
+    assert "Change permissions" not in labels
+
+
 def test_select_command_palette_state_enables_history_navigation_items() -> None:
     state = replace(
         _reduce_state(build_initial_app_state(), BeginCommandPalette()),
