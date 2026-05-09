@@ -50,6 +50,10 @@ class _MainPaneDataTable(DataTable):
             return
         await handler(row_index)
 
+    def _on_mouse_move(self, event: events.MouseMove) -> None:
+        super()._on_mouse_move(event)
+        self._set_hover_cursor(False)
+
 
 class MainPane(Vertical):
     """Center pane with detailed columns for the current directory."""
