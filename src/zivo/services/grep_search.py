@@ -84,6 +84,8 @@ class LiveGrepSearchService:
 
         try:
             results: list[GrepSearchResultState] = []
+            previous_sort_key: tuple[str, int] | None = None
+            results_are_sorted = True
             assert process.stdout is not None
             for line in process.stdout:
                 if is_cancelled is not None and is_cancelled():
@@ -92,6 +94,10 @@ class LiveGrepSearchService:
                     return ()
                 result = self._parse_result_line(root, line)
                 if result is not None:
+                    sort_key = _grep_result_sort_key(result)
+                    if previous_sort_key is not None and sort_key < previous_sort_key:
+                        results_are_sorted = False
+                    previous_sort_key = sort_key
                     results.append(result)
             stderr_text = ""
             if process.stderr is not None:
@@ -106,22 +112,12 @@ class LiveGrepSearchService:
         if return_code not in {0, 1}:
             message = stderr_text.strip() or "grep search failed"
             if self._is_nonfatal_ripgrep_error(return_code, stderr_text, stripped_query):
-                return tuple(
-                    sorted(
-                        results,
-                        key=lambda result: (result.display_path.casefold(), result.line_number),
-                    )
-                )
+                return _ordered_grep_results(results, results_are_sorted)
             if is_regex_grep_search_query(stripped_query):
                 raise InvalidGrepSearchQueryError(message)
             raise OSError(message)
 
-        return tuple(
-            sorted(
-                results,
-                key=lambda result: (result.display_path.casefold(), result.line_number),
-            )
-        )
+        return _ordered_grep_results(results, results_are_sorted)
 
     def _build_command(
         self,
@@ -251,3 +247,16 @@ def _first_submatch_column(submatches: object) -> int:
         if isinstance(start, int):
             return max(1, start + 1)
     return 1
+
+
+def _ordered_grep_results(
+    results: list[GrepSearchResultState],
+    results_are_sorted: bool,
+) -> tuple[GrepSearchResultState, ...]:
+    if results_are_sorted:
+        return tuple(results)
+    return tuple(sorted(results, key=_grep_result_sort_key))
+
+
+def _grep_result_sort_key(result: GrepSearchResultState) -> tuple[str, int]:
+    return (result.display_path.casefold(), result.line_number)
