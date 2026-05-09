@@ -248,7 +248,7 @@ class MainPane(Vertical):
             return
 
         changed_rows: list[tuple[str, PaneEntry]] = []
-        next_entries: list[PaneEntry] = []
+        next_entries: list[PaneEntry] | None = None
         update_by_row = {
             row_index: size_label
             for row_index, size_label in (
@@ -257,13 +257,14 @@ class MainPane(Vertical):
             )
             if row_index is not None
         }
-        for row_index, entry in enumerate(self._entries):
-            next_size_label = update_by_row.get(row_index)
-            if next_size_label is None or next_size_label == entry.size_label:
-                next_entries.append(entry)
+        for row_index, next_size_label in update_by_row.items():
+            entry = self._entries[row_index]
+            if next_size_label == entry.size_label:
                 continue
+            if next_entries is None:
+                next_entries = list(self._entries)
             next_entry = replace(entry, size_label=next_size_label)
-            next_entries.append(next_entry)
+            next_entries[row_index] = next_entry
             changed_rows.append((self._slot_row_key(row_index), next_entry))
 
         if not changed_rows:
@@ -284,7 +285,7 @@ class MainPane(Vertical):
             return
 
         changed_rows: list[tuple[str, PaneEntry]] = []
-        next_entries: list[PaneEntry] = []
+        next_entries: list[PaneEntry] | None = None
         update_by_row = {
             row_index: entry
             for row_index, entry in (
@@ -293,12 +294,13 @@ class MainPane(Vertical):
             )
             if row_index is not None
         }
-        for row_index, entry in enumerate(self._entries):
-            next_entry = update_by_row.get(row_index)
-            if next_entry is None or next_entry == entry:
-                next_entries.append(entry)
+        for row_index, next_entry in update_by_row.items():
+            entry = self._entries[row_index]
+            if next_entry == entry:
                 continue
-            next_entries.append(next_entry)
+            if next_entries is None:
+                next_entries = list(self._entries)
+            next_entries[row_index] = next_entry
             changed_rows.append((self._slot_row_key(row_index), next_entry))
 
         if not changed_rows:
