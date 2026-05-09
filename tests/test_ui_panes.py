@@ -621,6 +621,28 @@ def test_apply_size_updates_updates_only_target_slot() -> None:
     assert table.update_cell.call_args.args[1] == "size"
 
 
+def test_set_entries_clears_stale_hover_cursor() -> None:
+    summary = CurrentSummaryState(item_count=2, selected_count=0, sort_label="Name")
+    entries = (
+        PaneEntry("a.txt", "file", path="/path/a.txt"),
+        PaneEntry("b.txt", "file", path="/path/b.txt"),
+    )
+    next_entries = (
+        PaneEntry("c.txt", "file", path="/path/c.txt"),
+        PaneEntry("d.txt", "file", path="/path/d.txt"),
+    )
+    pane = MainPane(title="Test", entries=entries, summary=summary)
+    table = Mock(spec=DataTable)
+    table.size.width = 80
+    table.cell_padding = 1
+    pane._last_table_width = 80
+    pane.query_one = Mock(return_value=table)
+
+    pane.set_entries(next_entries, cursor_index=0)
+
+    table._set_hover_cursor.assert_called_with(False)
+
+
 def test_child_pane_refresh_rendered_content_skips_duplicate_preview_render(
     monkeypatch,
 ) -> None:

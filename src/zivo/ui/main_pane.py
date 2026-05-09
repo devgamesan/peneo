@@ -195,6 +195,7 @@ class MainPane(Vertical):
                 self._rebuild_table(table)
             else:
                 self._update_changed_rows(table, previous_entries, next_entries)
+            self._clear_hover_cursor(table)
         if entries_changed or cursor_changed:
             self._apply_cursor_state(table)
 
@@ -391,6 +392,11 @@ class MainPane(Vertical):
                 key=self._slot_row_key(index),
             )
         self._last_table_width = table.size.width
+        self._clear_hover_cursor(table)
+
+    @staticmethod
+    def _clear_hover_cursor(table: DataTable) -> None:
+        table._set_hover_cursor(False)
 
     @classmethod
     def _entry_row_keys(cls, entries: Sequence[PaneEntry]) -> tuple[str, ...]:
