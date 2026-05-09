@@ -105,6 +105,117 @@ def test_child_pane_renders_image_preview_as_ansi() -> None:
     assert renderable.no_wrap is True
 
 
+def test_child_pane_image_preview_resize_schedules_chafa_without_loading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview: image.png",
+            preview_path="/tmp/image.png",
+            preview_content="seed\n",
+            preview_kind="image",
+        )
+    )
+    widget = SimpleNamespace(
+        size=SimpleNamespace(width=42),
+        updates=[],
+        update=lambda renderable: widget.updates.append(renderable),
+    )
+    timers: list[SimpleNamespace] = []
+
+    def fake_set_timer(
+        delay: float,
+        callback: object,
+        *,
+        name: str | None = None,
+        pause: bool = False,
+    ) -> SimpleNamespace:
+        timer = SimpleNamespace(
+            delay=delay,
+            callback=callback,
+            name=name,
+            pause=pause,
+            stop=Mock(),
+        )
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(pane, "_preview_widget", lambda: widget)
+    monkeypatch.setattr(pane, "set_timer", fake_set_timer)
+    monkeypatch.setattr(
+        pane,
+        "run_worker",
+        Mock(side_effect=AssertionError("worker should wait for debounce")),
+    )
+
+    assert pane._refresh_rendered_content(force=True) is True
+
+    assert len(timers) == 1
+    assert timers[0].name == "chafa-resize-debounce:1"
+    assert pane._last_chafa_width == 0
+    assert widget.updates[-1].plain == "seed\n"
+
+
+def test_child_pane_image_preview_resize_ignores_stale_chafa_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview: image.png",
+            preview_path="/tmp/image.png",
+            preview_content="seed\n",
+            preview_kind="image",
+        )
+    )
+    widget = SimpleNamespace(
+        updates=[],
+        update=lambda renderable: widget.updates.append(renderable),
+    )
+    timers: list[SimpleNamespace] = []
+
+    def fake_set_timer(
+        delay: float,
+        callback: object,
+        *,
+        name: str | None = None,
+        pause: bool = False,
+    ) -> SimpleNamespace:
+        timer = SimpleNamespace(
+            delay=delay,
+            callback=callback,
+            name=name,
+            pause=pause,
+            stop=Mock(),
+        )
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(pane, "_preview_widget", lambda: widget)
+    monkeypatch.setattr(pane, "set_timer", fake_set_timer)
+
+    pane._schedule_chafa_resize_preview("/tmp/image.png", 40, "symbols")
+    pane._schedule_chafa_resize_preview("/tmp/image.png", 60, "symbols")
+    pane._complete_chafa_resize_request(
+        1,
+        "/tmp/image.png",
+        40,
+        "symbols",
+        "stale\n",
+    )
+    pane._complete_chafa_resize_request(
+        2,
+        "/tmp/image.png",
+        60,
+        "symbols",
+        "fresh\n",
+    )
+
+    assert timers[0].stop.called is True
+    assert pane._chafa_cached_content == "fresh\n"
+    assert pane._last_chafa_width == 60
+    assert widget.updates[-1].plain == "fresh\n"
+
+
 def test_side_pane_selected_directory_uses_text_only_highlight() -> None:
     styles = _style_map()
     entry = PaneEntry("docs", "dir", selected=True)
