@@ -6,10 +6,18 @@ from rich.style import Style
 from rich.text import Text
 from textual.widgets import DataTable
 
-from zivo.models import ChildPaneViewState, CurrentPaneRowUpdate, CurrentSummaryState, PaneEntry
+from zivo.models import (
+    ChildPaneViewState,
+    CurrentPaneRowUpdate,
+    CurrentPaneSizeUpdate,
+    CurrentSummaryState,
+    PaneEntry,
+)
+from zivo.ui.pane_rendering import _FileEntryLabelCache
 from zivo.ui.panes import (
     ChildPane,
     MainPane,
+    SidePane,
     _ft_resolve_style,
     _guess_preview_lexer,
     _render_file_label,
@@ -95,6 +103,158 @@ def test_child_pane_renders_image_preview_as_ansi() -> None:
     assert isinstance(renderable, Text)
     assert renderable.plain == "@@\n"
     assert renderable.no_wrap is True
+
+
+def test_child_pane_image_preview_resize_schedules_chafa_without_loading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview: image.png",
+            preview_path="/tmp/image.png",
+            preview_content="seed\n",
+            preview_kind="image",
+        )
+    )
+    widget = SimpleNamespace(
+        size=SimpleNamespace(width=42),
+        updates=[],
+        update=lambda renderable: widget.updates.append(renderable),
+    )
+    timers: list[SimpleNamespace] = []
+
+    def fake_set_timer(
+        delay: float,
+        callback: object,
+        *,
+        name: str | None = None,
+        pause: bool = False,
+    ) -> SimpleNamespace:
+        timer = SimpleNamespace(
+            delay=delay,
+            callback=callback,
+            name=name,
+            pause=pause,
+            stop=Mock(),
+        )
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(pane, "_preview_widget", lambda: widget)
+    monkeypatch.setattr(pane, "set_timer", fake_set_timer)
+    monkeypatch.setattr(
+        pane,
+        "run_worker",
+        Mock(side_effect=AssertionError("worker should wait for debounce")),
+    )
+
+    assert pane._refresh_rendered_content(force=True) is True
+
+    assert len(timers) == 1
+    assert timers[0].name == "chafa-resize-debounce:1"
+    assert pane._last_chafa_width == 0
+    assert widget.updates[-1].plain == "seed\n"
+
+
+def test_child_pane_image_preview_resize_ignores_stale_chafa_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview: image.png",
+            preview_path="/tmp/image.png",
+            preview_content="seed\n",
+            preview_kind="image",
+        )
+    )
+    widget = SimpleNamespace(
+        updates=[],
+        update=lambda renderable: widget.updates.append(renderable),
+    )
+    timers: list[SimpleNamespace] = []
+
+    def fake_set_timer(
+        delay: float,
+        callback: object,
+        *,
+        name: str | None = None,
+        pause: bool = False,
+    ) -> SimpleNamespace:
+        timer = SimpleNamespace(
+            delay=delay,
+            callback=callback,
+            name=name,
+            pause=pause,
+            stop=Mock(),
+        )
+        timers.append(timer)
+        return timer
+
+    monkeypatch.setattr(pane, "_preview_widget", lambda: widget)
+    monkeypatch.setattr(pane, "set_timer", fake_set_timer)
+
+    pane._schedule_chafa_resize_preview("/tmp/image.png", 40, "symbols")
+    pane._schedule_chafa_resize_preview("/tmp/image.png", 60, "symbols")
+    pane._complete_chafa_resize_request(
+        1,
+        "/tmp/image.png",
+        40,
+        "symbols",
+        "stale\n",
+    )
+    pane._complete_chafa_resize_request(
+        2,
+        "/tmp/image.png",
+        60,
+        "symbols",
+        "fresh\n",
+    )
+
+    assert timers[0].stop.called is True
+    assert pane._chafa_cached_content == "fresh\n"
+    assert pane._last_chafa_width == 60
+    assert widget.updates[-1].plain == "fresh\n"
+
+
+def test_child_pane_reuses_image_preview_loader_for_resize_workers() -> None:
+    class StubImagePreviewLoader:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, str, int]] = []
+
+        def load_preview(
+            self,
+            path,
+            *,
+            preview_columns: int,
+            image_preview_format: str = "symbols",
+        ):
+            self.calls.append(
+                (str(path), preview_columns, image_preview_format, id(self))
+            )
+            return SimpleNamespace(content=f"{preview_columns}:{image_preview_format}\n")
+
+    loader = StubImagePreviewLoader()
+    pane = ChildPane(
+        ChildPaneViewState(
+            title="Preview: image.png",
+            preview_path="/tmp/image.png",
+            preview_content="seed\n",
+            preview_kind="image",
+        ),
+        image_preview_loader=loader,
+    )
+    pane.run_worker = lambda worker, **_kwargs: worker()  # type: ignore[method-assign]
+
+    pane._chafa_resize_request_id = 1
+    pane._pending_chafa_resize_key = ("/tmp/image.png", 40, "symbols")
+    pane._start_chafa_resize_worker(1, "/tmp/image.png", 40, "symbols")
+    pane._pending_chafa_resize_key = ("/tmp/image.png", 60, "symbols")
+    pane._start_chafa_resize_worker(1, "/tmp/image.png", 60, "symbols")
+
+    assert loader.calls == [
+        ("/tmp/image.png", 40, "symbols", id(loader)),
+        ("/tmp/image.png", 60, "symbols", id(loader)),
+    ]
 
 
 def test_side_pane_selected_directory_uses_text_only_highlight() -> None:
@@ -328,6 +488,87 @@ def test_render_cell_selected_entry() -> None:
     assert result.style == styles["ft-selected"]
 
 
+def test_file_entry_label_cache_updates_only_changed_hover_rows(monkeypatch) -> None:
+    styles = _style_map()
+    entries = tuple(
+        PaneEntry(f"file-{index}.txt", "file", path=f"/path/file-{index}.txt")
+        for index in range(100)
+    )
+    cache = _FileEntryLabelCache()
+    cache.rebuild(
+        entries,
+        40,
+        styles,
+        selected_directory_style="ft-directory-sel",
+        selected_cut_style="ft-cut",
+    )
+
+    calls: list[str] = []
+
+    def counting_render_file_label(
+        entry,
+        render_width,
+        styles,
+        *,
+        selected_directory_style,
+        selected_cut_style,
+        hovered_path=None,
+    ):
+        calls.append(entry.path)
+        return _render_file_label(
+            entry,
+            render_width,
+            styles,
+            selected_directory_style=selected_directory_style,
+            selected_cut_style=selected_cut_style,
+            hovered_path=hovered_path,
+        )
+
+    monkeypatch.setattr(
+        "zivo.ui.pane_rendering._render_file_label",
+        counting_render_file_label,
+    )
+
+    rendered = cache.update_hover(
+        None,
+        "/path/file-10.txt",
+        styles,
+        selected_directory_style="ft-directory-sel",
+        selected_cut_style="ft-cut",
+    )
+
+    assert rendered is not None
+    assert calls == ["/path/file-10.txt"]
+
+    calls.clear()
+    rendered = cache.update_hover(
+        "/path/file-10.txt",
+        "/path/file-11.txt",
+        styles,
+        selected_directory_style="ft-directory-sel",
+        selected_cut_style="ft-cut",
+    )
+
+    assert rendered is not None
+    assert calls == ["/path/file-10.txt", "/path/file-11.txt"]
+
+
+def test_side_pane_mouse_move_without_entry_meta_does_not_refresh() -> None:
+    pane = SidePane(
+        "Parent",
+        (PaneEntry("file.txt", "file", path="/path/file.txt"),),
+        id="parent-pane",
+    )
+    pane._refresh_hovered_labels = Mock(return_value=True)  # type: ignore[method-assign]
+    pane._refresh_rendered_labels = Mock()  # type: ignore[method-assign]
+    event = SimpleNamespace(style=SimpleNamespace(meta={}))
+
+    pane.on_mouse_move(event)
+
+    pane._refresh_hovered_labels.assert_not_called()
+    pane._refresh_rendered_labels.assert_not_called()
+
+
 def test_style_without_background_keeps_foreground_and_text_attributes() -> None:
     style = Style.parse("bold blue on black")
 
@@ -503,6 +744,149 @@ def test_apply_row_updates_updates_slot_key_for_visible_row() -> None:
     assert pane._entries[1].name == "renamed.txt"
     assert table.update_cell.call_count == 4
     assert table.update_cell.call_args_list[0].args[0] == "__slot__:1"
+
+
+def test_apply_size_updates_updates_only_target_slot() -> None:
+    summary = CurrentSummaryState(item_count=2, selected_count=0, sort_label="Name")
+    entries = (
+        PaneEntry("a.txt", "file", path="/path/a.txt", size_label="1 B"),
+        PaneEntry("b.txt", "file", path="/path/b.txt", size_label="2 B"),
+    )
+    pane = MainPane(title="Test", entries=entries, summary=summary)
+    table = Mock(spec=DataTable)
+    pane.query_one = Mock(return_value=table)
+
+    pane.apply_size_updates(
+        (
+            CurrentPaneSizeUpdate(
+                path="/path/b.txt",
+                size_label="3 B",
+                row_index=1,
+            ),
+        )
+    )
+
+    assert pane._entries[0] is entries[0]
+    assert pane._entries[1].size_label == "3 B"
+    table.update_cell.assert_called_once()
+    assert table.update_cell.call_args.args[0] == "__slot__:1"
+    assert table.update_cell.call_args.args[1] == "size"
+
+
+def test_apply_size_updates_resolves_stale_row_index_by_path_index() -> None:
+    summary = CurrentSummaryState(item_count=3, selected_count=0, sort_label="Name")
+    entries = (
+        PaneEntry("a.txt", "file", path="/path/a.txt", size_label="1 B"),
+        PaneEntry("b.txt", "file", path="/path/b.txt", size_label="2 B"),
+        PaneEntry("c.txt", "file", path="/path/c.txt", size_label="3 B"),
+    )
+    pane = MainPane(title="Test", entries=entries, summary=summary)
+    table = Mock(spec=DataTable)
+    pane.query_one = Mock(return_value=table)
+
+    pane.apply_size_updates(
+        (
+            CurrentPaneSizeUpdate(
+                path="/path/c.txt",
+                size_label="4 B",
+                row_index=0,
+            ),
+        )
+    )
+
+    assert pane._entries[2].size_label == "4 B"
+    table.update_cell.assert_called_once()
+    assert table.update_cell.call_args.args[0] == "__slot__:2"
+
+
+def test_apply_size_updates_path_fallback_keeps_first_duplicate_match() -> None:
+    summary = CurrentSummaryState(item_count=3, selected_count=0, sort_label="Name")
+    entries = (
+        PaneEntry("first.txt", "file", path="/path/shared.txt", size_label="1 B"),
+        PaneEntry("other.txt", "file", path="/path/other.txt", size_label="2 B"),
+        PaneEntry("second.txt", "file", path="/path/shared.txt", size_label="3 B"),
+    )
+    pane = MainPane(title="Test", entries=entries, summary=summary)
+    table = Mock(spec=DataTable)
+    pane.query_one = Mock(return_value=table)
+
+    pane.apply_size_updates(
+        (
+            CurrentPaneSizeUpdate(
+                path="/path/shared.txt",
+                size_label="4 B",
+                row_index=1,
+            ),
+        )
+    )
+
+    assert pane._entries[0].size_label == "4 B"
+    assert pane._entries[2].size_label == "3 B"
+    table.update_cell.assert_called_once()
+    assert table.update_cell.call_args.args[0] == "__slot__:0"
+
+
+def test_set_entries_refreshes_path_row_index() -> None:
+    summary = CurrentSummaryState(item_count=2, selected_count=0, sort_label="Name")
+    entries = (
+        PaneEntry("a.txt", "file", path="/path/a.txt", size_label="1 B"),
+        PaneEntry("b.txt", "file", path="/path/b.txt", size_label="2 B"),
+    )
+    next_entries = (
+        PaneEntry("c.txt", "file", path="/path/c.txt", size_label="3 B"),
+        PaneEntry("d.txt", "file", path="/path/d.txt", size_label="4 B"),
+    )
+    pane = MainPane(title="Test", entries=entries, summary=summary)
+    table = Mock(spec=DataTable)
+    table.size.width = 80
+    table.cell_padding = 1
+    pane._last_table_width = 80
+    pane.query_one = Mock(return_value=table)
+
+    pane.set_entries(next_entries)
+    table.reset_mock()
+
+    pane.apply_size_updates(
+        (
+            CurrentPaneSizeUpdate(
+                path="/path/a.txt",
+                size_label="9 B",
+                row_index=1,
+            ),
+            CurrentPaneSizeUpdate(
+                path="/path/d.txt",
+                size_label="5 B",
+                row_index=0,
+            ),
+        )
+    )
+
+    assert pane._entries[0].size_label == "3 B"
+    assert pane._entries[1].size_label == "5 B"
+    table.update_cell.assert_called_once()
+    assert table.update_cell.call_args.args[0] == "__slot__:1"
+
+
+def test_set_entries_clears_stale_hover_cursor() -> None:
+    summary = CurrentSummaryState(item_count=2, selected_count=0, sort_label="Name")
+    entries = (
+        PaneEntry("a.txt", "file", path="/path/a.txt"),
+        PaneEntry("b.txt", "file", path="/path/b.txt"),
+    )
+    next_entries = (
+        PaneEntry("c.txt", "file", path="/path/c.txt"),
+        PaneEntry("d.txt", "file", path="/path/d.txt"),
+    )
+    pane = MainPane(title="Test", entries=entries, summary=summary)
+    table = Mock(spec=DataTable)
+    table.size.width = 80
+    table.cell_padding = 1
+    pane._last_table_width = 80
+    pane.query_one = Mock(return_value=table)
+
+    pane.set_entries(next_entries, cursor_index=0)
+
+    table._set_hover_cursor.assert_called_with(False)
 
 
 def test_child_pane_refresh_rendered_content_skips_duplicate_preview_render(

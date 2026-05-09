@@ -50,6 +50,10 @@ class _MainPaneDataTable(DataTable):
             return
         await handler(row_index)
 
+    def _on_mouse_move(self, event: events.MouseMove) -> None:
+        super()._on_mouse_move(event)
+        self._set_hover_cursor(False)
+
 
 class MainPane(Vertical):
     """Center pane with detailed columns for the current directory."""
@@ -101,6 +105,7 @@ class MainPane(Vertical):
         super().__init__(id=id, classes=classes)
         self._title = title
         self._entries = tuple(entries)
+        self._path_row_index = self._build_path_row_index(self._entries)
         self._summary = summary
         self._cursor_index = cursor_index
         self._cursor_visible = cursor_visible
@@ -184,6 +189,7 @@ class MainPane(Vertical):
 
         previous_entries = self._entries
         self._entries = next_entries
+        self._path_row_index = self._build_path_row_index(self._entries)
         self._cursor_index = cursor_index
         table = self.query_one(DataTable)
         if entries_changed:
@@ -191,6 +197,7 @@ class MainPane(Vertical):
                 self._rebuild_table(table)
             else:
                 self._update_changed_rows(table, previous_entries, next_entries)
+            self._clear_hover_cursor(table)
         if entries_changed or cursor_changed:
             self._apply_cursor_state(table)
 
@@ -248,7 +255,7 @@ class MainPane(Vertical):
             return
 
         changed_rows: list[tuple[str, PaneEntry]] = []
-        next_entries: list[PaneEntry] = []
+        next_entries: list[PaneEntry] | None = None
         update_by_row = {
             row_index: size_label
             for row_index, size_label in (
@@ -257,19 +264,21 @@ class MainPane(Vertical):
             )
             if row_index is not None
         }
-        for row_index, entry in enumerate(self._entries):
-            next_size_label = update_by_row.get(row_index)
-            if next_size_label is None or next_size_label == entry.size_label:
-                next_entries.append(entry)
+        for row_index, next_size_label in update_by_row.items():
+            entry = self._entries[row_index]
+            if next_size_label == entry.size_label:
                 continue
+            if next_entries is None:
+                next_entries = list(self._entries)
             next_entry = replace(entry, size_label=next_size_label)
-            next_entries.append(next_entry)
+            next_entries[row_index] = next_entry
             changed_rows.append((self._slot_row_key(row_index), next_entry))
 
         if not changed_rows:
             return
 
         self._entries = tuple(next_entries)
+        self._path_row_index = self._build_path_row_index(self._entries)
         table = self.query_one(DataTable)
         for row_key, entry in changed_rows:
             try:
@@ -284,7 +293,7 @@ class MainPane(Vertical):
             return
 
         changed_rows: list[tuple[str, PaneEntry]] = []
-        next_entries: list[PaneEntry] = []
+        next_entries: list[PaneEntry] | None = None
         update_by_row = {
             row_index: entry
             for row_index, entry in (
@@ -293,18 +302,20 @@ class MainPane(Vertical):
             )
             if row_index is not None
         }
-        for row_index, entry in enumerate(self._entries):
-            next_entry = update_by_row.get(row_index)
-            if next_entry is None or next_entry == entry:
-                next_entries.append(entry)
+        for row_index, next_entry in update_by_row.items():
+            entry = self._entries[row_index]
+            if next_entry == entry:
                 continue
-            next_entries.append(next_entry)
+            if next_entries is None:
+                next_entries = list(self._entries)
+            next_entries[row_index] = next_entry
             changed_rows.append((self._slot_row_key(row_index), next_entry))
 
         if not changed_rows:
             return
 
         self._entries = tuple(next_entries)
+        self._path_row_index = self._build_path_row_index(self._entries)
         table = self.query_one(DataTable)
         column_widths = self._allocate_column_widths(table)
         for row_key, entry in changed_rows:
@@ -385,6 +396,11 @@ class MainPane(Vertical):
                 key=self._slot_row_key(index),
             )
         self._last_table_width = table.size.width
+        self._clear_hover_cursor(table)
+
+    @staticmethod
+    def _clear_hover_cursor(table: DataTable) -> None:
+        table._set_hover_cursor(False)
 
     @classmethod
     def _entry_row_keys(cls, entries: Sequence[PaneEntry]) -> tuple[str, ...]:
@@ -394,16 +410,21 @@ class MainPane(Vertical):
     def _slot_row_key(index: int) -> str:
         return f"{MainPane.ROW_KEY_PREFIX}{index}"
 
+    @staticmethod
+    def _build_path_row_index(entries: Sequence[PaneEntry]) -> dict[str, int]:
+        path_row_index: dict[str, int] = {}
+        for index, entry in enumerate(entries):
+            if entry.path and entry.path not in path_row_index:
+                path_row_index[entry.path] = index
+        return path_row_index
+
     def _resolve_row_index(self, row_index: int, path: str) -> int | None:
         if 0 <= row_index < len(self._entries):
             if not path or self._entries[row_index].path == path:
                 return row_index
         if not path:
             return None
-        for index, entry in enumerate(self._entries):
-            if entry.path == path:
-                return index
-        return None
+        return self._path_row_index.get(path)
 
     def _build_row_cells(
         self,

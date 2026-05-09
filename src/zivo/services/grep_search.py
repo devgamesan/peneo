@@ -83,14 +83,22 @@ class LiveGrepSearchService:
             raise OSError(f"Not found: {self.rg_executable}") from error
 
         try:
-            stdout_lines: list[str] = []
+            results: list[GrepSearchResultState] = []
+            previous_sort_key: tuple[str, int] | None = None
+            results_are_sorted = True
             assert process.stdout is not None
             for line in process.stdout:
                 if is_cancelled is not None and is_cancelled():
                     process.kill()
                     process.wait()
                     return ()
-                stdout_lines.append(line)
+                result = self._parse_result_line(root, line)
+                if result is not None:
+                    sort_key = _grep_result_sort_key(result)
+                    if previous_sort_key is not None and sort_key < previous_sort_key:
+                        results_are_sorted = False
+                    previous_sort_key = sort_key
+                    results.append(result)
             stderr_text = ""
             if process.stderr is not None:
                 stderr_text = process.stderr.read()
@@ -104,23 +112,12 @@ class LiveGrepSearchService:
         if return_code not in {0, 1}:
             message = stderr_text.strip() or "grep search failed"
             if self._is_nonfatal_ripgrep_error(return_code, stderr_text, stripped_query):
-                return tuple(
-                    sorted(
-                        self._parse_results(root, stdout_lines),
-                        key=lambda result: (result.display_path.casefold(), result.line_number),
-                    )
-                )
+                return _ordered_grep_results(results, results_are_sorted)
             if is_regex_grep_search_query(stripped_query):
                 raise InvalidGrepSearchQueryError(message)
             raise OSError(message)
 
-        results = self._parse_results(root, stdout_lines)
-        return tuple(
-            sorted(
-                results,
-                key=lambda result: (result.display_path.casefold(), result.line_number),
-            )
-        )
+        return _ordered_grep_results(results, results_are_sorted)
 
     def _build_command(
         self,
@@ -153,41 +150,36 @@ class LiveGrepSearchService:
         command.append(".")
         return command
 
-    def _parse_results(
+    def _parse_result_line(
         self,
         root: Path,
-        stdout_lines: list[str],
-    ) -> list[GrepSearchResultState]:
-        results: list[GrepSearchResultState] = []
-        for line in stdout_lines:
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if payload.get("type") != "match":
-                continue
-            data = payload.get("data", {})
-            path_text = data.get("path", {}).get("text")
-            raw_line = data.get("lines", {}).get("text", "")
-            line_number = data.get("line_number")
-            column_number = _first_submatch_column(data.get("submatches"))
-            if not isinstance(path_text, str) or not isinstance(raw_line, str):
-                continue
-            if not isinstance(line_number, int):
-                continue
-            absolute_path = Path(path_text)
-            if not absolute_path.is_absolute():
-                absolute_path = (root / path_text).resolve()
-            results.append(
-                GrepSearchResultState(
-                    path=str(absolute_path),
-                    display_path=self._relative_display_path(root, absolute_path),
-                    line_number=line_number,
-                    line_text=raw_line.rstrip("\r\n"),
-                    column_number=column_number,
-                )
-            )
-        return results
+        line: str,
+    ) -> GrepSearchResultState | None:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        if payload.get("type") != "match":
+            return None
+        data = payload.get("data", {})
+        path_text = data.get("path", {}).get("text")
+        raw_line = data.get("lines", {}).get("text", "")
+        line_number = data.get("line_number")
+        column_number = _first_submatch_column(data.get("submatches"))
+        if not isinstance(path_text, str) or not isinstance(raw_line, str):
+            return None
+        if not isinstance(line_number, int):
+            return None
+        absolute_path = Path(path_text)
+        if not absolute_path.is_absolute():
+            absolute_path = (root / path_text).resolve()
+        return GrepSearchResultState(
+            path=str(absolute_path),
+            display_path=self._relative_display_path(root, absolute_path),
+            line_number=line_number,
+            line_text=raw_line.rstrip("\r\n"),
+            column_number=column_number,
+        )
 
     @staticmethod
     def _relative_display_path(root: Path, path: Path) -> str:
@@ -255,3 +247,16 @@ def _first_submatch_column(submatches: object) -> int:
         if isinstance(start, int):
             return max(1, start + 1)
     return 1
+
+
+def _ordered_grep_results(
+    results: list[GrepSearchResultState],
+    results_are_sorted: bool,
+) -> tuple[GrepSearchResultState, ...]:
+    if results_are_sorted:
+        return tuple(results)
+    return tuple(sorted(results, key=_grep_result_sort_key))
+
+
+def _grep_result_sort_key(result: GrepSearchResultState) -> tuple[str, int]:
+    return (result.display_path.casefold(), result.line_number)

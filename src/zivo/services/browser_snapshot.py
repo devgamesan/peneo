@@ -21,11 +21,17 @@ from zivo.services.previews import (
     DocumentPreviewLoader,
     FilePreviewState,
     GrepContextCacheKey,
+    GrepContextWindowCacheKey,
+    GrepContextWindowState,
     ImagePreviewLoader,
     PandocDocumentPreviewLoader,
+    PdfPreviewLoader,
+    PdftotextPdfPreviewLoader,
     _build_grep_context_cache_key,
+    _build_grep_context_preview_from_window,
     _build_text_preview_cache_key,
     _load_grep_context_preview,
+    _load_grep_context_window,
     _load_text_preview,
 )
 from zivo.services.previews import (
@@ -46,6 +52,7 @@ from zivo.state.models import (
 from zivo.windows_paths import (
     comparable_path,
     is_posix_path,
+    is_search_workspace_path,
     is_windows_drive_root,
     is_windows_drives_root,
     is_windows_path,
@@ -121,7 +128,7 @@ class BrowserSnapshotLoader(Protocol):
     ) -> None: ...
 
 
-@dataclass(frozen=True)
+@dataclass
 class LiveBrowserSnapshotLoader:
     """Load three-pane snapshots from the local filesystem."""
 
@@ -131,7 +138,9 @@ class LiveBrowserSnapshotLoader:
     text_preview_cache_capacity: int = DEFAULT_TEXT_PREVIEW_CACHE_CAPACITY
     grep_context_cache_capacity: int = DEFAULT_GREP_CONTEXT_CACHE_CAPACITY
     document_preview_loader: "DocumentPreviewLoader | None" = None
+    pdf_preview_loader: "PdfPreviewLoader | None" = None
     image_preview_loader: "ImagePreviewLoader | None" = None
+    app_state: "AppState | None" = field(default=None, compare=False, repr=False)
     _directory_entries_cache: OrderedDict[str, tuple[DirectoryEntryState, ...]] = field(
         default_factory=OrderedDict,
         init=False,
@@ -173,7 +182,27 @@ class LiveBrowserSnapshotLoader:
         repr=False,
         compare=False,
     )
+    _grep_context_window_cache: (
+        "OrderedDict[GrepContextWindowCacheKey, GrepContextWindowState]"
+    ) = field(
+        default_factory=OrderedDict,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _grep_context_window_cache_lock: threading.Lock = field(
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
+        compare=False,
+    )
     _document_preview_loader_lock: threading.Lock = field(
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _pdf_preview_loader_lock: threading.Lock = field(
         default_factory=threading.Lock,
         init=False,
         repr=False,
@@ -433,8 +462,9 @@ class LiveBrowserSnapshotLoader:
                 if cached_preview is not None:
                     preview = cached_preview
                 else:
-                    preview = _load_grep_context_preview(
+                    preview = self._load_cached_grep_context_window_preview(
                         child_path,
+                        cache_key,
                         result.line_number,
                         context_lines,
                         preview_max_bytes=preview_max_bytes,
@@ -459,6 +489,36 @@ class LiveBrowserSnapshotLoader:
             preview_start_line=preview.start_line,
             preview_highlight_line=preview.highlight_line,
         )
+
+    def _load_cached_grep_context_window_preview(
+        self,
+        path: Path,
+        cache_key: GrepContextCacheKey,
+        line_number: int,
+        context_lines: int,
+        *,
+        preview_max_bytes: int,
+    ) -> "ContextPreviewState":
+        window_cache_key = _grep_context_window_cache_key_from_context_key(cache_key)
+        cached_window = self._get_cached_grep_context_window(window_cache_key)
+        if cached_window is not None:
+            preview = _build_grep_context_preview_from_window(
+                cached_window,
+                line_number,
+                context_lines,
+            )
+            if preview is not None:
+                return preview
+
+        preview, window = _load_grep_context_window(
+            path,
+            line_number,
+            context_lines,
+            preview_max_bytes=preview_max_bytes,
+        )
+        if window is not None:
+            self._store_cached_grep_context_window(window_cache_key, window)
+        return preview
 
     def invalidate_directory_listing_cache(
         self,
@@ -508,6 +568,10 @@ class LiveBrowserSnapshotLoader:
                 self._directory_entries_cache.popitem(last=False)
 
     def _read_directory(self, path: str):
+        # Handle virtual search workspace paths
+        if is_search_workspace_path(path):
+            return self._read_virtual_search_directory(path)
+
         if is_windows_drives_root(path):
             return tuple(
                 DirectoryEntryState(
@@ -527,6 +591,26 @@ class LiveBrowserSnapshotLoader:
             raise OSError(f"Not a directory: {path}") from error
         except OSError as error:
             raise OSError(str(error) or f"Failed to load directory: {path}") from error
+
+    def _read_virtual_search_directory(self, virtual_path: str) -> tuple:
+        """Read directory entries from a virtual search workspace.
+
+        Args:
+            virtual_path: A search:// virtual path
+
+        Returns:
+            A tuple of DirectoryEntryState objects from the search workspace cache
+        """
+        from zivo.windows_paths import file_search_result_to_directory_entry
+
+        # Get search results from workspace cache
+        if self.app_state is None:
+            return ()
+
+        search_results = self.app_state.search_workspaces.get(virtual_path, ())
+
+        # Convert FileSearchResultState to DirectoryEntryState
+        return tuple(file_search_result_to_directory_entry(result) for result in search_results)
 
     def _load_cached_text_preview(
         self,
@@ -550,6 +634,7 @@ class LiveBrowserSnapshotLoader:
                 enable_pdf_preview=enable_pdf_preview,
                 enable_office_preview=enable_office_preview,
                 document_preview_loader=self._resolve_document_preview_loader(),
+                pdf_preview_loader=self._resolve_pdf_preview_loader(),
                 image_preview_loader=self._resolve_image_preview_loader(),
                 preview_columns=preview_columns,
             )
@@ -577,6 +662,7 @@ class LiveBrowserSnapshotLoader:
             enable_pdf_preview=enable_pdf_preview,
             enable_office_preview=enable_office_preview,
             document_preview_loader=self._resolve_document_preview_loader(),
+            pdf_preview_loader=self._resolve_pdf_preview_loader(),
             image_preview_loader=self._resolve_image_preview_loader(),
             preview_columns=preview_columns,
         )
@@ -592,6 +678,16 @@ class LiveBrowserSnapshotLoader:
                     PandocDocumentPreviewLoader(),
                 )
             return self.document_preview_loader
+
+    def _resolve_pdf_preview_loader(self) -> "PdfPreviewLoader":
+        with self._pdf_preview_loader_lock:
+            if self.pdf_preview_loader is None:
+                object.__setattr__(
+                    self,
+                    "pdf_preview_loader",
+                    PdftotextPdfPreviewLoader(),
+                )
+            return self.pdf_preview_loader
 
     def _resolve_image_preview_loader(self) -> "ImagePreviewLoader":
         with self._image_preview_loader_lock:
@@ -647,12 +743,41 @@ class LiveBrowserSnapshotLoader:
             while len(self._grep_context_cache) > self.grep_context_cache_capacity:
                 self._grep_context_cache.popitem(last=False)
 
+    def _get_cached_grep_context_window(
+        self,
+        cache_key: GrepContextWindowCacheKey,
+    ) -> "GrepContextWindowState | None":
+        with self._grep_context_window_cache_lock:
+            window = self._grep_context_window_cache.get(cache_key)
+            if window is None:
+                return None
+            self._grep_context_window_cache.move_to_end(cache_key)
+            return window
+
+    def _store_cached_grep_context_window(
+        self,
+        cache_key: GrepContextWindowCacheKey,
+        window: "GrepContextWindowState",
+    ) -> None:
+        with self._grep_context_window_cache_lock:
+            self._grep_context_window_cache[cache_key] = window
+            self._grep_context_window_cache.move_to_end(cache_key)
+            while len(self._grep_context_window_cache) > self.grep_context_cache_capacity:
+                self._grep_context_window_cache.popitem(last=False)
+
 
 def _is_permission_denied_error(error: OSError) -> bool:
     return str(error).startswith("Permission denied:")
 
 
-@dataclass(frozen=True)
+def _grep_context_window_cache_key_from_context_key(
+    cache_key: GrepContextCacheKey,
+) -> GrepContextWindowCacheKey:
+    path, mtime_ns, size, _line_number, _context_lines, preview_max_bytes = cache_key
+    return (path, mtime_ns, size, preview_max_bytes)
+
+
+@dataclass
 class FakeBrowserSnapshotLoader:
     """Deterministic loader used by tests."""
 
@@ -668,6 +793,7 @@ class FakeBrowserSnapshotLoader:
     executed_child_pane_requests: list[tuple[str, str | None]] = field(default_factory=list)
     executed_grep_preview_requests: list[tuple[str, str, int]] = field(default_factory=list)
     invalidated_directory_listing_paths: list[tuple[str, ...]] = field(default_factory=list)
+    app_state: "AppState | None" = field(default=None, compare=False, repr=False)
 
     def load_browser_snapshot(
         self,
@@ -937,6 +1063,9 @@ def _contains_path(entries, path: str) -> bool:
 
 
 def _normalize_directory_cache_path(path: str) -> str:
+    # Handle virtual search workspace paths - return as-is
+    if is_search_workspace_path(path):
+        return path
     if is_windows_drives_root(path):
         return path
     if is_posix_path(path):

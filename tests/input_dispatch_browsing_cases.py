@@ -3,7 +3,25 @@
 import os
 
 from .input_dispatch_helpers import *
-from .state_test_helpers import reduce_state
+from .state_test_helpers import entry, pane, reduce_state
+
+SEARCH_WORKSPACE_PATH = (
+    "search://readme?target=files&hidden=false&root=%2Fhome%2Ftadashi%2Fdevelop%2Fzivo"
+)
+
+
+def build_search_workspace_state():
+    result_path = "/home/tadashi/develop/zivo/README.md"
+    state = build_initial_app_state()
+    return replace(
+        state,
+        current_path=SEARCH_WORKSPACE_PATH,
+        current_pane=pane(
+            SEARCH_WORKSPACE_PATH,
+            (entry(result_path, "file"),),
+            cursor_path=result_path,
+        ),
+    )
 
 
 def _reduce_state(state, action):
@@ -82,6 +100,58 @@ def test_browsing_k_dispatches_move_cursor() -> None:
             "/home/tadashi/develop/zivo/README.md",
         ),
     )
+
+
+def test_search_workspace_keeps_allowed_browsing_shortcuts() -> None:
+    state = build_search_workspace_state()
+
+    assert dispatch_key_input(state, key="c") == (
+        SetNotification(None),
+        CopyTargets(("/home/tadashi/develop/zivo/README.md",)),
+    )
+    assert dispatch_key_input(state, key="z") == (
+        SetNotification(None),
+        UndoLastOperation(),
+    )
+    assert dispatch_key_input(state, key=":") == (
+        SetNotification(None),
+        BeginCommandPalette(),
+    )
+
+
+def test_search_workspace_blocks_unavailable_browsing_shortcuts() -> None:
+    state = build_search_workspace_state()
+
+    for key in (
+        "x",
+        "v",
+        "d",
+        "D",
+        "delete",
+        "shift+delete",
+        "r",
+        "f",
+        "g",
+        "n",
+        "N",
+        "t",
+        "T",
+        "R",
+        "p",
+        "!",
+        "B",
+        "M",
+    ):
+        actions = dispatch_key_input(state, key=key)
+
+        assert actions == (
+            SetNotification(
+                NotificationState(
+                    level="warning",
+                    message="Unavailable in search workspace",
+                )
+            ),
+        )
 
 
 def test_browsing_prefix_key_starts_multi_key_sequence(monkeypatch) -> None:

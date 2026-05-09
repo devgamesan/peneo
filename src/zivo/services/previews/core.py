@@ -185,6 +185,8 @@ IMAGE_PREVIEW_DEPENDENCY_MESSAGE = "Preview unavailable: install `chafa` for ima
 GREP_PREVIEW_ERROR_MESSAGE = "Preview unavailable: failed to load context"
 
 GrepContextCacheKey = tuple[str, int, int, int, int, int]
+GrepContextWindowCacheKey = tuple[str, int, int, int]
+DEFAULT_GREP_CONTEXT_WINDOW_LOOKAHEAD_LINES = 64
 _ANSI_CONTROL_SEQUENCE_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _ANSI_OSC_SEQUENCE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 _ANSI_STRING_SEQUENCE_RE = re.compile(r"\x1b[P^_X].*?(?:\x1b\\)", re.DOTALL)
@@ -293,7 +295,27 @@ class ContextPreviewState:
         return cls(message=message)
 
 
+@dataclass(frozen=True)
+class GrepContextWindowState:
+    start_line: int
+    lines: tuple[str, ...]
+    hit_eof: bool = False
+
+    @property
+    def end_line(self) -> int:
+        return self.start_line + len(self.lines) - 1
+
+
 class DocumentPreviewLoader(Protocol):
+    def load_preview(
+        self,
+        path: Path,
+        *,
+        preview_max_bytes: int,
+    ) -> FilePreviewState | None: ...
+
+
+class PdfPreviewLoader(Protocol):
     def load_preview(
         self,
         path: Path,
@@ -308,6 +330,7 @@ class ImagePreviewLoader(Protocol):
         path: Path,
         *,
         preview_columns: int,
+        image_preview_format: str = "symbols",
     ) -> FilePreviewState | None: ...
 
 
@@ -362,6 +385,54 @@ class PandocDocumentPreviewLoader:
             return None
         self.pandoc_path = pandoc
         return pandoc
+
+
+@dataclass
+class PdftotextPdfPreviewLoader:
+    pdftotext_path: str | None = field(default=None, init=False, repr=False)
+    pdftotext_missing: bool = field(default=False, init=False, repr=False)
+
+    def load_preview(
+        self,
+        path: Path,
+        *,
+        preview_max_bytes: int,
+    ) -> FilePreviewState | None:
+        pdftotext = self._resolve_pdftotext()
+        if pdftotext is None:
+            return None
+        try:
+            path_str = str(path)
+            if " " in path_str:
+                path_str = f'"{path_str}"'
+            result = subprocess.run(
+                [pdftotext, "-q", path_str, "-"],
+                check=True,
+                capture_output=True,
+            )
+        except (OSError, subprocess.SubprocessError, FileNotFoundError):
+            return None
+        try:
+            content = _normalize_preview_newlines(result.stdout.decode("utf-8"))
+        except UnicodeDecodeError:
+            content = _normalize_preview_newlines(
+                result.stdout.decode("utf-8", errors="ignore")
+            )
+        if not content.strip():
+            return FilePreviewState.with_message("PDF preview: no text content found")
+        return _truncate_preview_text(content, preview_max_bytes)
+
+    def _resolve_pdftotext(self) -> str | None:
+        if self.pdftotext_missing:
+            return None
+        if self.pdftotext_path is not None:
+            return self.pdftotext_path
+        pdftotext = shutil.which("pdftotext")
+        if pdftotext is None:
+            self.pdftotext_missing = True
+            return None
+        self.pdftotext_path = pdftotext
+        return pdftotext
 
 
 def resolve_image_preview_format(image_preview_mode: ImagePreviewMode) -> str:
@@ -550,6 +621,7 @@ def _load_text_preview(
     enable_pdf_preview: bool = True,
     enable_office_preview: bool = True,
     document_preview_loader: DocumentPreviewLoader | None = None,
+    pdf_preview_loader: PdfPreviewLoader | None = None,
     image_preview_loader: ImagePreviewLoader | None = None,
     preview_columns: int = DEFAULT_IMAGE_PREVIEW_COLUMNS,
     image_preview_mode: ImagePreviewMode = "auto",
@@ -571,7 +643,8 @@ def _load_text_preview(
     if _is_pdf_preview_candidate(path):
         if not enable_pdf_preview:
             return FilePreviewState.unavailable()
-        preview = _load_pdf_preview(path, preview_max_bytes=preview_max_bytes)
+        loader = pdf_preview_loader or PdftotextPdfPreviewLoader()
+        preview = loader.load_preview(path, preview_max_bytes=preview_max_bytes)
         if preview is not None:
             return preview
         return FilePreviewState.unsupported()
@@ -639,29 +712,10 @@ def _load_pdf_preview(
     *,
     preview_max_bytes: int,
 ) -> FilePreviewState | None:
-    pdftotext = shutil.which("pdftotext")
-    if pdftotext is None:
-        return None
-    try:
-        path_str = str(path)
-        if " " in path_str:
-            path_str = f'"{path_str}"'
-        result = subprocess.run(
-            [pdftotext, "-q", path_str, "-"],
-            check=True,
-            capture_output=True,
-        )
-    except (OSError, subprocess.SubprocessError, FileNotFoundError):
-        return None
-    try:
-        content = _normalize_preview_newlines(result.stdout.decode("utf-8"))
-    except UnicodeDecodeError:
-        content = _normalize_preview_newlines(
-            result.stdout.decode("utf-8", errors="ignore")
-        )
-    if not content.strip():
-        return FilePreviewState.with_message("PDF preview: no text content found")
-    return _truncate_preview_text(content, preview_max_bytes)
+    return PdftotextPdfPreviewLoader().load_preview(
+        path,
+        preview_max_bytes=preview_max_bytes,
+    )
 
 
 def _load_grep_context_preview(
@@ -671,17 +725,61 @@ def _load_grep_context_preview(
     *,
     preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
 ) -> ContextPreviewState:
+    return _load_grep_context_window(
+        path,
+        line_number,
+        context_lines,
+        preview_max_bytes=preview_max_bytes,
+    )[0]
+
+
+def _build_grep_context_preview_from_window(
+    window: GrepContextWindowState,
+    line_number: int,
+    context_lines: int,
+) -> ContextPreviewState | None:
+    start_line = max(1, line_number - max(0, context_lines))
+    end_line = line_number + max(0, context_lines)
+    if window.start_line > start_line:
+        return None
+    if window.end_line < line_number:
+        return None
+    if window.end_line < end_line and not window.hit_eof:
+        return None
+
+    offset = start_line - window.start_line
+    count = min(end_line, window.end_line) - start_line + 1
+    lines = window.lines[offset : offset + count]
+    if len(lines) < count:
+        return None
+
+    return ContextPreviewState.with_content(
+        "".join(lines),
+        start_line=start_line,
+        highlight_line=line_number,
+    )
+
+
+def _load_grep_context_window(
+    path: Path,
+    line_number: int,
+    context_lines: int,
+    *,
+    preview_max_bytes: int = TEXT_PREVIEW_MAX_BYTES,
+    lookahead_lines: int = DEFAULT_GREP_CONTEXT_WINDOW_LOOKAHEAD_LINES,
+) -> tuple[ContextPreviewState, GrepContextWindowState | None]:
     preview_limit = max(1, preview_max_bytes)
     start_line = max(1, line_number - max(0, context_lines))
     end_line = line_number + max(0, context_lines)
+    window_end_line = end_line + max(0, lookahead_lines)
     lines: list[str] = []
     last_line = 0
     bytes_read = 0
+    current_line = 0
 
     try:
         with path.open("rb") as handle:
-            current_line = 0
-            while current_line < end_line:
+            while current_line < window_end_line:
                 line_bytes = handle.readline()
                 if not line_bytes:
                     break
@@ -691,11 +789,17 @@ def _load_grep_context_preview(
 
                 if bytes_read <= preview_limit:
                     if b"\x00" in line_bytes:
-                        return ContextPreviewState.with_message(PREVIEW_UNSUPPORTED_MESSAGE)
+                        return (
+                            ContextPreviewState.with_message(PREVIEW_UNSUPPORTED_MESSAGE),
+                            None,
+                        )
                     try:
                         line_bytes.decode("utf-8")
                     except UnicodeDecodeError:
-                        return ContextPreviewState.with_message(PREVIEW_UNSUPPORTED_MESSAGE)
+                        return (
+                            ContextPreviewState.with_message(PREVIEW_UNSUPPORTED_MESSAGE),
+                            None,
+                        )
 
                 if current_line >= start_line:
                     try:
@@ -703,21 +807,32 @@ def _load_grep_context_preview(
                         lines.append(line_text)
                         last_line = current_line
                     except UnicodeDecodeError:
-                        return ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE)
+                        return (
+                            ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE),
+                            None,
+                        )
 
     except PermissionError:
-        return ContextPreviewState.with_message(PREVIEW_PERMISSION_DENIED_MESSAGE)
+        return ContextPreviewState.with_message(PREVIEW_PERMISSION_DENIED_MESSAGE), None
     except OSError:
-        return ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE)
+        return ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE), None
 
     if not lines or last_line < line_number:
-        return ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE)
+        return ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE), None
 
-    return ContextPreviewState.with_content(
-        "".join(lines),
+    window = GrepContextWindowState(
         start_line=start_line,
-        highlight_line=line_number,
+        lines=tuple(lines),
+        hit_eof=current_line < window_end_line,
     )
+    preview = _build_grep_context_preview_from_window(
+        window,
+        line_number,
+        context_lines,
+    )
+    if preview is None:
+        preview = ContextPreviewState.with_message(GREP_PREVIEW_ERROR_MESSAGE)
+    return preview, window
 
 
 def _is_text_content(path: Path, blocksize: int = 512) -> bool:

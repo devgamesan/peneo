@@ -1,6 +1,7 @@
 """Child pane widget that toggles between list and preview modes."""
 
 import re
+from pathlib import Path as FsPath
 
 from rich.color import Color
 from rich.style import Style
@@ -11,12 +12,15 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.message import Message
+from textual.timer import Timer
 from textual.widgets import Label, Static
 
 from zivo.models.shell_data import ChildPaneViewState
+from zivo.services.previews.core import ChafaImagePreviewLoader, ImagePreviewLoader
 
 from .pane_rendering import (
     FILE_TYPE_COMPONENT_CLASSES,
+    _FileEntryLabelCache,
     _guess_preview_lexer,
     _render_file_entries,
     _resolve_component_styles,
@@ -25,6 +29,7 @@ from .side_pane import SidePane
 
 _SGR_SEQUENCE_RE = re.compile(r"\x1b\[([0-9;]*)m")
 _KITTY_DELETE_ALL_IMAGES = "\033_Ga=d,d=A\033\\"
+_CHAFA_RESIZE_DEBOUNCE_SECONDS = 0.08
 
 
 class ChildPane(Vertical):
@@ -54,6 +59,7 @@ class ChildPane(Vertical):
         self,
         state: ChildPaneViewState,
         *,
+        image_preview_loader: ImagePreviewLoader | None = None,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
@@ -64,8 +70,13 @@ class ChildPane(Vertical):
         self._last_render_signature: object | None = None
         self._last_clicked_path: str | None = None
         self._hovered_path: str | None = None
+        self._label_cache = _FileEntryLabelCache()
         self._chafa_cached_content: str | None = None
         self._last_chafa_width: int = 0
+        self._chafa_resize_timer: Timer | None = None
+        self._chafa_resize_request_id = 0
+        self._pending_chafa_resize_key: tuple[str, int, str] | None = None
+        self._image_preview_loader = image_preview_loader or ChafaImagePreviewLoader()
 
     @property
     def list_view_id(self) -> str | None:
@@ -148,17 +159,25 @@ class ChildPane(Vertical):
             return
         meta = event.style.meta
         path = meta.get("entry_path")
-        new_path = str(path) if path is not None else None
+        if path is None:
+            return
+        new_path = str(path)
+        if not self._label_cache.contains_path(new_path):
+            return
         if new_path != self._hovered_path:
+            previous_path = self._hovered_path
             self._hovered_path = new_path
-            self._refresh_rendered_content(force=True)
+            if not self._refresh_hovered_labels(previous_path, new_path):
+                self._refresh_rendered_content(force=True)
 
     def on_leave(self, _event: events.Leave) -> None:
         if self._state.is_preview:
             return
         if self._hovered_path is not None:
+            previous_path = self._hovered_path
             self._hovered_path = None
-            self._refresh_rendered_content(force=True)
+            if not self._refresh_hovered_labels(previous_path, None):
+                self._refresh_rendered_content(force=True)
 
     async def set_state(self, state: ChildPaneViewState) -> None:
         if state == self._state:
@@ -192,6 +211,7 @@ class ChildPane(Vertical):
             if not rendered:
                 self.call_after_refresh(self._refresh_rendered_content)
         if preview_identity_changed:
+            self._invalidate_chafa_resize_requests()
             object.__setattr__(self, "_chafa_cached_content", None)
             object.__setattr__(self, "_last_chafa_width", 0)
             object.__setattr__(self, "_kitty_cached", None)
@@ -201,6 +221,7 @@ class ChildPane(Vertical):
                 self.call_after_refresh(lambda: scroll_widget.scroll_home(animate=False))
 
     def on_unmount(self) -> None:
+        self._invalidate_chafa_resize_requests()
         if self._state.is_preview and self._state.preview_kind == "kitty":
             self._clear_kitty_content()
 
@@ -223,26 +244,11 @@ class ChildPane(Vertical):
                     and self._state.preview_path
                     and render_width != self._last_chafa_width
                 ):
-                    try:
-                        from pathlib import Path as FsPath
-
-                        from zivo.services.previews.core import (
-                            ChafaImagePreviewLoader,
-                        )
-
-                        loader = ChafaImagePreviewLoader()
-                        result = loader.load_preview(
-                            FsPath(self._state.preview_path),
-                            preview_columns=render_width,
-                            image_preview_format="symbols",
-                        )
-                        if result and result.content:
-                            object.__setattr__(
-                                self, "_chafa_cached_content", result.content
-                            )
-                        object.__setattr__(self, "_last_chafa_width", render_width)
-                    except Exception:
-                        pass
+                    self._schedule_chafa_resize_preview(
+                        self._state.preview_path,
+                        render_width,
+                        "symbols",
+                    )
 
                 widget.update(
                     self._render_preview(
@@ -273,7 +279,7 @@ class ChildPane(Vertical):
         ):
             return True
         widget.update(
-            _render_file_entries(
+            self._label_cache.rebuild(
                 self._state.entries,
                 render_width,
                 self._ft_styles,
@@ -284,6 +290,32 @@ class ChildPane(Vertical):
         )
         self._last_render_width = render_width
         self._last_render_signature = render_signature
+        return True
+
+    def _refresh_hovered_labels(
+        self, previous_path: str | None, next_path: str | None
+    ) -> bool:
+        try:
+            widget = self._list_widget()
+        except NoMatches:
+            return False
+        render_width = max(0, widget.size.width - SidePane.ENTRY_HORIZONTAL_PADDING)
+        if render_width <= 0:
+            return False
+        if render_width != self._last_render_width:
+            return False
+        if self._render_signature(self._state) != self._last_render_signature:
+            return False
+        rendered = self._label_cache.update_hover(
+            previous_path,
+            next_path,
+            self._ft_styles,
+            selected_directory_style=self.SELECTED_DIRECTORY_STYLE,
+            selected_cut_style=self.SELECTED_CUT_STYLE,
+        )
+        if rendered is None:
+            return False
+        widget.update(rendered)
         return True
 
     def _list_widget(self) -> Static:
@@ -360,12 +392,7 @@ class ChildPane(Vertical):
         image always fills the pane without overflowing the terminal.
         """
         try:
-            from pathlib import Path as FsPath
-
-            from zivo.services.previews.core import (
-                ChafaImagePreviewLoader,
-                resolve_image_preview_format,
-            )
+            from zivo.services.previews.core import resolve_image_preview_format
 
             scroll = self._preview_scroll_widget()
             region = scroll.region
@@ -384,16 +411,11 @@ class ChildPane(Vertical):
             last_path = getattr(self, "_last_kitty_path", None)
 
             if path == last_path and pane_width != last_width and path:
-                loader = ChafaImagePreviewLoader()
-                result = loader.load_preview(
-                    FsPath(path),
-                    preview_columns=pane_width,
-                    image_preview_format="kitty",
+                self._schedule_chafa_resize_preview(
+                    path,
+                    pane_width,
+                    "kitty",
                 )
-                if result and result.content:
-                    content = result.content
-                    object.__setattr__(self, "_kitty_cached", content)
-                object.__setattr__(self, "_last_kitty_width", pane_width)
             else:
                 cached = getattr(self, "_kitty_cached", None)
                 if path == last_path and cached is not None:
@@ -412,6 +434,131 @@ class ChildPane(Vertical):
             self._write_terminal_content(write)
         except Exception:
             pass
+
+    def _schedule_chafa_resize_preview(
+        self,
+        path: str,
+        preview_columns: int,
+        image_preview_format: str,
+    ) -> None:
+        key = (path, preview_columns, image_preview_format)
+        if self._pending_chafa_resize_key == key:
+            return
+        self._chafa_resize_request_id += 1
+        request_id = self._chafa_resize_request_id
+        self._pending_chafa_resize_key = key
+        if self._chafa_resize_timer is not None:
+            self._chafa_resize_timer.stop()
+        self._chafa_resize_timer = self.set_timer(
+            _CHAFA_RESIZE_DEBOUNCE_SECONDS,
+            lambda: self._start_chafa_resize_worker(
+                request_id,
+                path,
+                preview_columns,
+                image_preview_format,
+            ),
+            name=f"chafa-resize-debounce:{request_id}",
+        )
+
+    def _start_chafa_resize_worker(
+        self,
+        request_id: int,
+        path: str,
+        preview_columns: int,
+        image_preview_format: str,
+    ) -> None:
+        self._chafa_resize_timer = None
+        if (
+            request_id != self._chafa_resize_request_id
+            or self._pending_chafa_resize_key
+            != (path, preview_columns, image_preview_format)
+        ):
+            return
+
+        def _load_preview() -> None:
+            content: str | None = None
+            try:
+                result = self._image_preview_loader.load_preview(
+                    FsPath(path),
+                    preview_columns=preview_columns,
+                    image_preview_format=image_preview_format,
+                )
+                if result and result.content:
+                    content = result.content
+            except Exception:
+                content = None
+            try:
+                self.app.call_from_thread(
+                    self._complete_chafa_resize_request,
+                    request_id,
+                    path,
+                    preview_columns,
+                    image_preview_format,
+                    content,
+                )
+            except Exception:
+                pass
+
+        self.run_worker(
+            _load_preview,
+            name=f"chafa-resize:{request_id}",
+            group=f"{self.id or 'child-pane'}:chafa-resize",
+            description="Regenerate resized image preview",
+            exit_on_error=False,
+            thread=True,
+        )
+
+    def _complete_chafa_resize_request(
+        self,
+        request_id: int,
+        path: str,
+        preview_columns: int,
+        image_preview_format: str,
+        content: str | None,
+    ) -> None:
+        key = (path, preview_columns, image_preview_format)
+        if (
+            request_id != self._chafa_resize_request_id
+            or self._pending_chafa_resize_key != key
+            or self._state.preview_path != path
+        ):
+            return
+        if image_preview_format == "symbols":
+            if self._state.preview_kind != "image":
+                return
+            if content:
+                object.__setattr__(self, "_chafa_cached_content", content)
+            object.__setattr__(self, "_last_chafa_width", preview_columns)
+            self._pending_chafa_resize_key = None
+            try:
+                widget = self._preview_widget()
+            except NoMatches:
+                return
+            widget.update(
+                self._render_preview(
+                    self._state,
+                    preview_columns,
+                    chafa_override=self._chafa_cached_content,
+                )
+            )
+            return
+
+        if image_preview_format != "kitty" or self._state.preview_kind != "kitty":
+            return
+        if content:
+            object.__setattr__(self, "_kitty_cached", content)
+        object.__setattr__(self, "_last_kitty_path", path)
+        object.__setattr__(self, "_last_kitty_width", preview_columns)
+        self._pending_chafa_resize_key = None
+        if content:
+            self._write_kitty_content(content)
+
+    def _invalidate_chafa_resize_requests(self) -> None:
+        self._chafa_resize_request_id += 1
+        self._pending_chafa_resize_key = None
+        if self._chafa_resize_timer is not None:
+            self._chafa_resize_timer.stop()
+            self._chafa_resize_timer = None
 
     @staticmethod
     def _should_clear_previous_kitty_preview(

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import zivo.services.text_replace as text_replace_module
 from zivo.models import TextReplaceRequest
 from zivo.services.text_replace import (
     InvalidTextReplaceQueryError,
@@ -75,3 +76,40 @@ def test_live_text_replace_service_rejects_invalid_regex(tmp_path: Path) -> None
                 replace_text="done",
             )
         )
+
+
+def test_live_text_replace_service_apply_reuses_matcher_without_diff_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "b.txt"
+    second = tmp_path / "a.txt"
+    first.write_text("todo one\n", encoding="utf-8")
+    second.write_text("todo two\n", encoding="utf-8")
+    service = LiveTextReplaceService()
+    request = TextReplaceRequest(
+        paths=(str(first), str(second)),
+        find_text="todo",
+        replace_text="done",
+    )
+    original_compile_pattern = text_replace_module._compile_pattern
+    compile_count = 0
+
+    def compile_pattern_spy(query: str):
+        nonlocal compile_count
+        compile_count += 1
+        return original_compile_pattern(query)
+
+    def fail_build_unified_diff(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("apply should not build preview diffs")
+
+    monkeypatch.setattr(text_replace_module, "_compile_pattern", compile_pattern_spy)
+    monkeypatch.setattr(text_replace_module, "_build_unified_diff", fail_build_unified_diff)
+
+    result = service.apply(request)
+
+    assert compile_count == 1
+    assert result.changed_paths == (str(second), str(first))
+    assert result.total_match_count == 2
+    assert first.read_text(encoding="utf-8") == "done one\n"
+    assert second.read_text(encoding="utf-8") == "done two\n"

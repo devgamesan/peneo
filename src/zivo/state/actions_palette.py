@@ -296,6 +296,11 @@ class OpenFindResultInGuiEditor:
 
 
 @dataclass(frozen=True)
+class OpenSearchWorkspace:
+    """Open search results as a virtual workspace."""
+
+
+@dataclass(frozen=True)
 class BeginGrepExport:
     """Open the grep export dialog."""
 
