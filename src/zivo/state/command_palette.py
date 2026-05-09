@@ -209,6 +209,7 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
     current_path_is_bookmarked = state.current_path in state.config.bookmarks.paths
     has_visible_entries = select_has_visible_current_entries(state)
     tab_count = len(state.browser_tabs) or 1
+    chmod_supported = _is_chmod_supported()
 
     items = [
         CommandPaletteItem(
@@ -372,6 +373,15 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                     enabled=True,
                 )
             )
+            if chmod_supported:
+                items.append(
+                    CommandPaletteItem(
+                        id="change_permissions",
+                        label="Change permissions",
+                        shortcut=None,
+                        enabled=True,
+                    )
+                )
             items.append(
                 CommandPaletteItem(
                     id="create_symlink",
@@ -559,6 +569,18 @@ def _build_transfer_command_palette_items(state: AppState) -> tuple[CommandPalet
     has_visible_entries = bool(_transfer_visible_entries(state))
     can_paste = state.clipboard.mode != "none" and bool(state.clipboard.paths)
     tab_count = len(state.browser_tabs) or 1
+    chmod_item = (
+        (
+            CommandPaletteItem(
+                id="change_permissions",
+                label="Change permissions",
+                shortcut=None,
+                enabled=has_single_target,
+            ),
+        )
+        if _is_chmod_supported()
+        else ()
+    )
 
     return (
         CommandPaletteItem(
@@ -669,6 +691,7 @@ def _build_transfer_command_palette_items(state: AppState) -> tuple[CommandPalet
             shortcut="r",
             enabled=has_single_target,
         ),
+        *chmod_item,
         CommandPaletteItem(
             id="create_symlink",
             label="Make symlink",
@@ -794,3 +817,9 @@ def _is_empty_trash_supported() -> bool:
 def _is_split_terminal_supported() -> bool:
     """Check if the embedded split terminal is available on this platform."""
     return is_split_terminal_supported()
+
+
+def _is_chmod_supported() -> bool:
+    """Return whether POSIX-style chmod is meaningful on the current platform."""
+
+    return platform.system() != "Windows"
