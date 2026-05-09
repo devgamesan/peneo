@@ -1,3 +1,4 @@
+import builtins
 import json
 import os
 import shutil
@@ -101,6 +102,76 @@ def test_live_grep_search_service_parses_stdout_lines_as_they_are_read(
     assert [result.column_number for result in results] == [1, 7]
     assert process.stdout.closed
     assert process.stderr.closed
+
+
+def test_live_grep_search_service_skips_sort_for_ordered_stdout_lines(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    process = _FakeGrepProcess(
+        (
+            _rg_match_line("a.txt", line_number=1, text="TODO: a\n"),
+            _rg_match_line("a.txt", line_number=2, text="TODO: a2\n"),
+            _rg_match_line("z.txt", line_number=1, text="TODO: z\n"),
+        )
+    )
+    sorted_calls = 0
+
+    def counting_sorted(*args, **kwargs):
+        nonlocal sorted_calls
+        sorted_calls += 1
+        return builtins.sorted(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "zivo.services.grep_search.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+    monkeypatch.setattr("zivo.services.grep_search.sorted", counting_sorted, raising=False)
+
+    results = LiveGrepSearchService().search(str(root), "todo", show_hidden=False)
+
+    assert [result.display_label for result in results] == [
+        "a.txt:1: TODO: a",
+        "a.txt:2: TODO: a2",
+        "z.txt:1: TODO: z",
+    ]
+    assert sorted_calls == 0
+
+
+def test_live_grep_search_service_sorts_when_stdout_order_regresses(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    process = _FakeGrepProcess(
+        (
+            _rg_match_line("z.txt", line_number=1, text="TODO: z\n"),
+            _rg_match_line("a.txt", line_number=1, text="TODO: a\n"),
+        )
+    )
+    sorted_calls = 0
+
+    def counting_sorted(*args, **kwargs):
+        nonlocal sorted_calls
+        sorted_calls += 1
+        return builtins.sorted(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "zivo.services.grep_search.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+    monkeypatch.setattr("zivo.services.grep_search.sorted", counting_sorted, raising=False)
+
+    results = LiveGrepSearchService().search(str(root), "todo", show_hidden=False)
+
+    assert [result.display_label for result in results] == [
+        "a.txt:1: TODO: a",
+        "z.txt:1: TODO: z",
+    ]
+    assert sorted_calls == 1
 
 
 def test_live_grep_search_service_keeps_nonfatal_error_partial_results(
