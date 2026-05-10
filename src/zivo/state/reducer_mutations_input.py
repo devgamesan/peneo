@@ -203,6 +203,14 @@ def _handle_begin_rename_input(state, action, reduce_state):
 
 
 def _handle_begin_chmod_input(state, action, reduce_state):
+    if not action.paths:
+        return notify(
+            state,
+            level="warning",
+            message="Change permissions requires at least one target",
+        )
+
+    first_path = action.paths[0]
     if state.layout_mode == "transfer":
         active_pane = (
             state.transfer_left
@@ -214,7 +222,7 @@ def _handle_begin_chmod_input(state, action, reduce_state):
                 (
                     candidate
                     for candidate in active_pane.pane.entries
-                    if candidate.path == action.path
+                    if candidate.path == first_path
                 ),
                 None,
             )
@@ -222,7 +230,7 @@ def _handle_begin_chmod_input(state, action, reduce_state):
             else None
         )
     else:
-        entry = current_entry_for_path(state, action.path)
+        entry = current_entry_for_path(state, first_path)
     if entry is None:
         return finalize(state)
     value = "" if entry.permissions_mode is None else f"{S_IMODE(entry.permissions_mode):03o}"
@@ -235,7 +243,8 @@ def _handle_begin_chmod_input(state, action, reduce_state):
                 prompt="Permissions: ",
                 value=value,
                 cursor_pos=len(value),
-                chmod_target_path=entry.path,
+                chmod_target_paths=action.paths,
+                chmod_recursive=False,
             ),
             command_palette=None,
             pending_file_search_request_id=None,
@@ -296,6 +305,7 @@ def _handle_begin_recursive_chmod_input(state, action, reduce_state):
                 value=value,
                 cursor_pos=len(value),
                 chmod_target_paths=action.paths,
+                chmod_recursive=True,
             ),
             command_palette=None,
             pending_file_search_request_id=None,

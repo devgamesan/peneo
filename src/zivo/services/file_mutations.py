@@ -164,11 +164,49 @@ class LiveFileMutationService:
         )
 
     def _execute_chmod(self, request: ChmodRequest) -> FileMutationResult:
-        target_path = _absolute_entry_path(request.path)
-        self.adapter.change_permissions(str(target_path), request.mode)
+        changed_paths: list[str] = []
+        failures: list[tuple[str, str]] = []
+
+        for path in request.paths:
+            target_path = _absolute_entry_path(path)
+            try:
+                self.adapter.change_permissions(str(target_path), request.mode)
+            except OSError as error:
+                failures.append((str(target_path), str(error) or "Permission change failed"))
+            else:
+                changed_paths.append(str(target_path))
+
+        if not changed_paths:
+            if len(failures) == 1:
+                failed_name = Path(failures[0][0]).name
+                raise OSError(f"Failed to change permissions for {failed_name}: {failures[0][1]}")
+            if failures:
+                raise OSError(f"Failed to change permissions for {len(failures)} items")
+            raise OSError("Change permissions requires at least one target")
+
+        if failures:
+            return FileMutationResult(
+                path=None,
+                message=(
+                    f"Changed permissions to {request.mode:03o} for "
+                    f"{len(changed_paths)}/{len(changed_paths) + len(failures)} items "
+                    f"with {len(failures)} failure(s)"
+                ),
+                level="warning",
+                operation="chmod",
+            )
+
+        if len(changed_paths) == 1:
+            return FileMutationResult(
+                path=changed_paths[0],
+                message=f"Changed permissions to {request.mode:03o}",
+                operation="chmod",
+            )
+
+        noun = "item" if len(changed_paths) == 1 else "items"
         return FileMutationResult(
-            path=str(target_path),
-            message=f"Changed permissions to {request.mode:03o}",
+            path=None,
+            message=f"Changed permissions to {request.mode:03o} for {len(changed_paths)} {noun}",
             operation="chmod",
         )
 
@@ -274,10 +312,18 @@ class FakeFileMutationService:
             )
 
         if isinstance(request, ChmodRequest):
-            target_path = _absolute_entry_path(request.path)
+            target_path = _absolute_entry_path(request.paths[0]) if request.paths else None
+            if len(request.paths) == 1:
+                message = f"Changed permissions to {request.mode:03o}"
+            else:
+                noun = "item" if len(request.paths) == 1 else "items"
+                message = (
+                    f"Changed permissions to {request.mode:03o} "
+                    f"for {len(request.paths)} {noun}"
+                )
             return FileMutationResult(
-                path=str(target_path),
-                message=f"Changed permissions to {request.mode:03o}",
+                path=str(target_path) if target_path is not None else None,
+                message=message,
                 operation="chmod",
             )
 

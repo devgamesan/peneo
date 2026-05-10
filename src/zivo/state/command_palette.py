@@ -435,6 +435,14 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
         if chmod_supported:
             items.append(
                 CommandPaletteItem(
+                    id="change_permissions",
+                    label="Change permissions",
+                    shortcut=None,
+                    enabled=True,
+                )
+            )
+            items.append(
+                CommandPaletteItem(
                     id="change_permissions_recursively",
                     label="Change permissions recursively",
                     shortcut=None,

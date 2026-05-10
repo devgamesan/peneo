@@ -153,13 +153,19 @@ def build_file_mutation_request(
         return None
     if state.ui_mode == "CHMOD" and state.pending_input.chmod_target_path is not None:
         return ChmodRequest(
-            path=state.pending_input.chmod_target_path,
+            paths=(state.pending_input.chmod_target_path,),
             mode=int(state.pending_input.value.strip(), 8),
         )
     if state.ui_mode == "CHMOD" and state.pending_input.chmod_target_paths is not None:
-        return RecursiveChmodRequest(
+        mode = int(state.pending_input.value.strip(), 8)
+        if state.pending_input.chmod_recursive:
+            return RecursiveChmodRequest(
+                paths=state.pending_input.chmod_target_paths,
+                mode=mode,
+            )
+        return ChmodRequest(
             paths=state.pending_input.chmod_target_paths,
-            mode=int(state.pending_input.value.strip(), 8),
+            mode=mode,
         )
     if state.ui_mode == "RENAME" and state.pending_input.target_path is not None:
         return RenameRequest(

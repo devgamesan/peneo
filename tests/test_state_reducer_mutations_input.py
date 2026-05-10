@@ -68,14 +68,17 @@ def test_begin_chmod_input_sets_initial_value_from_target_permissions() -> None:
         ),
     )
 
-    next_state = _reduce_state(state, BeginChmodInput("/home/tadashi/develop/zivo/docs"))
+    next_state = _reduce_state(
+        state,
+        BeginChmodInput(("/home/tadashi/develop/zivo/docs",)),
+    )
 
     assert next_state.ui_mode == "CHMOD"
     assert next_state.pending_input == PendingInputState(
         prompt="Permissions: ",
         value="755",
         cursor_pos=3,
-        chmod_target_path="/home/tadashi/develop/zivo/docs",
+        chmod_target_paths=("/home/tadashi/develop/zivo/docs",),
     )
 
 
@@ -86,7 +89,7 @@ def test_submit_chmod_input_rejects_invalid_octal_mode() -> None:
         pending_input=PendingInputState(
             prompt="Permissions: ",
             value="88",
-            chmod_target_path="/home/tadashi/develop/zivo/docs",
+            chmod_target_paths=("/home/tadashi/develop/zivo/docs",),
         ),
     )
 
@@ -129,6 +132,7 @@ def test_begin_recursive_chmod_input_sets_initial_value_from_first_target_permis
             "/home/tadashi/develop/zivo/docs",
             "/home/tadashi/develop/zivo/README.md",
         ),
+        chmod_recursive=True,
     )
 
 
@@ -140,6 +144,7 @@ def test_submit_recursive_chmod_input_rejects_invalid_octal_mode() -> None:
             prompt="Permissions recursively: ",
             value="88",
             chmod_target_paths=("/home/tadashi/develop/zivo/docs",),
+            chmod_recursive=True,
         ),
     )
 
@@ -313,7 +318,7 @@ def test_submit_chmod_input_emits_file_mutation_effect() -> None:
         pending_input=PendingInputState(
             prompt="Permissions: ",
             value="755",
-            chmod_target_path="/home/tadashi/develop/zivo/docs",
+            chmod_target_paths=("/home/tadashi/develop/zivo/docs",),
         ),
     )
 
@@ -324,7 +329,7 @@ def test_submit_chmod_input_emits_file_mutation_effect() -> None:
         RunFileMutationEffect(
             request_id=1,
             request=ChmodRequest(
-                path="/home/tadashi/develop/zivo/docs",
+                paths=("/home/tadashi/develop/zivo/docs",),
                 mode=0o755,
             ),
         ),
@@ -342,6 +347,7 @@ def test_submit_recursive_chmod_input_emits_file_mutation_effect() -> None:
                 "/home/tadashi/develop/zivo/docs",
                 "/home/tadashi/develop/zivo/src",
             ),
+            chmod_recursive=True,
         ),
     )
 

@@ -1484,7 +1484,7 @@ def test_select_command_palette_state_shows_chmod_for_single_target() -> None:
     assert palette_state.items[1].enabled is True
 
 
-def test_select_command_palette_state_shows_recursive_chmod_for_selection() -> None:
+def test_select_command_palette_state_shows_chmod_for_selection() -> None:
     initial_state = build_initial_app_state()
     state = replace(
         initial_state,
@@ -1501,16 +1501,18 @@ def test_select_command_palette_state_shows_recursive_chmod_for_selection() -> N
     state = _reduce_state(state, BeginCommandPalette())
     state = replace(
         state,
-        command_palette=replace(state.command_palette, query="recursively"),
+        command_palette=replace(state.command_palette, query="permissions"),
     )
 
     palette_state = select_command_palette_state(state)
 
     assert palette_state is not None
     assert [item.label for item in palette_state.items] == [
+        "Change permissions",
         "Change permissions recursively",
     ]
     assert palette_state.items[0].enabled is True
+    assert palette_state.items[1].enabled is True
 
 
 def test_command_palette_hides_chmod_on_windows(monkeypatch) -> None:
