@@ -11,6 +11,7 @@ from .input_dialogs import (
     dispatch_detail_input,
     dispatch_filter_input,
     dispatch_grep_export_input,
+    dispatch_help_input,
     dispatch_input_dialog_input,
     dispatch_shell_command_input,
 )
@@ -65,6 +66,8 @@ def dispatch_key_input(
 
     if state.ui_mode == "ABOUT":
         return dispatch_about_input(state, key=key, character=character)
+    if state.ui_mode == "HELP":
+        return dispatch_help_input(state, key=key, character=character)
     if state.ui_mode == "FILTER":
         return dispatch_filter_input(state, key=key, character=character)
     if state.ui_mode == "CONFIRM":

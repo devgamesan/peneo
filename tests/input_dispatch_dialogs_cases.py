@@ -136,6 +136,14 @@ def test_detail_enter_closes_attribute_dialog() -> None:
     assert actions == (SetNotification(None), DismissAttributeDialog())
 
 
+def test_help_escape_closes_help_dialog() -> None:
+    state = replace(build_initial_app_state(), ui_mode="HELP")
+
+    actions = dispatch_key_input(state, key="escape")
+
+    assert actions == (SetNotification(None), DismissHelpDialog())
+
+
 def test_config_down_moves_cursor() -> None:
     state = replace(
         build_initial_app_state(config_path="/tmp/zivo/config.toml"),

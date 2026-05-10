@@ -28,6 +28,7 @@ from .actions import (
     DismissAboutDialog,
     DismissAttributeDialog,
     DismissConfigEditor,
+    DismissHelpDialog,
     DismissNameConflict,
     MoveConfigEditorCursor,
     MovePendingInputCursor,
@@ -283,6 +284,15 @@ def dispatch_about_input(
         return supported(DismissAboutDialog())
 
     return warn("Use Enter or Esc to close the about dialog")
+
+
+def dispatch_help_input(
+    state: AppState, *, key: str, character: str | None
+) -> DispatchedActions:
+    if key in {"enter", "escape"}:
+        return supported(DismissHelpDialog())
+
+    return warn("Use Enter or Esc to close the help dialog")
 
 
 def dispatch_detail_input(

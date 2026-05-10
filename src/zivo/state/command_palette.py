@@ -52,6 +52,7 @@ SEARCH_WORKSPACE_COMMAND_IDS = frozenset(
         "copy_path",
         "toggle_hidden",
         "show_about",
+        "show_help",
         "edit_config",
     }
 )
@@ -568,6 +569,12 @@ def _build_command_palette_items(state: AppState) -> tuple[CommandPaletteItem, .
                 enabled=True,
             ),
             CommandPaletteItem(
+                id="show_help",
+                label="Show help",
+                shortcut="?",
+                enabled=True,
+            ),
+            CommandPaletteItem(
                 id="edit_config",
                 label="Edit config",
                 shortcut=None,
@@ -783,6 +790,12 @@ def _build_transfer_command_palette_items(state: AppState) -> tuple[CommandPalet
             id="toggle_hidden",
             label=_hidden_files_label(state),
             shortcut=".",
+            enabled=True,
+        ),
+        CommandPaletteItem(
+            id="show_help",
+            label="Show help",
+            shortcut="?",
             enabled=True,
         ),
     )

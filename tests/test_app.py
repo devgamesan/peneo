@@ -3119,7 +3119,7 @@ async def test_app_displays_browsing_help_bar() -> None:
         "enter open | e edit | O gui editor | i info | "
         "/ filter | s sort | . hidden | [ ] bk/fwd | q quit\n"
         "space select | c copy | x cut | v paste | d delete | r rename | z undo | ctrl+j/k prv\n"
-        f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette"
+        f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette | ? help"
     )
 
     async with app.run_test():
@@ -3225,7 +3225,7 @@ async def test_app_displays_transfer_help_bar() -> None:
     expected_help = (
         "[ ] focus | y copy-to-pane | m move-to-pane | p/Esc close | q quit\n"
         "Space select | c copy | x cut | v paste | d delete | r rename | z undo\n"
-        ". hidden | N new-dir | : palette"
+        ". hidden | N new-dir | : palette | ? help"
     )
 
     async with app.run_test() as pilot:

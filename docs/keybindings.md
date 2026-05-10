@@ -57,6 +57,7 @@ You can open an external terminal directly from zivo. Press `t` to suspend zivo 
 | `shift+tab` | Switch to previous tab |
 | `M` | Open current directory in file manager |
 | `:` | Open command palette |
+| `?` | Show contextual help |
 | `q` | Quit |
 | `[` | Go back in history |
 | `]` | Go forward in history |
@@ -95,6 +96,7 @@ You can open an external terminal directly from zivo. Press `t` to suspend zivo 
 | `b` | Show bookmarks |
 | `H` | Show history |
 | `:` | Open a transfer-mode command palette with transfer-available commands only |
+| `?` | Show contextual help |
 | `o` | Open new tab |
 | `w` | Close current tab |
 | `1`-`9`, `0` | Switch to tab 1-9, or tab 10 with `0` |

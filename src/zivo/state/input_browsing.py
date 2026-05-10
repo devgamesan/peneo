@@ -50,6 +50,7 @@ from .actions import (
     SetPendingKeySequence,
     SetSort,
     ShowAttributes,
+    ShowHelp,
     ToggleHiddenFiles,
     ToggleSelectionAndAdvance,
     ToggleTransferMode,
@@ -87,6 +88,7 @@ BROWSING_KEYMAP = {
     "r": "begin_rename",
     "!": "begin_shell_command",
     ":": "begin_command_palette",
+    "?": "show_help",
     "s": "cycle_sort",
     "d": "delete_targets",
     "D": "permanent_delete_targets",
@@ -485,6 +487,7 @@ BROWSING_SIMPLE_DISPATCH: dict[str, type[Action]] = {
     "begin_exit_current_path": BeginExitCurrentPath,
     "exit_current_path": ExitCurrentPath,
     "show_attributes": ShowAttributes,
+    "show_help": ShowHelp,
     "toggle_transfer_mode": ToggleTransferMode,
 }
 

@@ -107,6 +107,8 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
         if state.config.help_bar.detail:
             return HelpBarState(state.config.help_bar.detail)
         return HelpBarState(("enter close | esc close",))
+    if state.ui_mode == "HELP":
+        return HelpBarState(("enter close | esc close",))
     if state.ui_mode == "CONFIG":
         if state.config.help_bar.config:
             return HelpBarState(state.config.help_bar.config)
@@ -196,7 +198,9 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             )
         if state.config.help_bar.palette:
             return HelpBarState(state.config.help_bar.palette)
-        return HelpBarState(("type command | ↑↓ or Ctrl+j/k select | enter run | esc cancel",))
+        return HelpBarState(
+            ("type command | ↑↓ or Ctrl+j/k select | enter run | ? help | esc cancel",)
+        )
     if state.ui_mode == "BUSY":
         if state.config.help_bar.busy:
             return HelpBarState(state.config.help_bar.busy)
@@ -208,7 +212,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             (
                 "[ ] focus | y copy-to-pane | m move-to-pane | p/Esc close | q quit",
                 "Space select | c copy | x cut | v paste | d delete | r rename | z undo",
-                ". hidden | N new-dir | : palette",
+                ". hidden | N new-dir | : palette | ? help",
             )
         )
     if is_search_workspace_path(state.current_path):
@@ -217,7 +221,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
                 "enter open | e edit | O gui editor | i info | "
                 "/ filter | s sort | . hidden | [ ] bk/fwd | q quit",
                 "space select | c copy | z undo | ctrl+j/k prv",
-                ": palette",
+                ": palette | ? help",
             )
         )
     if state.config.help_bar.browsing:
@@ -228,7 +232,7 @@ def select_help_bar_state(state: AppState) -> HelpBarState:
             "enter open | e edit | O gui editor | i info | "
             "/ filter | s sort | . hidden | [ ] bk/fwd | q quit",
             "space select | c copy | x cut | v paste | d delete | r rename | z undo | ctrl+j/k prv",
-            f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette",
+            f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette | ? help",
         )
     )
 
@@ -722,6 +726,13 @@ def select_attribute_dialog_state(state: AppState) -> AttributeDialogState | Non
                 "License: MIT License",
                 "Repository: https://github.com/devgamesan/zivo",
             ),
+            options=("enter close", "esc close"),
+        )
+
+    if state.ui_mode == "HELP" and state.help_dialog is not None:
+        return AttributeDialogState(
+            title=state.help_dialog.title,
+            lines=state.help_dialog.lines,
             options=("enter close", "esc close"),
         )
 

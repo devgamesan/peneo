@@ -18,6 +18,7 @@ from zivo.state.actions import (
     OpenNewTab,
     PasteClipboardToTransferPane,
     SetNotification,
+    ShowHelp,
     ToggleHiddenFiles,
     ToggleTransferMode,
     TransferCopyToOppositePane,
@@ -105,6 +106,12 @@ def test_transfer_mode_keeps_tab_keys_for_browser_tabs() -> None:
         SetNotification(None),
         ActivatePreviousTab(),
     )
+
+
+def test_transfer_mode_question_mark_opens_contextual_help() -> None:
+    state = _reduce_state(build_initial_app_state(), ToggleTransferMode())
+
+    assert dispatch_key_input(state, key="?") == (SetNotification(None), ShowHelp())
 
 
 def test_transfer_mode_number_activates_direct_tab() -> None:

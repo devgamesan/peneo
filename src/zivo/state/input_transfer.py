@@ -27,6 +27,7 @@ from .actions import (
     OpenNewTab,
     PasteClipboardToTransferPane,
     SelectAllVisibleTransferEntries,
+    ShowHelp,
     ToggleHiddenFiles,
     ToggleTransferMode,
     ToggleTransferSelectionAndAdvance,
@@ -79,6 +80,7 @@ TRANSFER_KEYMAP = {
     "tab",
     "shift+tab",
     ":",
+    "?",
     "p",
 }
 
@@ -168,6 +170,8 @@ def dispatch_transfer_input(
         return supported(BeginBookmarkSearch())
     if key == ":":
         return supported(BeginCommandPalette())
+    if key == "?":
+        return supported(ShowHelp())
     if key == "p":
         return supported(ToggleTransferMode())
     if key == "q":

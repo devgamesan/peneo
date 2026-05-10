@@ -19,6 +19,48 @@ def test_palette_escape_closes_command_palette() -> None:
     assert actions == (SetNotification(None), CancelCommandPalette())
 
 
+def test_palette_question_mark_opens_contextual_help() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(),
+    )
+
+    actions = dispatch_key_input(state, key="?", character="?")
+
+    assert actions == (SetNotification(None), ShowHelp())
+
+
+def test_file_search_palette_question_mark_updates_query() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="file_search", query="readme"),
+    )
+
+    actions = dispatch_key_input(state, key="?", character="?")
+
+    assert actions == (SetNotification(None), SetCommandPaletteQuery("readme?"))
+
+
+def test_grep_search_palette_question_mark_updates_keyword() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(
+            source="grep_search",
+            grep_search=GrepSearchPaletteState(keyword="todo"),
+        ),
+    )
+
+    actions = dispatch_key_input(state, key="?", character="?")
+
+    assert actions == (
+        SetNotification(None),
+        SetGrepSearchField(field="keyword", value="todo?"),
+    )
+
+
 def test_palette_down_moves_cursor() -> None:
     state = replace(build_initial_app_state(), ui_mode="PALETTE")
 

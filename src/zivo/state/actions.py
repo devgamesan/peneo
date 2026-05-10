@@ -21,6 +21,7 @@ from .actions_input import (
     DismissAboutDialog,
     DismissAttributeDialog,
     DismissConfigEditor,
+    DismissHelpDialog,
     DismissNameConflict,
     MoveConfigEditorCursor,
     MovePendingInputCursor,
@@ -92,6 +93,7 @@ __all__ = [
     "DismissAboutDialog",
     "DismissAttributeDialog",
     "DismissConfigEditor",
+    "DismissHelpDialog",
     "DismissNameConflict",
     "MoveConfigEditorCursor",
     "MovePendingInputCursor",
@@ -181,6 +183,7 @@ from .actions_navigation import (
     SetTransferCursorPath,
     ShowAbout,
     ShowAttributes,
+    ShowHelp,
     ToggleHiddenFiles,
     ToggleTransferMode,
     ToggleTransferSelectionAndAdvance,
@@ -376,6 +379,7 @@ Action = (
     | CancelShellCommandInput
     | DismissNameConflict
     | DismissAboutDialog
+    | DismissHelpDialog
     | DismissAttributeDialog
     | SetFilterQuery
     | PasteIntoPendingInput
@@ -402,6 +406,7 @@ Action = (
     | OpenPathInGuiEditor
     | OpenTerminalAtPath
     | ShowAbout
+    | ShowHelp
     | ShowAttributes
     | CopyPathsToClipboard
     | AddBookmark

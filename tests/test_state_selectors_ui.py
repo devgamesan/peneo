@@ -56,6 +56,15 @@ test_select_help_bar_state_for_bookmarks_palette = (
 test_select_help_bar_state_for_command_palette = (
     cases.test_select_help_bar_state_for_command_palette
 )
+test_select_help_bar_state_for_help_dialog = (
+    cases.test_select_help_bar_state_for_help_dialog
+)
+test_select_help_dialog_state_for_browser_mode = (
+    cases.test_select_help_dialog_state_for_browser_mode
+)
+test_select_help_dialog_state_for_palette_mode = (
+    cases.test_select_help_dialog_state_for_palette_mode
+)
 test_select_help_bar_state_for_config_editor = (
     cases.test_select_help_bar_state_for_config_editor
 )

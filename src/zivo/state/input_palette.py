@@ -25,6 +25,7 @@ from .actions import (
     SetGrepReplaceSelectedField,
     SetGrepSearchField,
     SetReplaceField,
+    ShowHelp,
     SubmitCommandPalette,
 )
 from .command_palette import normalize_command_palette_cursor
@@ -147,6 +148,9 @@ def dispatch_command_palette_input(
 
     if key == "escape":
         return supported(CancelCommandPalette())
+
+    if key == "?" and palette_source in {None, "commands"}:
+        return supported(ShowHelp())
 
     if key == "tab" and palette_source == "file_search":
         return supported(CycleFileSearchField(delta=1))

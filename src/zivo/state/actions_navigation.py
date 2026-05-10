@@ -148,6 +148,11 @@ class ShowAbout:
 
 
 @dataclass(frozen=True)
+class ShowHelp:
+    """Show contextual help for the current mode."""
+
+
+@dataclass(frozen=True)
 class ShowAttributes:
     """Open the attribute dialog for the current single target."""
 

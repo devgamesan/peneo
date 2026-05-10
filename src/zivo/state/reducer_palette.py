@@ -3,7 +3,8 @@
 from dataclasses import replace
 from typing import Callable
 
-from zivo.windows_paths import list_windows_drive_paths
+from zivo.platform_support import is_split_terminal_supported
+from zivo.windows_paths import is_search_workspace_path, list_windows_drive_paths
 
 from .actions import (
     Action,
@@ -32,6 +33,7 @@ from .actions import (
     CycleSelectedFilesGrepField,
     DismissAboutDialog,
     DismissAttributeDialog,
+    DismissHelpDialog,
     FileSearchCompleted,
     FileSearchFailed,
     GrepExportCompleted,
@@ -55,6 +57,7 @@ from .actions import (
     SetReplaceField,
     ShowAbout,
     ShowAttributes,
+    ShowHelp,
     SubmitCommandPalette,
     SubmitGrepExport,
     TextReplaceApplied,
@@ -65,7 +68,7 @@ from .actions import (
 from .actions_palette import OpenSearchWorkspace
 from .command_palette import normalize_command_palette_cursor
 from .effects import ReduceResult
-from .models import AppState, NotificationState
+from .models import AppState, HelpDialogState, NotificationState
 from .reducer_common import (
     ReducerFn,
     finalize,
@@ -430,6 +433,132 @@ def _handle_dismiss_about_dialog(
     )
 
 
+def _handle_dismiss_help_dialog(
+    state: AppState,
+    action: DismissHelpDialog,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    del action, reduce_state
+    return finalize(
+        replace(
+            state,
+            ui_mode="BROWSING",
+            help_dialog=None,
+            notification=None,
+        )
+    )
+
+
+def _help_dialog_for_state(state: AppState) -> HelpDialogState:
+    if state.ui_mode == "PALETTE":
+        return _palette_help_dialog(state)
+    if state.layout_mode == "transfer":
+        return HelpDialogState(
+            title="Help: Transfer mode",
+            lines=(
+                "[ ] focus panes | j/k or arrows move | page/home/end jump",
+                "space select | a select all | c copy | x cut | v paste",
+                "y copy-to-pane | m move-to-pane | d trash | r rename | z undo",
+                "b bookmarks | H history | G go to path | . hidden | : palette",
+                "N new directory | o/w tabs | p or esc close transfer | q quit",
+            ),
+        )
+    if is_search_workspace_path(state.current_path):
+        return HelpDialogState(
+            title="Help: Search workspace",
+            lines=(
+                "enter open | e editor | O GUI editor | i attributes",
+                "j/k or arrows move | page/home/end jump | / filter | s sort",
+                "space select | c copy | C copy path | . hidden | z undo",
+                "[ back | ] forward | H history | b bookmarks | G go to path",
+                ": palette | ? help | q quit",
+            ),
+        )
+    split_terminal_hint = " | t terminal" if is_split_terminal_supported() else ""
+    return HelpDialogState(
+        title="Help: Browser",
+        lines=(
+            "enter open | h/l or arrows navigate | j/k or arrows move",
+            "space select | a select all | c copy | x cut | v paste",
+            "d trash | D permanent delete | r rename | n file | N directory",
+            f"f find | g grep | / filter | s sort | . hidden{split_terminal_hint}",
+            "e editor | O GUI editor | i attributes | C copy path | M file manager",
+            "[ back | ] forward | H history | b bookmarks | B bookmark | G go to path",
+            "o/w tabs | tab/shift+tab switch tabs | p transfer | : palette | ? help | q quit",
+        ),
+    )
+
+
+def _palette_help_dialog(state: AppState) -> HelpDialogState:
+    source = state.command_palette.source if state.command_palette is not None else "commands"
+    source_titles = {
+        "commands": "Command palette",
+        "file_search": "File search",
+        "grep_search": "Grep search",
+        "history": "History search",
+        "bookmarks": "Bookmarks",
+        "go_to_path": "Go to path",
+        "replace_text": "Replace text",
+        "replace_in_found_files": "Find and replace",
+        "replace_in_grep_files": "Grep and replace",
+        "grep_replace_selected": "Grep and replace selected files",
+        "selected_files_grep": "Selected-files grep",
+    }
+    if source == "go_to_path":
+        lines = (
+            "type path | tab complete selected candidate",
+            "up/down or ctrl+j/k select | page/home/end jump",
+            "enter jump | esc cancel | ? help",
+        )
+    elif source in {"file_search", "grep_search", "selected_files_grep"}:
+        lines = (
+            "type search text | up/down or ctrl+j/k select | page/home/end jump",
+            "enter jump | ctrl+e editor | ctrl+o GUI editor",
+            "ctrl+w workspace for file search | ctrl+x export grep results",
+            "esc cancel | ? help",
+        )
+    elif source in {
+        "replace_text",
+        "replace_in_found_files",
+        "replace_in_grep_files",
+        "grep_replace_selected",
+    }:
+        lines = (
+            "type values | tab/shift+tab switch fields",
+            "up/down or ctrl+j/k select preview | page/home/end jump",
+            "enter apply | ctrl+x export grep results where available",
+            "esc cancel | ? help",
+        )
+    else:
+        lines = (
+            "type to filter commands | up/down or ctrl+j/k select",
+            "page/home/end jump | enter run selected command",
+            "shortcuts shown at right can also be used outside the palette",
+            "esc cancel | ? help",
+        )
+    return HelpDialogState(
+        title=f"Help: {source_titles.get(source, 'Palette')}",
+        lines=lines,
+    )
+
+
+def _handle_show_help(
+    state: AppState,
+    action: ShowHelp,
+    reduce_state: ReducerFn,
+) -> ReduceResult:
+    del action, reduce_state
+    return finalize(
+        replace(
+            state,
+            ui_mode="HELP",
+            notification=None,
+            command_palette=None,
+            help_dialog=_help_dialog_for_state(state),
+        )
+    )
+
+
 def _handle_show_about(
     state: AppState,
     action: ShowAbout,
@@ -529,8 +658,10 @@ _PALETTE_HANDLERS: dict[type[Action], _PaletteHandler] = {
     BeginGoToPath: _handle_begin_go_to_path,
     CancelCommandPalette: _handle_cancel_command_palette,
     DismissAboutDialog: _handle_dismiss_about_dialog,
+    DismissHelpDialog: _handle_dismiss_help_dialog,
     DismissAttributeDialog: _handle_dismiss_attribute_dialog,
     ShowAbout: _handle_show_about,
+    ShowHelp: _handle_show_help,
     ShowAttributes: _handle_show_attributes,
     MoveCommandPaletteCursor: lambda s, a, r: _handle_move_palette_cursor(s, a),
     SetCommandPaletteQuery: lambda s, a, r: _handle_set_palette_query(s, a),

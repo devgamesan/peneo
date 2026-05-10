@@ -10,6 +10,9 @@ test_command_palette_enables_undo_item_when_stack_is_present = (
 test_command_palette_includes_undo_item_and_disables_when_empty = (
     cases.test_command_palette_includes_undo_item_and_disables_when_empty
 )
+test_command_palette_items_for_search_workspace_are_limited_to_safe_actions = (
+    cases.test_command_palette_items_for_search_workspace_are_limited_to_safe_actions
+)
 test_select_command_palette_state_disables_select_all_without_visible_entries = (
     cases.test_select_command_palette_state_disables_select_all_without_visible_entries
 )

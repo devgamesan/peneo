@@ -183,6 +183,11 @@ class DismissAboutDialog:
 
 
 @dataclass(frozen=True)
+class DismissHelpDialog:
+    """Dismiss the contextual help dialog."""
+
+
+@dataclass(frozen=True)
 class DismissAttributeDialog:
     """Dismiss the pending read-only attribute dialog."""
 

@@ -79,6 +79,7 @@ from zivo.state.actions import (
     SetFilterQuery,
     SetNotification,
     SetSort,
+    ShowHelp,
     ToggleSelection,
     ToggleTransferMode,
 )
@@ -1303,13 +1304,13 @@ def test_select_help_bar_defaults_to_browsing_shortcuts() -> None:
         "enter open | e edit | O gui editor | i info | "
         "/ filter | s sort | . hidden | [ ] bk/fwd | q quit",
         "space select | c copy | x cut | v paste | d delete | r rename | z undo | ctrl+j/k prv",
-        f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette",
+        f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette | ? help",
     )
     assert help_state.text == (
         "enter open | e edit | O gui editor | i info | "
         "/ filter | s sort | . hidden | [ ] bk/fwd | q quit\n"
         "space select | c copy | x cut | v paste | d delete | r rename | z undo | ctrl+j/k prv\n"
-        f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette"
+        f"f find | g grep | n new-file | N new-dir{split_terminal_hint} | : palette | ? help"
     )
 
 
@@ -1322,7 +1323,7 @@ def test_select_help_bar_for_search_workspace_shows_available_actions_only() -> 
         "enter open | e edit | O gui editor | i info | "
         "/ filter | s sort | . hidden | [ ] bk/fwd | q quit",
         "space select | c copy | z undo | ctrl+j/k prv",
-        ": palette",
+        ": palette | ? help",
     )
     assert "x cut" not in help_state.text
     assert "d delete" not in help_state.text
@@ -1337,12 +1338,12 @@ def test_select_help_bar_for_transfer_mode_prioritizes_transfer_actions() -> Non
     assert help_state.lines == (
         "[ ] focus | y copy-to-pane | m move-to-pane | p/Esc close | q quit",
         "Space select | c copy | x cut | v paste | d delete | r rename | z undo",
-        ". hidden | N new-dir | : palette",
+                ". hidden | N new-dir | : palette | ? help",
     )
     assert help_state.text == (
         "[ ] focus | y copy-to-pane | m move-to-pane | p/Esc close | q quit\n"
         "Space select | c copy | x cut | v paste | d delete | r rename | z undo\n"
-        ". hidden | N new-dir | : palette"
+        ". hidden | N new-dir | : palette | ? help"
     )
 
 
@@ -1423,6 +1424,7 @@ def test_command_palette_items_for_search_workspace_are_limited_to_safe_actions(
     assert "Copy path" in labels
     assert "Show hidden files" in labels
     assert "About zivo" in labels
+    assert "Show help" in labels
     assert "Edit config" in labels
 
     assert "Find files" not in labels
@@ -1749,8 +1751,42 @@ def test_select_help_bar_state_for_command_palette() -> None:
     help_bar = select_help_bar_state(state)
 
     assert help_bar.lines == (
-        "type command | ↑↓ or Ctrl+j/k select | enter run | esc cancel",
+        "type command | ↑↓ or Ctrl+j/k select | enter run | ? help | esc cancel",
     )
+
+
+def test_select_help_bar_state_for_help_dialog() -> None:
+    state = _reduce_state(build_initial_app_state(), ShowHelp())
+
+    help_bar = select_help_bar_state(state)
+
+    assert help_bar.lines == ("enter close | esc close",)
+
+
+def test_select_help_dialog_state_for_browser_mode() -> None:
+    state = _reduce_state(build_initial_app_state(), ShowHelp())
+
+    dialog = select_attribute_dialog_state(state)
+
+    assert dialog is not None
+    assert dialog.title == "Help: Browser"
+    assert any("? help" in line for line in dialog.lines)
+    assert any(": palette" in line for line in dialog.lines)
+
+
+def test_select_help_dialog_state_for_palette_mode() -> None:
+    state = replace(
+        build_initial_app_state(),
+        ui_mode="PALETTE",
+        command_palette=CommandPaletteState(source="grep_search"),
+    )
+    state = _reduce_state(state, ShowHelp())
+
+    dialog = select_attribute_dialog_state(state)
+
+    assert dialog is not None
+    assert dialog.title == "Help: Grep search"
+    assert "ctrl+x export grep results" in "\n".join(dialog.lines)
 
 
 def test_select_help_bar_state_for_config_editor() -> None:

@@ -27,6 +27,7 @@ UiMode = Literal[
     "ABOUT",
     "BROWSING",
     "FILTER",
+    "HELP",
     "CHMOD",
     "CHOWN",
     "RENAME",
@@ -310,6 +311,14 @@ class NotificationState:
 
     level: NotificationLevel
     message: str
+
+
+@dataclass(frozen=True)
+class HelpDialogState:
+    """Contextual help content captured when help is opened."""
+
+    title: str
+    lines: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -629,6 +638,7 @@ class AppState:
     replace_confirmation: ReplaceConfirmationState | None = None
     custom_action_confirmation: CustomActionConfirmationState | None = None
     attribute_inspection: AttributeInspectionState | None = None
+    help_dialog: HelpDialogState | None = None
     config_editor: ConfigEditorState | None = None
     grep_export_dialog: GrepExportDialogState | None = None
     shell_command: ShellCommandState | None = None

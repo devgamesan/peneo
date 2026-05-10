@@ -670,6 +670,14 @@ def test_browsing_colon_opens_command_palette() -> None:
     assert actions == (SetNotification(None), BeginCommandPalette())
 
 
+def test_browsing_question_mark_opens_contextual_help() -> None:
+    state = build_initial_app_state()
+
+    actions = dispatch_key_input(state, key="?", character="?")
+
+    assert actions == (SetNotification(None), ShowHelp())
+
+
 
 
 def test_browsing_o_opens_new_tab() -> None:

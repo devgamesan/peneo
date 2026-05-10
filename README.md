@@ -108,6 +108,7 @@ You can also press `:` to open the command palette and search for available acti
 | `Backspace` / `←` | Go to parent directory |
 | `Space` | Toggle selection |
 | `:` | Open command palette |
+| `?` | Show contextual help |
 | `/` | Filter entries |
 | `f` | Find files |
 | `g` | Grep search |
