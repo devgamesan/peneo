@@ -283,18 +283,18 @@ def _run_change_permissions_command(
     next_state: AppState,
     reduce_state: ReducerFn,
 ) -> ReduceResult:
-    target_path = (
-        _transfer_single_target_path(state)
+    target_paths = (
+        _transfer_target_paths(state)
         if state.layout_mode == "transfer"
-        else single_target_path(state)
+        else select_target_paths(state)
     )
-    if target_path is None:
+    if not target_paths:
         return notify(
             next_state,
             level="warning",
-            message="Change permissions requires a single target",
+            message="Change permissions requires at least one target",
         )
-    return reduce_state(next_state, BeginChmodInput(path=target_path))
+    return reduce_state(next_state, BeginChmodInput(paths=target_paths))
 
 
 def _run_change_permissions_recursively_command(

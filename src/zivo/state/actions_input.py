@@ -29,9 +29,9 @@ class BeginRenameInput:
 
 @dataclass(frozen=True)
 class BeginChmodInput:
-    """Enter chmod input mode for a single path."""
+    """Enter chmod input mode for one or more paths."""
 
-    path: str
+    paths: tuple[str, ...]
 
 
 @dataclass(frozen=True)

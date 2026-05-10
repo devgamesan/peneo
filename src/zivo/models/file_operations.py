@@ -129,9 +129,9 @@ class DeleteRequest:
 
 @dataclass(frozen=True)
 class ChmodRequest:
-    """A request to change the permission bits for a single path."""
+    """A request to change the permission bits for one or more paths."""
 
-    path: str
+    paths: tuple[str, ...]
     mode: int
 
 

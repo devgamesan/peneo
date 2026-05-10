@@ -321,6 +321,7 @@ class PendingInputState:
     target_path: str | None = None
     chmod_target_path: str | None = None
     chmod_target_paths: tuple[str, ...] | None = None
+    chmod_recursive: bool = False
     create_kind: CreateKind | None = None
     extract_source_path: str | None = None
     zip_source_paths: tuple[str, ...] | None = None

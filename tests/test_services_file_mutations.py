@@ -192,7 +192,7 @@ def test_file_mutation_service_changes_permissions() -> None:
     adapter = StubFileOperationAdapter()
     service = LiveFileMutationService(adapter=adapter)
 
-    result = service.execute(ChmodRequest(path="/tmp/zivo/run.sh", mode=0o755))
+    result = service.execute(ChmodRequest(paths=("/tmp/zivo/run.sh",), mode=0o755))
 
     assert adapter.changed_permissions == [(_absolute("/tmp/zivo/run.sh"), 0o755)]
     assert result.path == _absolute("/tmp/zivo/run.sh")
@@ -204,8 +204,38 @@ def test_file_mutation_service_raises_chmod_error() -> None:
     adapter = StubFileOperationAdapter(failing_paths={_absolute("/tmp/zivo/run.sh")})
     service = LiveFileMutationService(adapter=adapter)
 
-    with pytest.raises(OSError, match="chmod failed"):
-        service.execute(ChmodRequest(path="/tmp/zivo/run.sh", mode=0o755))
+    with pytest.raises(OSError, match="Failed to change permissions for run.sh: chmod failed"):
+        service.execute(ChmodRequest(paths=("/tmp/zivo/run.sh",), mode=0o755))
+
+
+def test_file_mutation_service_changes_permissions_for_multiple_paths() -> None:
+    adapter = StubFileOperationAdapter()
+    service = LiveFileMutationService(adapter=adapter)
+
+    result = service.execute(
+        ChmodRequest(paths=("/tmp/zivo/run.sh", "/tmp/zivo/build.sh"), mode=0o755)
+    )
+
+    assert adapter.changed_permissions == [
+        (_absolute("/tmp/zivo/run.sh"), 0o755),
+        (_absolute("/tmp/zivo/build.sh"), 0o755),
+    ]
+    assert result.path is None
+    assert result.message == "Changed permissions to 755 for 2 items"
+    assert result.operation == "chmod"
+
+
+def test_file_mutation_service_chmod_reports_partial_failures() -> None:
+    adapter = StubFileOperationAdapter(failing_paths={_absolute("/tmp/zivo/build.sh")})
+    service = LiveFileMutationService(adapter=adapter)
+
+    result = service.execute(
+        ChmodRequest(paths=("/tmp/zivo/run.sh", "/tmp/zivo/build.sh"), mode=0o755)
+    )
+
+    assert adapter.changed_permissions == [(_absolute("/tmp/zivo/run.sh"), 0o755)]
+    assert result.level == "warning"
+    assert result.message == "Changed permissions to 755 for 1/2 items with 1 failure(s)"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="chmod is not supported on native Windows")
